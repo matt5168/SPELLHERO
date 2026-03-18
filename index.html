@@ -192,7 +192,7 @@
         };
 
         // 💡 調整取鑰邏輯，讀取時自動解碼
-        const getGeminiKey = () => Obfuscator.decode(localStorage.getItem('gemini_api_key')) || "AIzaSyA5iFhm6EFdN3JK1Cx6SZ1z4VvzhmyFZ5w";
+        const getGeminiKey = () => Obfuscator.decode(localStorage.getItem('gemini_api_key')) || "";
         const getOpenRouterKey = () => Obfuscator.decode(localStorage.getItem('openrouter_api_key')) || "";
         const getGroqKey = () => Obfuscator.decode(localStorage.getItem('groq_api_key')) || "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";
         const getOpenAITtsKey = () => Obfuscator.decode(localStorage.getItem('sh_openai_tts_key')) || "";
