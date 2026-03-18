@@ -163,7 +163,7 @@
 
         const escapeRegExp = str => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-        // 💡 新增：輕量級防護模組 (Obfuscator) - 負責處理 XOR + Base64 混淆
+        // 💡 輕量級防護模組 (Obfuscator)
         const Obfuscator = {
             prefix: "SH_ENC:",
             salt: "SpellingHero2026",
@@ -191,7 +191,7 @@
             }
         };
 
-        // 💡 調整取鑰邏輯，讀取時自動解碼
+        // 💡 徹底拔除所有硬編碼預設值！
         const getGeminiKey = () => Obfuscator.decode(localStorage.getItem('gemini_api_key')) || "";
         const getOpenRouterKey = () => Obfuscator.decode(localStorage.getItem('openrouter_api_key')) || "";
         const getGroqKey = () => Obfuscator.decode(localStorage.getItem('groq_api_key')) || "";
@@ -265,7 +265,7 @@
                                         const data = JSON.parse(line.slice(6)); 
                                         if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) { 
                                             fullText += data.candidates[0].content.parts[0].text; 
-                                            if(onChunk) onChunk(fullText, modelName); 
+                                            if(onChunk) onChunk(modelName); 
                                         } 
                                     } catch(e) {} 
                                 } 
@@ -450,16 +450,15 @@
           const [alertMessage, setAlertMessage] = useState(""); const [streamCount, setStreamCount] = useState(0); 
           
           const [uiLayout, setUiLayout] = useState(localStorage.getItem('sh_ui_layout') || 'layout1');
-          
           const [ttsEngine, setTtsEngine] = useState(localStorage.getItem('sh_tts_engine') || 'native');
           
-          // 💡 讀取狀態時自動進行解碼
+          // 💡 完全拔除 Hardcoded 的預設金鑰！
           const [openAITtsKey, setOpenAITtsKey] = useState(getOpenAITtsKey() || '');
           const [openAITtsVoice, setOpenAITtsVoice] = useState(localStorage.getItem('sh_openai_tts_voice') || 'nova');
-          const [inputKey, setInputKey] = useState(getGeminiKey() === "AIzaSyA5iFhm6EFdN3JK1Cx6SZ1z4VvzhmyFZ5w" ? "" : getGeminiKey());
-          const [inputOrKey, setInputOrKey] = useState(getOpenRouterKey() === "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" ? "" : getOpenRouterKey());
+          const [inputKey, setInputKey] = useState(getGeminiKey() || '');
+          const [inputOrKey, setInputOrKey] = useState(getOpenRouterKey() || '');
           const [openRouterModel, setOpenRouterModel] = useState(localStorage.getItem('sh_or_model') || 'openrouter/auto');
-          const [inputGroqKey, setInputGroqKey] = useState(getGroqKey() === "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" ? "" : getGroqKey());
+          const [inputGroqKey, setInputGroqKey] = useState(getGroqKey() || '');
           const [groqModel, setGroqModel] = useState(localStorage.getItem('sh_groq_model') || 'llama-3.3-70b-versatile');
           
           const [apiUsage, setApiUsage] = useState({ date: new Date().toLocaleDateString(), openRouter: 0, gemini: 0, groq: 0 });
@@ -1564,12 +1563,9 @@
                         <div className={`flex w-full items-start md:items-center justify-between mb-4 border-b-2 border-[#ebe6df] pb-3 relative z-10 text-[#524d46] gap-2 flex-wrap`}>
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-black text-xs flex-shrink-0 ${q.isAI ? 'bg-[#cca677]' : (isReview ? 'bg-[#b5847e]' : 'bg-[#8b9586]')}`}>{i+1}</div>
                           <div className="flex flex-wrap gap-2 flex-1 justify-end">
+                              {/* 💡 題目右上角顯示真實模型名稱 */}
                               {q.isAI && <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#a68258] bg-[#f4ebd9] px-2 py-1 rounded-lg border border-[#e0c9aa] shadow-sm"><Sparkles size={14}/> {q.modelName || 'AI MODEL'}</div>}
                               {!q.isAI && <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#8a847c] bg-[#ebe6df] px-2 py-1 rounded-lg border border-[#d6cfc5] shadow-sm"><BookOpen size={14}/> OFFLINE</div>}
-                              
-                              <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className="px-3 py-1.5 md:px-4 md:py-2 bg-[#e6e9e4] text-[#6b7566] rounded-xl active:scale-95 border border-[#c4cec1] flex items-center gap-1.5 font-bold text-sm shadow-sm transition-all hover:bg-[#d5dcd3]">
-                                  <Megaphone size={18}/> <span>英文語音</span>
-                              </button>
                           </div>
                         </div>
 
