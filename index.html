@@ -193,7 +193,7 @@
 
         // 💡 調整取鑰邏輯，讀取時自動解碼
         const getGeminiKey = () => Obfuscator.decode(localStorage.getItem('gemini_api_key')) || "AIzaSyA5iFhm6EFdN3JK1Cx6SZ1z4VvzhmyFZ5w";
-        const getOpenRouterKey = () => Obfuscator.decode(localStorage.getItem('openrouter_api_key')) || "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";
+        const getOpenRouterKey = () => Obfuscator.decode(localStorage.getItem('openrouter_api_key')) || "";
         const getGroqKey = () => Obfuscator.decode(localStorage.getItem('groq_api_key')) || "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";
         const getOpenAITtsKey = () => Obfuscator.decode(localStorage.getItem('sh_openai_tts_key')) || "";
 
