@@ -163,12 +163,46 @@
 
         const escapeRegExp = str => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-        const getGeminiKey = () => localStorage.getItem('gemini_api_key') || "AIzaSyA5iFhm6EFdN3JK1Cx6SZ1z4VvzhmyFZ5w";
-        const getOpenRouterKey = () => localStorage.getItem('openrouter_api_key') || "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";
-        const getGroqKey = () => localStorage.getItem('groq_api_key') || "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";
+        // 💡 新增：輕量級防護模組 (Obfuscator) - 負責處理 XOR + Base64 混淆
+        const Obfuscator = {
+            prefix: "SH_ENC:",
+            salt: "SpellingHero2026",
+            encode: function(str) {
+                if (!str) return "";
+                if (str.startsWith(this.prefix)) return str;
+                let xorStr = "";
+                for (let i = 0; i < str.length; i++) {
+                    xorStr += String.fromCharCode(str.charCodeAt(i) ^ this.salt.charCodeAt(i % this.salt.length));
+                }
+                return this.prefix + btoa(xorStr);
+            },
+            decode: function(str) {
+                if (!str) return "";
+                if (!str.startsWith(this.prefix)) return str; // 舊版明文向下相容
+                try {
+                    let b64 = str.substring(this.prefix.length);
+                    let xorStr = atob(b64);
+                    let result = "";
+                    for (let i = 0; i < xorStr.length; i++) {
+                        result += String.fromCharCode(xorStr.charCodeAt(i) ^ this.salt.charCodeAt(i % this.salt.length));
+                    }
+                    return result;
+                } catch(e) { return str; } // 若解碼失敗回傳原字串
+            }
+        };
+
+        // 💡 調整取鑰邏輯，讀取時自動解碼
+        const getGeminiKey = () => Obfuscator.decode(localStorage.getItem('gemini_api_key')) || "AIzaSyA5iFhm6EFdN3JK1Cx6SZ1z4VvzhmyFZ5w";
+        const getOpenRouterKey = () => Obfuscator.decode(localStorage.getItem('openrouter_api_key')) || "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";
+        const getGroqKey = () => Obfuscator.decode(localStorage.getItem('groq_api_key')) || "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";
+        const getOpenAITtsKey = () => Obfuscator.decode(localStorage.getItem('sh_openai_tts_key')) || "";
 
         class PersistentAIClient {
-            constructor() { this.geminiKey = getGeminiKey(); this.openRouterKey = getOpenRouterKey(); this.groqKey = getGroqKey(); }
+            constructor() { 
+                this.geminiKey = getGeminiKey(); 
+                this.openRouterKey = getOpenRouterKey(); 
+                this.groqKey = getGroqKey(); 
+            }
             updateKeys(gKey, oKey, grKey) { if (gKey) this.geminiKey = gKey; if (oKey) this.openRouterKey = oKey; if (grKey) this.groqKey = grKey; }
             async checkAvailableModels(signal) { let bg = "gemini-1.5-flash"; try { const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?key=" + this.geminiKey, signal ? {signal} : {}); if (res.ok) { const data = await res.json(); const vm = (data.models || []).filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent')).map(m => m.name.replace('models/', '')); if (vm.indexOf('gemini-2.5-flash') !== -1) bg = 'gemini-2.5-flash'; else if (vm.indexOf('gemini-1.5-pro') !== -1) bg = 'gemini-1.5-pro'; else if (vm.indexOf('gemini-1.5-flash') !== -1) bg = 'gemini-1.5-flash'; else if (vm.indexOf('gemini-pro') !== -1) bg = 'gemini-pro'; } } catch (e) {} return { gemini: bg }; }
             
@@ -417,10 +451,16 @@
           
           const [uiLayout, setUiLayout] = useState(localStorage.getItem('sh_ui_layout') || 'layout1');
           
-          // 💡 新增：雙軌語音引擎狀態
           const [ttsEngine, setTtsEngine] = useState(localStorage.getItem('sh_tts_engine') || 'native');
-          const [openAITtsKey, setOpenAITtsKey] = useState(localStorage.getItem('sh_openai_tts_key') || '');
+          
+          // 💡 讀取狀態時自動進行解碼
+          const [openAITtsKey, setOpenAITtsKey] = useState(getOpenAITtsKey() || '');
           const [openAITtsVoice, setOpenAITtsVoice] = useState(localStorage.getItem('sh_openai_tts_voice') || 'nova');
+          const [inputKey, setInputKey] = useState(getGeminiKey() === "AIzaSyA5iFhm6EFdN3JK1Cx6SZ1z4VvzhmyFZ5w" ? "" : getGeminiKey());
+          const [inputOrKey, setInputOrKey] = useState(getOpenRouterKey() === "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" ? "" : getOpenRouterKey());
+          const [openRouterModel, setOpenRouterModel] = useState(localStorage.getItem('sh_or_model') || 'openrouter/auto');
+          const [inputGroqKey, setInputGroqKey] = useState(getGroqKey() === "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" ? "" : getGroqKey());
+          const [groqModel, setGroqModel] = useState(localStorage.getItem('sh_groq_model') || 'llama-3.3-70b-versatile');
           
           const [apiUsage, setApiUsage] = useState({ date: new Date().toLocaleDateString(), openRouter: 0, gemini: 0, groq: 0 });
           const [combo, setCombo] = useState(0); const [maxCombo, setMaxCombo] = useState(0);
@@ -428,12 +468,6 @@
           const [diagMsg, setDiagMsg] = useState(""); const [quizMode, setQuizMode] = useState('fill_in'); 
           const [aiStatus, setAiStatus] = useState("準備中..."); const [activeGeminiModel, setActiveGeminiModel] = useState("gemini-1.5-flash"); 
           const [aiModel, setAiModel] = useState("偵測中...");
-          
-          const [inputKey, setInputKey] = useState(localStorage.getItem('gemini_api_key') || "");
-          const [inputOrKey, setInputOrKey] = useState(localStorage.getItem('openrouter_api_key') || "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");
-          const [openRouterModel, setOpenRouterModel] = useState(localStorage.getItem('sh_or_model') || 'openrouter/auto');
-          const [inputGroqKey, setInputGroqKey] = useState(localStorage.getItem('groq_api_key') || "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");
-          const [groqModel, setGroqModel] = useState(localStorage.getItem('sh_groq_model') || 'llama-3.3-70b-versatile');
           
           const [aiLogs, setAiLogs] = useState(() => JSON.parse(localStorage.getItem('sh_logs') || '[]'));
           const [showLogsPanel, setShowLogsPanel] = useState(false);
@@ -463,18 +497,11 @@
           const clearLogs = () => { setAiLogs([]); try { localStorage.setItem('sh_logs', '[]'); } catch(e){} };
           const showAlert = msg => { setAlertMessage(msg); setShowFallbackAlert(true); setTimeout(() => setShowFallbackAlert(false), 4000); };
 
-          const renderFormattedText = (text) => {
-              if (!text) return null;
-              return String(text).split(/\\n|\n/).map((line, idx) => (
-                  line.trim() ? <div key={idx} className="mb-1 leading-relaxed">{line}</div> : <div key={idx} className="h-1"></div>
-              ));
-          };
-
           const runBatchModelCheck = async () => {
               setIsBenchmarking(true);
               setDiagStatus('testing');
               clearLogs();
-              addLog("🔍 啟白名單體檢程序，正在向 OpenRouter 獲取清單...");
+              addLog("🔍 啟動白名單體檢程序，正在向 OpenRouter 獲取清單...");
               
               try {
                   const fetchedModels = await sharedAIClient.fetchOpenRouterFreeModels();
@@ -544,6 +571,7 @@
                 
                 setStorage({ history: h, memory: m, stats: s, coins: c, exp: exp, level: lvl, modelVotes: mVotes }); setMistakePool(mist); setApiUsage(apiU); 
                 
+                localStorage.removeItem('sh_qpool_v32');
                 const currentPool = JSON.parse(localStorage.getItem('sh_qpool_v33') || '{}');
                 let sz = 0; Object.values(currentPool).forEach(arr => sz += arr.length);
                 setPoolStats(p => ({...p, size: sz}));
@@ -560,8 +588,21 @@
 
           useEffect(() => { sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey); }, [inputKey, inputOrKey, inputGroqKey]);
 
-          // 💡 儲存設定時加入 TTS 狀態
-          const saveCustomKey = () => { try { localStorage.setItem('gemini_api_key', inputKey); localStorage.setItem('openrouter_api_key', inputOrKey); localStorage.setItem('sh_or_model', openRouterModel); localStorage.setItem('groq_api_key', inputGroqKey); localStorage.setItem('sh_groq_model', groqModel); localStorage.setItem('sh_tts_engine', ttsEngine); localStorage.setItem('sh_openai_tts_key', openAITtsKey); localStorage.setItem('sh_openai_tts_voice', openAITtsVoice); setDiagMsg("✅ 金鑰與設定已儲存！請點擊上方按鈕測試連線。"); sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey); } catch(e) { setDiagMsg("❌ 儲存失敗，可能遇到瀏覽器隱私模式限制。"); } };
+          // 💡 儲存設定時，自動將金鑰透過 Obfuscator 進行防護編碼再存入
+          const saveCustomKey = () => { 
+              try { 
+                  localStorage.setItem('gemini_api_key', Obfuscator.encode(inputKey)); 
+                  localStorage.setItem('openrouter_api_key', Obfuscator.encode(inputOrKey)); 
+                  localStorage.setItem('sh_or_model', openRouterModel); 
+                  localStorage.setItem('groq_api_key', Obfuscator.encode(inputGroqKey)); 
+                  localStorage.setItem('sh_groq_model', groqModel); 
+                  localStorage.setItem('sh_tts_engine', ttsEngine); 
+                  localStorage.setItem('sh_openai_tts_key', Obfuscator.encode(openAITtsKey)); 
+                  localStorage.setItem('sh_openai_tts_voice', openAITtsVoice); 
+                  setDiagMsg("✅ 金鑰已安全防護並儲存！請點擊上方按鈕測試連線。"); 
+                  sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey); 
+              } catch(e) { setDiagMsg("❌ 儲存失敗，可能遇到瀏覽器隱私模式限制。"); } 
+          };
           
           const handleUiLayoutChange = layout => { setUiLayout(layout); try{ localStorage.setItem('sh_ui_layout', layout); } catch(e){} };
 
@@ -1139,7 +1180,6 @@
             setRedeemMessage("🎉 成功兌換 NT$ " + ((am/100)*10) + " 元！"); setRedeemAmount(100); SOUND_ENGINE.playCoin();
           };
 
-          // 💡 雙軌發音引擎：Native vs OpenAI TTS
           const playTTS = async (text, isS, a) => {
             if (isS === undefined) isS = true; if (a === undefined) a = '';
             const finalString = isS ? String(text).replace(/_+/g, a || '') : String(text);
@@ -1166,7 +1206,6 @@
             window.speechSynthesis.cancel(); 
             const utterance = new SpeechSynthesisUtterance(finalString);
             
-            // 💡 Voice Hunter：強化瀏覽器原生聲音選擇，優先抓取高品質聲線並微調音調
             const targetLang = config.accent === 'UK' ? 'en-GB' : 'en-US';
             utterance.lang = targetLang;
             utterance.rate = config.speed;
@@ -1352,7 +1391,6 @@
                                     </div>
                                 </div>
                                 
-                                {/* 💡 新增：發音引擎設定 UI */}
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 animate-in fade-in mt-2 border-t border-[#7a8575] pt-3">
                                     <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px] flex items-center gap-1"><Volume2 size={16}/> 發音引擎：</span>
                                     <select value={ttsEngine} onChange={e => setTtsEngine(e.target.value)} className="w-full sm:w-auto bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#c4cec1] text-white font-mono min-w-[200px]">
@@ -1374,7 +1412,6 @@
                                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3"><span className="text-[#c4cec1] font-bold text-xs whitespace-nowrap min-w-[120px]">🔑 Groq Key：</span><input type="password" value={inputGroqKey} onChange={e => setInputGroqKey(e.target.value)} placeholder="gsk_..." className="flex-1 w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs outline-none focus:border-[#c4cec1] text-white placeholder-[#6b655f] font-mono tracking-widest"/></div>
                                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3"><span className="text-[#c4cec1] font-bold text-xs whitespace-nowrap min-w-[120px]">🔑 OR Key：</span><input type="password" value={inputOrKey} onChange={e => setInputOrKey(e.target.value)} placeholder="sk-or-..." className="flex-1 w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs outline-none focus:border-[#c4cec1] text-white placeholder-[#6b655f] font-mono tracking-widest"/></div>
                                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3"><span className="text-[#c4cec1] font-bold text-xs whitespace-nowrap min-w-[120px]">🔑 Gemini Key：</span><input type="password" value={inputKey} onChange={e => setInputKey(e.target.value)} placeholder="AIza..." className="flex-1 w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs outline-none focus:border-[#c4cec1] text-white placeholder-[#6b655f] font-mono tracking-widest"/></div>
-                                    {/* 💡 新增 OpenAI API Key 欄位 */}
                                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3"><span className="text-[#c4cec1] font-bold text-xs whitespace-nowrap min-w-[120px]">🔑 OpenAI Key：</span><input type="password" value={openAITtsKey} onChange={e => setOpenAITtsKey(e.target.value)} placeholder="sk-proj-..." className="flex-1 w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs outline-none focus:border-[#cca677] text-white placeholder-[#6b655f] font-mono tracking-widest"/></div>
                                 </div>
                                 <button onClick={saveCustomKey} className="self-end w-full sm:w-auto bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-6 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-sm active:scale-95 mt-2">💾 儲存金鑰與設定</button>
@@ -1529,6 +1566,10 @@
                           <div className="flex flex-wrap gap-2 flex-1 justify-end">
                               {q.isAI && <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#a68258] bg-[#f4ebd9] px-2 py-1 rounded-lg border border-[#e0c9aa] shadow-sm"><Sparkles size={14}/> {q.modelName || 'AI MODEL'}</div>}
                               {!q.isAI && <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#8a847c] bg-[#ebe6df] px-2 py-1 rounded-lg border border-[#d6cfc5] shadow-sm"><BookOpen size={14}/> OFFLINE</div>}
+                              
+                              <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className="px-3 py-1.5 md:px-4 md:py-2 bg-[#e6e9e4] text-[#6b7566] rounded-xl active:scale-95 border border-[#c4cec1] flex items-center gap-1.5 font-bold text-sm shadow-sm transition-all hover:bg-[#d5dcd3]">
+                                  <Megaphone size={18}/> <span>英文語音</span>
+                              </button>
                           </div>
                         </div>
 
