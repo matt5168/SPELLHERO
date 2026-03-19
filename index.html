@@ -692,8 +692,15 @@ const renderFormattedText = (text) => {
                 let sz = 0; Object.values(currentPool).forEach(arr => sz += arr.length);
                 setPoolStats(p => ({...p, size: sz}));
 
-                sharedAIClient.updateKeys(inputKey || getGeminiKey(), inputOrKey || getOpenRouterKey(), inputGroqKey || getGroqKey());
-                sharedAIClient.checkAvailableModels().then(res => { if (res && res.gemini) { setActiveGeminiModel(res.gemini); } });
+sharedAIClient.updateKeys(inputKey || getGeminiKey(), inputOrKey || getOpenRouterKey(), inputGroqKey || getGroqKey());
+    
+    // 💡 配合快取機制，不再無腦發 API
+    const todayStr = new Date().toLocaleDateString();
+    if (localStorage.getItem('sh_gemini_model_cache') && localStorage.getItem('sh_gemini_model_cache_date') === todayStr) {
+        setActiveGeminiModel(localStorage.getItem('sh_gemini_model_cache'));
+    } else {
+        sharedAIClient.checkAvailableModels().then(res => { if (res && res.gemini) { setActiveGeminiModel(res.gemini); } });
+    }
                 
                 if(freeModels.length === 0) {
                      setFreeModels(['meta-llama/llama-3.1-8b-instruct:free', 'deepseek/deepseek-chat:free']);
@@ -1244,11 +1251,12 @@ const runSingleDiag = async (provider) => {
                       }
                   };
                   
-                  const getRankedProviders = () => {
-                      const p = ['groq', 'google', 'openrouter'];
-                      const v = storage.modelVotes || {};
-                      return p.sort((a, b) => (v[b] || 0) - (v[a] || 0));
-                  };
+const getRankedProviders = () => {
+    // 💡 3. 將 google 移到最後，保護 Gemini 額度
+    const p = ['groq', 'openrouter', 'google'];
+    const v = storage.modelVotes || {};
+    return p.sort((a, b) => (v[b] || 0) - (v[a] || 0));
+};
                   
                   let providersToTry = getRankedProviders();
                   
@@ -1403,7 +1411,7 @@ const runSingleDiag = async (provider) => {
               
               <nav className="bg-[#ebe6df] p-2 md:p-3 shadow-sm sticky top-0 z-[150] border-b border-[#d6cfc5] flex justify-center">
                   <div className="max-w-4xl w-full flex gap-2">
-                      <button onClick={() => handleMainMenuChange('vocab')} disabled={isGenerating && !ready} className={`flex-1 py-2 md:py-3 rounded-xl font-bold text-xs md:text-sm transition-all shadow-sm flex flex-col items-center justify-center gap-1 ${(isGenerating && !ready) ? 'opacity-50 cursor-not-allowed' : ''} ${mainMenu === 'vocab' && !isReview ? 'bg-[#8b9586] text-white border border-[#7a8575]' : 'bg-[#f4f1ea] text-[#7a8575] border border-[#d6cfc5] hover:bg-[#e6e9e4]'}`}>
+                      <button onClick={() => handleMainMenuChange('vocab')} disabled={isGenerating} className={`flex-1 py-2 md:py-3 rounded-xl font-bold text-xs md:text-sm transition-all shadow-sm flex flex-col items-center justify-center gap-1 ${(isGenerating && !ready) ? 'opacity-50 cursor-not-allowed' : ''} ${mainMenu === 'vocab' && !isReview ? 'bg-[#8b9586] text-white border border-[#7a8575]' : 'bg-[#f4f1ea] text-[#7a8575] border border-[#d6cfc5] hover:bg-[#e6e9e4]'}`}>
                           <div className="flex items-center gap-1"><Sparkles size={14}/> 開始單字測驗</div>
                       </button>
                       <button onClick={() => handleMainMenuChange('grammar')} disabled={isGenerating && !ready} className={`flex-1 py-2 md:py-3 rounded-xl font-bold text-xs md:text-sm transition-all shadow-sm flex flex-col items-center justify-center gap-1 ${(isGenerating && !ready) ? 'opacity-50 cursor-not-allowed' : ''} ${mainMenu === 'grammar' && !isReview ? 'bg-[#968b95] text-white border border-[#7f7680]' : 'bg-[#f4f1ea] text-[#857b84] border border-[#d6cfc5] hover:bg-[#e6e9e4]'}`}>
