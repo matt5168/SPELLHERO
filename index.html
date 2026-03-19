@@ -561,13 +561,21 @@
           };
           // ===== END =====
 
+          const logScrollRef = useRef(null);
           const addLog = msg => {
               setAiLogs(p => {
                   const newLogs = [...p, "[" + new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) + "] " + msg].slice(-40);
                   try { localStorage.setItem('sh_logs', JSON.stringify(newLogs)); } catch(e){}
+                  // 即時捲動到底部
+                  setTimeout(() => {
+                      if (logScrollRef.current) {
+                          logScrollRef.current.scrollTop = logScrollRef.current.scrollHeight;
+                      }
+                  }, 30);
                   return newLogs;
               });
           };
+
           const clearLogs = () => { setAiLogs([]); try { localStorage.setItem('sh_logs', '[]'); } catch(e){} };
           const showAlert = msg => { setAlertMessage(msg); setShowFallbackAlert(true); setTimeout(() => setShowFallbackAlert(false), 4000); };
 
@@ -707,6 +715,36 @@
           };
 
           const handleModeChange = newMode => { setVocabMode(newMode); setQuestions([]); setReady(false); readyRef.current = false; overrideTriggeredRef.current = {}; };
+          const runSingleDiag = async (provider) => {
+            setDiagStatus('testing');
+            setDiagMsg(`正在測試 ${provider.toUpperCase()} 連線...`);
+            clearLogs();
+            const testMsg = 'Reply with exact JSON only: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["a","b","c","d"]}]}';
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 20000);
+            try {
+                let result = null;
+                if (provider === 'groq') {
+                    result = await sharedAIClient.callGroq("You are a diagnostic tool.", testMsg, controller.signal, () => {}, addLog, groqModel, 'micro');
+                } else if (provider === 'google') {
+                    result = await sharedAIClient.callGemini(activeGeminiModel, "You are a diagnostic tool.", testMsg, controller.signal, () => {}, addLog, 'micro');
+                } else if (provider === 'openrouter') {
+                    result = await sharedAIClient.callOpenRouter("You are a diagnostic tool.", testMsg, controller.signal, () => {}, addLog, openRouterModel, 'micro', freeModels);
+                }
+                clearTimeout(timeoutId);
+                setAiModel(result.modelName);
+                setDiagStatus('success');
+                setDiagMsg(`✅ ${provider.toUpperCase()} 連線成功！模型：${result.modelName}`);
+                setShowLogsPanel(true);
+            } catch(e) {
+                clearTimeout(timeoutId);
+                const errMsg = e.message === 'TIMEOUT_TTFT' ? '首字元超時 (TTFT 超過限制)' : e.message;
+                setDiagStatus('error');
+                setDiagMsg(`❌ ${provider.toUpperCase()} 連線失敗：${errMsg}`);
+                setShowLogsPanel(true);
+            }
+          };
+
 
           const runDiagnostic = async () => {
             setDiagStatus('testing'); setDiagMsg(`正在測試智慧三重備援連線...`); clearLogs(); setStreamCount(0);
@@ -990,7 +1028,7 @@
                             return { ...res, provider };
                         };
 
-                        const genProvidersToTry = ['groq', 'google', 'openrouter'];
+                        const genProvidersToTry = ['groq', 'openrouter', 'google'];
 
                         let result = null;
                         let lastError = null;
@@ -1373,7 +1411,7 @@
                             <div className="flex items-center gap-2 bg-[#1c1917] px-3 py-1.5 rounded-lg border border-[#57534e]"><BrainCircuit size={16} className="text-[#cca677]" /><span className="text-xs md:text-sm text-[#d9cfbb] font-mono tracking-wider">{displayModelName}</span></div>
                         </div>
                         
-                        <div className="bg-[#1c1917] p-4 rounded-xl text-[11px] md:text-xs text-[#9BAA97] font-mono text-left h-40 md:h-48 overflow-y-auto shadow-inner border border-[#3d3935] flex flex-col gap-1.5 terminal-scroll">
+                        <div ref={logScrollRef} className="bg-[#1c1917] p-4 rounded-xl text-[11px] md:text-xs text-[#9BAA97] font-mono text-left h-40 md:h-48 overflow-y-auto shadow-inner border border-[#3d3935] flex flex-col gap-1.5 terminal-scroll">
                             {aiLogs.map((log, idx) => (
                                 <div key={idx} className="opacity-90 break-words leading-relaxed">
                                     {log.indexOf('[錯誤]') !== -1 || log.indexOf('[超時]') !== -1 || log.indexOf('[異常]') !== -1 || log.indexOf('[連線失敗]') !== -1 || log.indexOf('❌') !== -1 ? <span className="text-[#b5847e] font-bold">{log}</span> : log.indexOf('[成功]') !== -1 || log.indexOf('[完成]') !== -1 || log.indexOf('[接收完成]') !== -1 || log.indexOf('[快取攔截]') !== -1 || log.indexOf('✅') !== -1 ? <span className="text-[#8b9586] font-bold">{log}</span> : log.indexOf('[遞補]') !== -1 || log.indexOf('[定額預載]') !== -1 || log.indexOf('[動態預載]') !== -1 || log.indexOf('[自動備援]') !== -1 || log.indexOf('[重試]') !== -1 || log.indexOf('[智慧分批預載]') !== -1 || log.indexOf('[排程]') !== -1 || log.indexOf('⏳') !== -1 ? <span className="text-[#cca677] font-bold">{log}</span> : <span className="text-[#c5bbae]">{log}</span>}
@@ -1421,7 +1459,7 @@
                         <div className="relative z-10 text-white">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2"><h3 className="text-xl font-black flex items-center gap-2 tracking-widest text-white"><ShieldCheck size={24} className="text-[#c4cec1]" /> AI 老師診斷中心</h3><div className="text-xs bg-[#7a8575] text-[#e6e9e4] font-mono px-3 py-1 rounded-full border border-[#6b7566] self-start sm:self-auto shadow-inner uppercase">當前模型: {displayModelName}</div></div>
                             <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center mb-4">
-                                <button onClick={runDiagnostic} disabled={diagStatus === 'testing' || isBenchmarking} className={`px-6 py-3 rounded-xl font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2 border-b-4 ${diagStatus === 'testing' ? 'bg-[#a6a198] border-[#8a847c]' : 'bg-[#f4f1ea] border-[#d6cfc5] text-[#524d46]'}`}>{diagStatus === 'testing' ? <Loader2 className="animate-spin text-white" size={20} /> : <Zap size={20} />} 測試當前連線</button>
+                                <div className="flex flex-col gap-2 w-full md:w-auto">     <button onClick={runDiagnostic} disabled={diagStatus === 'testing' || isBenchmarking} className={`px-6 py-3 rounded-xl font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2 border-b-4 ${diagStatus === 'testing' ? 'bg-[#a6a198] border-[#8a847c]' : 'bg-[#f4f1ea] border-[#d6cfc5] text-[#524d46]'}`}>{diagStatus === 'testing' ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />} 測試三重備援</button>     <div className="flex gap-2">         <button onClick={() => runSingleDiag('groq')} disabled={diagStatus === 'testing' || isBenchmarking} className="flex-1 px-3 py-2 rounded-xl font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 border-b-4 bg-[#e2eae8] border-[#b2cbc7] text-[#6b8b9c] text-xs hover:bg-[#d0e0de]"><Zap size={14}/> Groq</button>         <button onClick={() => runSingleDiag('openrouter')} disabled={diagStatus === 'testing' || isBenchmarking} className="flex-1 px-3 py-2 rounded-xl font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 border-b-4 bg-[#f4ebd9] border-[#e0c9aa] text-[#a68258] text-xs hover:bg-[#ede0c8]"><Zap size={14}/> OpenRouter</button>         <button onClick={() => runSingleDiag('google')} disabled={diagStatus === 'testing' || isBenchmarking} className="flex-1 px-3 py-2 rounded-xl font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 border-b-4 bg-[#e6e9e4] border-[#c4cec1] text-[#6b7566] text-xs hover:bg-[#d8ddd6]"><Zap size={14}/> Gemini</button>     </div> </div>
                                 
                                 <button onClick={runBatchModelCheck} disabled={isBenchmarking || diagStatus === 'testing'} className={`px-6 py-3 rounded-xl font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2 border-b-4 ${isBenchmarking ? 'bg-[#cca677] border-[#b89063] text-white' : 'bg-[#eadecc] border-[#cca677] text-[#8c6b44] hover:bg-[#e0c9aa]'}`}>{isBenchmarking ? <Loader2 className="animate-spin" size={20} /> : <Activity size={20} />} {isBenchmarking ? `測速中 ${benchmarkStatus.current}/${benchmarkStatus.total}` : '白名單一鍵體檢'}</button>
                                 
@@ -1432,7 +1470,7 @@
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                                     <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px]">🤖 全域強制路由：</span>
                                     <div className="flex bg-[#6b7566] px-3 py-1.5 rounded-lg w-full sm:w-auto shadow-inner items-center gap-2 text-sm font-bold text-[#e6e9e4]">
-                                        <span><span className="text-white">Groq</span> ➡️ <span className="text-[#c4cec1]">Gemini</span> ➡️ <span className="text-[#a4b1a1]">OpenRouter</span></span>
+                                        <span><span className="text-white">Groq</span> ➡️ <span className="text-[#c4cec1]">OpenRouter</span> ➡️ <span className="text-[#a4b1a1]">Gemini</span></span>
                                     </div>
                                 </div>
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-2 animate-in fade-in">
