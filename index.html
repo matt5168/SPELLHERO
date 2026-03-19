@@ -578,7 +578,13 @@
 
           const clearLogs = () => { setAiLogs([]); try { localStorage.setItem('sh_logs', '[]'); } catch(e){} };
           const showAlert = msg => { setAlertMessage(msg); setShowFallbackAlert(true); setTimeout(() => setShowFallbackAlert(false), 4000); };
-
+// 💡 補回遺失的文字換行渲染函式
+const renderFormattedText = (text) => {
+    if (!text) return null;
+    return String(text).split(/\\n|\n/).map((line, idx) => (
+        line.trim() ? <div key={idx} className="mb-1 leading-relaxed">{line}</div> : <div key={idx} className="h-1"></div>
+    ));
+};
           const runBatchModelCheck = async () => {
               setIsBenchmarking(true);
               setDiagStatus('testing');
