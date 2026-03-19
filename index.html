@@ -204,7 +204,7 @@
                 this.groqKey = getGroqKey(); 
             }
             updateKeys(gKey, oKey, grKey) { if (gKey) this.geminiKey = gKey; if (oKey) this.openRouterKey = oKey; if (grKey) this.groqKey = grKey; }
-            async checkAvailableModels(signal) { let bg = "gemini-1.5-flash"; try { const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?key=" + this.geminiKey, signal ? {signal} : {}); if (res.ok) { const data = await res.json(); const vm = (data.models || []).filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent')).map(m => m.name.replace('models/', '')); if (vm.indexOf('gemini-2.5-flash') !== -1) bg = 'gemini-2.5-flash'; else if (vm.indexOf('gemini-1.5-pro') !== -1) bg = 'gemini-1.5-pro'; else if (vm.indexOf('gemini-1.5-flash') !== -1) bg = 'gemini-1.5-flash'; else if (vm.indexOf('gemini-pro') !== -1) bg = 'gemini-pro'; } } catch (e) {} return { gemini: bg }; }
+            async checkAvailableModels(signal) { let bg = "gemini-2.0-flash"; try { const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?key=" + this.geminiKey, signal ? {signal} : {}); if (res.ok) { const data = await res.json(); const vm = (data.models || []).filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent')).map(m => m.name.replace('models/', '')); if (vm.indexOf('gemini-2.5-flash') !== -1) bg = 'gemini-2.5-flash'; else if (vm.indexOf('gemini-2.0-flash') !== -1) bg = 'gemini-2.0-flash'; else if (vm.indexOf('gemini-1.5-pro') !== -1) bg = 'gemini-1.5-pro'; else if (vm.indexOf('gemini-pro') !== -1) bg = 'gemini-pro'; } } catch (e) {} return { gemini: bg }; }
             
             async fetchOpenRouterFreeModels() {
                 const whitelist = [
@@ -465,7 +465,7 @@
           const [combo, setCombo] = useState(0); const [maxCombo, setMaxCombo] = useState(0);
           const [showComboAnim, setShowComboAnim] = useState(false); const [diagStatus, setDiagStatus] = useState(null); 
           const [diagMsg, setDiagMsg] = useState(""); const [quizMode, setQuizMode] = useState('fill_in'); 
-          const [aiStatus, setAiStatus] = useState("準備中..."); const [activeGeminiModel, setActiveGeminiModel] = useState("gemini-1.5-flash"); 
+          const [aiStatus, setAiStatus] = useState("準備中..."); const [activeGeminiModel, setActiveGeminiModel] = useState("gemini-2.0-flash"); 
           const [aiModel, setAiModel] = useState("偵測中...");
           
           const [aiLogs, setAiLogs] = useState(() => JSON.parse(localStorage.getItem('sh_logs') || '[]'));
