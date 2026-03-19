@@ -754,8 +754,16 @@
                   localStorage.setItem('sh_tts_engine', ttsEngine); 
                   localStorage.setItem('sh_openai_tts_key', Obfuscator.encode(openAITtsKey)); 
                   localStorage.setItem('sh_openai_tts_voice', openAITtsVoice); 
+                  
+                  // 💡 強制清除 Gemini 模型快取，立刻重新偵測 2.5-flash
+                  localStorage.removeItem('sh_gemini_model_cache');
+                  localStorage.removeItem('sh_gemini_model_cache_date');
+                  
                   setDiagMsg("✅ 金鑰已安全防護並儲存！請點擊上方按鈕測試連線。"); 
                   sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey); 
+                  
+                  // 💡 立刻重新測一次可用模型
+                  sharedAIClient.checkAvailableModels().then(res => { if (res && res.gemini) { setActiveGeminiModel(res.gemini); } });
               } catch(e) { setDiagMsg("❌ 儲存失敗，可能遇到瀏覽器隱私模式限制。"); } 
           };
           
@@ -830,6 +838,9 @@
                   setDiagStatus('error');
                   setDiagMsg(`❌ ${provider.toUpperCase()} 連線失敗：${errMsg}`);
                   setShowLogsPanel(true);
+                  if (['groq', 'google', 'openrouter'].includes(provider)) {
+                      sharedAIClient.handle429(provider); // 💡 連動狀態機，立刻變紅燈
+                  }
               }
           };
 
@@ -856,6 +867,7 @@
                     } catch (e) {
                         let errMsg = e.message === 'TIMEOUT_TTFT' ? '首字元超時 (TTFT 超過限制)' : e.message;
                         addLog(`[錯誤] ${currentP.toUpperCase()} 測試失敗: ${errMsg}`);
+                        sharedAIClient.handle429(currentP); // 💡 連動狀態機，立刻變紅燈
                         if (i === providersToTry.length - 1) throw e;
                     }
                 }
@@ -1071,6 +1083,7 @@
                                     let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ans.toLowerCase());
                                     
                                     if (distractors.length < 3) {
+                                        // 若 AI 給的干擾項不足 3 個，從題庫中隨機抽詞補齊，確保畫面按鈕絕不缺角
                                         const fallbackOpts = generateVocabOptions(ans, activeDB).filter(opt => String(opt).toLowerCase().trim() !== ans.toLowerCase() && !distractors.includes(opt));
                                         distractors = [...distractors, ...fallbackOpts];
                                     }
