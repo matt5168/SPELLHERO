@@ -585,7 +585,18 @@
               reader.readAsText(file);
               e.target.value = '';
           };
-
+          // 💡 新增：清空快取題庫函式
+        const handleClearPoolCache = () => {
+            if (window.confirm("確定要清空所有動態預載的快取題目嗎？這將迫使系統下次測驗時重新向 AI 請求。")) {
+                try {
+                    localStorage.removeItem('sh_qpool_v33');
+                    setPoolStats(p => ({ ...p, size: 0 }));
+                    addLog("🗑️ [系統] 已手動清空動態預載快取池");
+                    showAlert("✅ 預載快取已清空！");
+                } catch(e) {}
+            }
+        };
+        // ===== END =====
           const logScrollRef = useRef(null);
           const addLog = msg => {
               setAiLogs(p => {
@@ -1664,8 +1675,11 @@
                         </div>
 
                         <div className="bg-[#e6e9e4] p-4 rounded-2xl border border-[#c4cec1] shadow-sm flex flex-col justify-between">
-                            <div className="flex items-center justify-between mb-4 text-[#524d46] font-black text-sm tracking-widest"><div className="flex items-center"><Database size={18} className="text-[#8b9586] mr-2" /> 動態預載快取監控</div></div>
-                            <div className="grid grid-cols-3 gap-2 text-center h-full">
+    <div className="flex items-center justify-between mb-4 text-[#524d46] font-black text-sm tracking-widest">
+        <div className="flex items-center"><Database size={18} className="text-[#8b9586] mr-2" /> 動態預載快取監控</div>
+        <button onClick={handleClearPoolCache} className="text-[10px] bg-[#b5847e] text-white px-2 py-1 rounded shadow-sm active:scale-95 flex items-center gap-1 hover:bg-[#a3756f] transition-colors"><RefreshCcw size={12}/> 清空快取</button>
+    </div>
+    <div className="grid grid-cols-3 gap-2 text-center h-full">
                                 <div className="bg-white p-2 rounded-xl border border-[#c4cec1] shadow-sm flex flex-col justify-center">
                                     <div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1">總庫存 (Pool)</div>
                                     <div className="text-lg md:text-xl font-black text-[#6b7566]">{poolStats.size} <span className="text-xs font-bold text-[#a6a198]">題</span></div>
