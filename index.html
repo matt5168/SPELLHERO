@@ -973,12 +973,23 @@ const runSingleDiag = async (provider) => {
 
                         if (targetMenu === 'grammar') {
                             const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)} | Context Variation: ${s.variationTag}`);
-                            systemPrompt = `Role: Expert ESL textbook author for 3rd grade(9yo). Task: Grammar fill-in-the-blank.${u5Focus}${u2Focus} RULES: 1. STRICT SUBJECT LOCK: You MUST keep the EXACT SAME grammatical subject and target answer as the original pattern. ONLY change the surrounding context based on the "Context Variation". 2. STRICT CONTEXT REQUIRED: You MUST add a clear context sentence BEFORE the blank. This context MUST ensure that ONLY the target answer is logically and grammatically possible. The 3 distractors MUST NOT be valid answers. 3. TEXTBOOK QUALITY: Formal exam English. 4. VOCAB: simple words ONLY. 5. BLANK: MUST be exactly '______'(6 underscores). 6. OPTIONS: 1 correct, 3 distractors. CRITICAL: Output ONLY a valid JSON array. Start with '[' and end with ']'. ALL keys and string values MUST be double-quoted (""). Format: [{"idx":0,"a":"answer","s":"sentence","t":"Traditional Chinese translation of the sentence ONLY","o":["opt1","opt2","opt3","opt4"]}]. The 'idx' field MUST strictly match the [IDX:?] number provided. You MUST output EXACTLY 2 DIFFERENT items for each IDX. NO extra fields.`;
-                            userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH pattern below (Total patterns=${chunkPending.length}, so output ${chunkPending.length * 2} objects). Patterns:\n${patterns.join('\n')}`;
-                        } else {
+    systemPrompt = `Role: Expert ESL textbook author for 3rd grade(9yo). Task: Grammar fill-in-the-blank.${u5Focus}${u2Focus} RULES: 
+    1. STRICT SUBJECT LOCK: Keep EXACT SAME grammatical subject & target answer as the pattern. Change ONLY surrounding context. 
+    2. STRICT CONTEXT REQUIRED: You MUST add a clear context sentence BEFORE the blank. If testing pronouns (him/her/them/us), the context MUST explicitly state a specific name/gender/plurality. 
+    3. CRITICAL DISTRACTOR RULE: Mentally test each distractor. The 3 distractors MUST be GRAMMATICALLY WRONG or LOGICALLY IMPOSSIBLE. For pronoun questions, NEVER use valid object pronouns (him/her/them/us/me) together as options. Instead, force grammatical errors by using subject pronouns (he/she/they) or possessive pronouns (his/her/their) as distractors.
+    4. TEXTBOOK QUALITY: Formal exam English. Simple words ONLY. 
+    5. BLANK: MUST be exactly '______'(6 underscores). 
+    6. CRITICAL JSON: Output ONLY a valid JSON array. Format: [{"idx":0,"a":"answer","s":"sentence","t":"Traditional Chinese translation","o":["opt1","opt2","opt3","opt4"]}]. Output EXACTLY 2 DIFFERENT items for each IDX.`;
+    userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH pattern below (Total patterns=${chunkPending.length}, so output ${chunkPending.length * 2} objects). Patterns:\n${patterns.join('\n')}`;
                             const wordsToGenerate = chunkPending.map((s, idx) => `[IDX:${idx}] ${s.answer}`);
-                            systemPrompt = `Role: Expert ESL textbook author for 3rd grade(9yo). Task: Fill-in-the-blank vocabulary. RULES: 1. TEXTBOOK QUALITY: Formal exam English ONLY. 2. VOCAB: Context MUST use ONLY simple words a 9-year-old knows. 3. BLANK: MUST be exactly '______'(6 underscores). For phrases, replace ENTIRE phrase with ONE blank. CRITICAL: Output ONLY a valid JSON array. Start with '[' and end with ']'. ALL keys and string values MUST be double-quoted (""). NO trailing commas. Format: [{"idx":0,"a":"answer","s":"sentence","t":"Traditional Chinese translation of the sentence ONLY","h":"Traditional Chinese translation of answer + emoji","o":["opt1","opt2","opt3","opt4"]}]. The 'idx' field MUST strictly match the [IDX:?] number provided. You MUST output EXACTLY 2 DIFFERENT items for each IDX.`;
-                            userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH word below (Total words=${chunkPending.length}, so output ${chunkPending.length * 2} objects). Words:\n${wordsToGenerate.join('\n')}`;
+    systemPrompt = `Role: Expert ESL textbook author for 3rd grade(9yo). Task: Fill-in-the-blank vocabulary. RULES: 
+    1. TEXTBOOK QUALITY: Formal exam English ONLY. 
+    2. VOCAB: Context MUST use ONLY simple words a 9-year-old knows. 
+    3. BLANK: MUST be exactly '______'(6 underscores). For phrases, replace ENTIRE phrase with ONE blank. 
+    4. CRITICAL DISTRACTOR RULE: Mentally test each distractor. They MUST be GRAMMATICALLY WRONG or LOGICALLY IMPOSSIBLE. For pronoun questions, NEVER use valid object pronouns (him/her/them/us/me) together. Instead, force grammatical errors by using subject pronouns (he/she/they) or possessive pronouns (his/her/their).
+    5. CRITICAL JSON: Output ONLY a valid JSON array. Format: [{"idx":0,"a":"answer","s":"sentence","t":"Traditional Chinese translation of the sentence ONLY","h":"Traditional Chinese translation of answer + emoji","o":["opt1","opt2","opt3","opt4"]}]. Output EXACTLY 2 DIFFERENT items for each IDX.`;
+    userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH word below (Total words=${chunkPending.length}, so output ${chunkPending.length * 2} objects). Words:\n${wordsToGenerate.join('\n')}`;
+}
                         }
 
                         if (loopGuard === 1) setAiStatus(`接收第 ${cIdx + 1} 批次串流中...`);
@@ -1018,7 +1029,29 @@ const runSingleDiag = async (provider) => {
 
                                     let ans = q.a || q.answer || expectedItem.answer;
                                     let sentence = (q.s || q.sentence) ? String(q.s || q.sentence) : "";
-                                    
+                                    let ans = q.a || q.answer || expectedItem.answer;
+let options = (q.o || q.options);
+
+// 🛡️ 第二道防線：前端代名詞模稜兩可校驗 (Validation)
+const objPronouns = ['him', 'her', 'them', 'us', 'me'];
+const isPronounAmbiguous = (answerStr, optsArr) => {
+    if (!optsArr || !Array.isArray(optsArr)) return false;
+    const lowerAns = String(answerStr).toLowerCase().trim();
+    if (objPronouns.includes(lowerAns)) {
+        // 計算選項中包含了幾個受格代名詞
+        const overlapCount = optsArr.filter(opt => objPronouns.includes(String(opt).toLowerCase().trim())).length;
+        if (overlapCount > 1) return true; // 如果出現兩個以上，判定為瑕疵題目
+    }
+    return false;
+};
+
+// 如果校驗未通過，直接捨棄這題，不進入 UI 或快取池
+if (isPronounAmbiguous(ans, options)) {
+    addLog(`🛡️ [防護攔截] 捨棄瑕疵題：包含多個合法受格代名詞 (答案: ${ans})`);
+    return; 
+}
+
+let sentence = (q.s || q.sentence) ? String(q.s || q.sentence) : "";
                                     sentence = sentence.replace(/[a-zA-Z]*_{2,}[a-zA-Z]*/g, '______');
                                     
                                     if (sentence.indexOf('______') === -1) { 
