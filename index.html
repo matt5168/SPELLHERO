@@ -755,14 +755,12 @@
                   localStorage.setItem('sh_openai_tts_key', Obfuscator.encode(openAITtsKey)); 
                   localStorage.setItem('sh_openai_tts_voice', openAITtsVoice); 
                   
-                  // 💡 強制清除 Gemini 模型快取，立刻重新偵測 2.5-flash
                   localStorage.removeItem('sh_gemini_model_cache');
                   localStorage.removeItem('sh_gemini_model_cache_date');
                   
                   setDiagMsg("✅ 金鑰已安全防護並儲存！請點擊上方按鈕測試連線。"); 
                   sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey); 
                   
-                  // 💡 立刻重新測一次可用模型
                   sharedAIClient.checkAvailableModels().then(res => { if (res && res.gemini) { setActiveGeminiModel(res.gemini); } });
               } catch(e) { setDiagMsg("❌ 儲存失敗，可能遇到瀏覽器隱私模式限制。"); } 
           };
@@ -839,7 +837,7 @@
                   setDiagMsg(`❌ ${provider.toUpperCase()} 連線失敗：${errMsg}`);
                   setShowLogsPanel(true);
                   if (['groq', 'google', 'openrouter'].includes(provider)) {
-                      sharedAIClient.handle429(provider); // 💡 連動狀態機，立刻變紅燈
+                      sharedAIClient.handle429(provider); 
                   }
               }
           };
@@ -867,7 +865,7 @@
                     } catch (e) {
                         let errMsg = e.message === 'TIMEOUT_TTFT' ? '首字元超時 (TTFT 超過限制)' : e.message;
                         addLog(`[錯誤] ${currentP.toUpperCase()} 測試失敗: ${errMsg}`);
-                        sharedAIClient.handle429(currentP); // 💡 連動狀態機，立刻變紅燈
+                        sharedAIClient.handle429(currentP); 
                         if (i === providersToTry.length - 1) throw e;
                     }
                 }
@@ -1019,23 +1017,23 @@
                         let u5Focus = nbs.includes('PB1 U5 句型庫') ? " 【U5 CORE FOCUS】: Strictly test one of: Illness, Symptoms(have/has), Obligation(have to/has to), Conditionals(When... must...). Use clinic context." : "";
                         let u2Focus = nbs.includes('PB1 U2 句型庫') ? " 【U2 CORE FOCUS】: Strictly test one of: Locations (Where do/does), Verb agreement (live/lives), Spatial prep (above, below, between), Place prep (in, on, at). Use home context." : "";
 
-                        // 💡 安全壓縮版 Prompt，搭配明確陣列組成命令防呆
+                        // 💡 10/10 終極最佳化 Prompt：條件式防呆 + 前端陣列兜底輔助
                         if (targetMenu === 'grammar') {
                             const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)} | Context Variation: ${s.variationTag}`);
-                            systemPrompt = `ESL grammar fill-blank, 3rd grade(9yo).${u5Focus}${u2Focus} RULES:
-    ① STRICT SUBJECT LOCK: EXACT SAME grammatical subject & target answer as pattern. Change only context.
-    ② ADD context BEFORE blank. Pronouns: state name/gender/plurality.
-    ③ OPTIONS ARRAY: 'o' MUST contain 4 items (1 CORRECT answer + 3 grammatically wrong distractors). Pronouns: NEVER mix valid object pronouns(him/her/them)—use subject(he/she/they) or possessive(his/her/their).
-    ④ Simple formal English. Blank=______(6 underscores).
+                            systemPrompt = `ESL grammar fill-blank, 3rd grade.${u5Focus}${u2Focus} RULES:
+    ① STRICT SUBJECT: Keep EXACT target answer & grammatical subject from pattern. Change ONLY the situation.
+    ② PRONOUN CONTEXT: If the answer is a pronoun (him/her/them), you MUST write a compound sentence with a specific name/gender BEFORE the blank (e.g., "Mary is hurt, what's the matter with ______?").
+    ③ OPTIONS: 'o' array MUST have 4 items (1 CORRECT answer + 3 grammatically WRONG distractors). Pronouns: NEVER mix valid object pronouns—use subject(he/she/they) or possessive(his/her/their) as wrong options.
+    ④ Blank=______(6 underscores).
     ⑤ JSON only: [{"idx":0,"a":"answer","s":"sent______","t":"中文翻譯","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH pattern below (Total patterns=${chunkPending.length}, so output ${chunkPending.length * 2} objects). Patterns:\n${patterns.join('\n')}`;
                         } else {
                             const wordsToGenerate = chunkPending.map((s, idx) => `[IDX:${idx}] ${s.answer}`);
-                            systemPrompt = `ESL vocab fill-blank, 3rd grade(9yo). RULES:
-    ① Simple formal English only.
-    ② Blank=______(6 underscores). Phrases→replace ENTIRE phrase with ONE blank.
-    ③ OPTIONS ARRAY: 'o' MUST contain 4 items (1 CORRECT answer + 3 grammatically wrong distractors). Pronouns: NEVER mix valid object pronouns(him/her/them/us/me)—use subject(he/she/they) or possessive(his/her/their).
+                            systemPrompt = `ESL vocab fill-blank, 3rd grade. RULES:
+    ① Simple formal English. Blank=______(6 underscores). Phrases→ONE blank.
+    ② CONTEXT: Sentence MUST contain enough logical clues for the answer.
+    ③ OPTIONS: 'o' MUST have 4 items (1 CORRECT answer + 3 completely WRONG distractors). Pronouns: NEVER mix valid object pronouns.
     ④ JSON only: [{"idx":0,"a":"answer","s":"sent______","t":"中文句翻譯","h":"中文答案+emoji","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH word below (Total words=${chunkPending.length}, so output ${chunkPending.length * 2} objects). Words:\n${wordsToGenerate.join('\n')}`;
@@ -1083,7 +1081,6 @@
                                     let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ans.toLowerCase());
                                     
                                     if (distractors.length < 3) {
-                                        // 若 AI 給的干擾項不足 3 個，從題庫中隨機抽詞補齊，確保畫面按鈕絕不缺角
                                         const fallbackOpts = generateVocabOptions(ans, activeDB).filter(opt => String(opt).toLowerCase().trim() !== ans.toLowerCase() && !distractors.includes(opt));
                                         distractors = [...distractors, ...fallbackOpts];
                                     }
