@@ -331,10 +331,11 @@
                         if (specificModel === 'auto_filtered') {
                             if (freeModelsList && freeModelsList.length > 0) {
                                 specificModelFinal = freeModelsList[0]; 
-                            } else {
-                                specificModelFinal = 'meta-llama/llama-3.1-8b-instruct:free'; 
+                           } else {
+                         // 💡 關鍵修改：清空時直接拋出錯誤，讓外層的 try-catch 捕捉，進而觸發下一順位 (Gemini) 接手
+                            throw new Error("白名單模型已全數失效或尚未體檢，觸發自動備援");
                             }
-                        }
+                         }
                         
                         const combinedContent = "System Instructions:\n" + systemPrompt + "\n\nUser Request:\n" + userQuery;
                         const payload = { 
