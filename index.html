@@ -485,6 +485,81 @@
           
           const overrideTriggeredRef = useRef({});
           const readyRef = useRef(false);
+          // ===== 匯出 / 匯入 JSON =====
+          const importFileRef = useRef(null);
+          const handleExportData = () => {
+              const payload = {
+                  version: "SH_v1",
+                  exportedAt: new Date().toISOString(),
+                  history:   JSON.parse(localStorage.getItem('sh_h_v28')       || '[]'),
+                  memory:    JSON.parse(localStorage.getItem('sh_m_v28')       || '{}'),
+                  stats:     JSON.parse(localStorage.getItem('sh_s_v28')       || '{}'),
+                  coins:     parseInt(localStorage.getItem('sh_coins_v28')     || '0'),
+                  exp:       parseInt(localStorage.getItem('sh_exp_v28')       || '0'),
+                  level:     parseInt(localStorage.getItem('sh_level_v28')     || '1'),
+                  mistakes:  JSON.parse(localStorage.getItem('sh_mistakes_v29')|| '[]'),
+                  modelVotes:JSON.parse(localStorage.getItem('sh_model_votes_v1')|| '{}'),
+                  apiUsage:  JSON.parse(localStorage.getItem('sh_api_usage_v29')|| '{}'),
+                  settings: {
+                      uiLayout:     localStorage.getItem('sh_ui_layout')        || 'layout1',
+                      ttsEngine:    localStorage.getItem('sh_tts_engine')       || 'native',
+                      ttsVoice:     localStorage.getItem('sh_openai_tts_voice') || 'nova',
+                      orModel:      localStorage.getItem('sh_or_model')         || 'openrouter/auto',
+                      groqModel:    localStorage.getItem('sh_groq_model')       || 'llama-3.3-70b-versatile',
+                      geminiKey:    localStorage.getItem('gemini_api_key')      || '',
+                      orKey:        localStorage.getItem('openrouter_api_key')  || '',
+                      groqKey:      localStorage.getItem('groq_api_key')        || '',
+                      openAITtsKey: localStorage.getItem('sh_openai_tts_key')   || '',
+                  }
+              };
+              const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+              const url  = URL.createObjectURL(blob);
+              const a    = document.createElement('a');
+              a.href     = url;
+              a.download = 'spellhero_backup_' + new Date().toISOString().slice(0,10) + '.json';
+              a.click();
+              URL.revokeObjectURL(url);
+              showAlert('✅ 資料已匯出！');
+          };
+          const handleImportData = (e) => {
+              const file = e.target.files && e.target.files[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                  try {
+                      const d = JSON.parse(ev.target.result);
+                      if (!d.version || !d.version.startsWith('SH_')) { showAlert('❌ 檔案格式錯誤'); return; }
+                      if (d.history)    localStorage.setItem('sh_h_v28',          JSON.stringify(d.history));
+                      if (d.memory)     localStorage.setItem('sh_m_v28',          JSON.stringify(d.memory));
+                      if (d.stats)      localStorage.setItem('sh_s_v28',          JSON.stringify(d.stats));
+                      if (d.coins !== undefined) localStorage.setItem('sh_coins_v28', String(d.coins));
+                      if (d.exp   !== undefined) localStorage.setItem('sh_exp_v28',   String(d.exp));
+                      if (d.level !== undefined) localStorage.setItem('sh_level_v28', String(d.level));
+                      if (d.mistakes)   localStorage.setItem('sh_mistakes_v29',    JSON.stringify(d.mistakes));
+                      if (d.modelVotes) localStorage.setItem('sh_model_votes_v1',  JSON.stringify(d.modelVotes));
+                      if (d.apiUsage)   localStorage.setItem('sh_api_usage_v29',   JSON.stringify(d.apiUsage));
+                      if (d.settings) {
+                          const s = d.settings;
+                          if (s.uiLayout)     localStorage.setItem('sh_ui_layout',        s.uiLayout);
+                          if (s.ttsEngine)    localStorage.setItem('sh_tts_engine',        s.ttsEngine);
+                          if (s.ttsVoice)     localStorage.setItem('sh_openai_tts_voice',  s.ttsVoice);
+                          if (s.orModel)      localStorage.setItem('sh_or_model',          s.orModel);
+                          if (s.groqModel)    localStorage.setItem('sh_groq_model',        s.groqModel);
+                          if (s.geminiKey)    localStorage.setItem('gemini_api_key',       s.geminiKey);
+                          if (s.orKey)        localStorage.setItem('openrouter_api_key',   s.orKey);
+                          if (s.groqKey)      localStorage.setItem('groq_api_key',         s.groqKey);
+                          if (s.openAITtsKey) localStorage.setItem('sh_openai_tts_key',    s.openAITtsKey);
+                      }
+                      showAlert('✅ 匯入成功！頁面即將重新載入...');
+                      setTimeout(() => window.location.reload(), 1500);
+                  } catch(err) {
+                      showAlert('❌ 解析失敗：' + err.message);
+                  }
+              };
+              reader.readAsText(file);
+              e.target.value = '';
+          };
+          // ===== END =====
 
           const addLog = msg => {
               setAiLogs(p => {
@@ -1414,6 +1489,16 @@
                                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3"><span className="text-[#c4cec1] font-bold text-xs whitespace-nowrap min-w-[120px]">🔑 OpenAI Key：</span><input type="password" value={openAITtsKey} onChange={e => setOpenAITtsKey(e.target.value)} placeholder="sk-proj-..." className="flex-1 w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs outline-none focus:border-[#cca677] text-white placeholder-[#6b655f] font-mono tracking-widest"/></div>
                                 </div>
                                 <button onClick={saveCustomKey} className="self-end w-full sm:w-auto bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-6 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-sm active:scale-95 mt-2">💾 儲存金鑰與設定</button>
+                                <div className="flex gap-2 mt-3 flex-wrap">
+                                    <button onClick={handleExportData} className="flex-1 bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-4 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2 border border-[#d6cfc5]">
+                                        📤 匯出備份 JSON
+                                    </button>
+                                    <button onClick={() => importFileRef.current && importFileRef.current.click()} className="flex-1 bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-4 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2 border border-[#d6cfc5]">
+                                        📥 匯入備份 JSON
+                                    </button>
+                                    <input ref={importFileRef} type="file" accept=".json" onChange={handleImportData} className="hidden" />
+                                </div>
+
                             </div>
 
                             <div className="mt-4 border-t border-[#7a8575] pt-4">
