@@ -717,7 +717,7 @@
                 const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 60000); 
                 const testMsg = 'Reply with exact JSON only: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["a","b","c","d"]}]}';
                 
-                const providersToTry = ['groq', 'google', 'openrouter'];
+                const providersToTry = ['groq', 'openrouter', 'google'];
 
                 let result = null;
                 for (let i = 0; i < providersToTry.length; i++) {
