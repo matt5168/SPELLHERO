@@ -941,7 +941,7 @@
             const uiPoolKeys = new Set(); 
             const fulfilledReqUids = new Set();
             
-            const CHUNK_SIZE = 10;
+            const CHUNK_SIZE = 5;
             const chunks = [];
             for (let i = 0; i < requestItems.length; i += CHUNK_SIZE) {
                 chunks.push(requestItems.slice(i, i + CHUNK_SIZE));
@@ -961,12 +961,18 @@
                     }
 
                     while (chunkPending.length > 0 && loopGuard < 3) {
-                        loopGuard++;
-                        if (loopGuard > 1) {
-                            addLog(`[重試] 第 ${cIdx + 1} 批次漏發 ${chunkPending.length} 題，發起補發...`);
-                        } else {
-                            addLog(`[智慧分批預載] 正在處理第 ${cIdx + 1}/${chunks.length} 批次 (共 ${chunkPending.length} 題)...`);
-                        }
+    loopGuard++;
+    if (loopGuard > 1) {
+        // 💡 業界標準：指數退避 (2秒, 4秒...) + 隨機抖動 (0~1000ms)，完美避開 429 封鎖
+        const baseDelay = Math.pow(2, loopGuard - 1) * 1000; 
+        const jitter = Math.floor(Math.random() * 1000); 
+        const totalDelay = baseDelay + jitter;
+        
+        addLog(`[重試] 第 ${cIdx + 1} 批次漏發 ${chunkPending.length} 題，進入防護冷卻 (${(totalDelay/1000).toFixed(1)}s)...`);
+        await new Promise(r => setTimeout(r, totalDelay));
+    } else {
+        addLog(`[智慧分批預載] 正在處理第 ${cIdx + 1}/${chunks.length} 批次 (共 ${chunkPending.length} 題)...`);
+    }
 
                         let systemPrompt = ""; let userQuery = "";
                         let u5Focus = nbs.includes('PB1 U5 句型庫') ? " 【U5 CORE FOCUS】: Strictly test one of: Illness, Symptoms(have/has), Obligation(have to/has to), Conditionals(When... must...). Use clinic context." : "";
