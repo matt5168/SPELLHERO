@@ -807,7 +807,7 @@
                 const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 60000); 
                 const testMsg = 'Reply with exact JSON only: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["a","b","c","d"]}]}';
                 
-                const providersToTry = ['groq', 'openrouter', 'google'];
+                const providersToTry = ['groq', 'google', 'openrouter'];
 
                 let result = null;
                 for (let i = 0; i < providersToTry.length; i++) {
@@ -1108,7 +1108,7 @@
                             return { ...res, provider };
                         };
 
-                        const genProvidersToTry = ['groq', 'openrouter', 'google'];
+                        const genProvidersToTry = ['groq', 'google', 'openrouter'];
 
                         let result = null;
                         let lastError = null;
@@ -1277,7 +1277,7 @@
                   };
                   
                   const getRankedProviders = () => {
-                      const p = ['groq', 'openrouter', 'google'];
+                      const p = ['groq', 'google', 'openrouter'];
                       const v = storage.modelVotes || {};
                       return p.sort((a, b) => (v[b] || 0) - (v[a] || 0));
                   };
@@ -1548,11 +1548,12 @@
                             </div>
                             
                             <div className="mt-4 flex flex-col gap-3 border-t border-[#7a8575] pt-4">
-                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                                    <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px]">🤖 全域強制路由：</span>
-                                    <div className="flex bg-[#6b7566] px-3 py-1.5 rounded-lg w-full sm:w-auto shadow-inner items-center gap-2 text-sm font-bold text-[#e6e9e4]">
-                                        <span><span className="text-white">Groq</span> ➡️ <span className="text-[#c4cec1]">OpenRouter</span> ➡️ <span className="text-[#a4b1a1]">Gemini</span></span>
-                                    </div>
+<div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+    <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px]">🤖 全域強制路由：</span>
+    <div className="flex bg-[#6b7566] px-3 py-1.5 rounded-lg w-full sm:w-auto shadow-inner items-center gap-2 text-sm font-bold text-[#e6e9e4]">
+        <span><span className="text-white">Groq</span> ➡️ <span className="text-[#c4cec1]">Gemini</span> ➡️ <span className="text-[#a4b1a1]">OpenRouter</span></span>
+    </div>
+</div>
                                 </div>
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-2 animate-in fade-in">
                                     <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px]">🧠 Groq 模型：</span>
