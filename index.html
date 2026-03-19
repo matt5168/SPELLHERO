@@ -235,21 +235,10 @@
             
             async fetchOpenRouterFreeModels() {
                 const whitelist = [
-                    'meta-llama/llama-3.3-70b-versatile',
-                    'mistralai/mixtral-8x7b-32768',
-                    'google/gemma-3-27b-it:free',
-                    'deepseek/deepseek-r1-0528:free',
-                    'qwen/qwen3-coder-32b:free',
-                    'openai/gpt-oss-120b:free',
-                    'zhipuai/glm-4.5-air:free',
-                    'nvidia/nemotron-3-nano-30b-a3b:free',
-                    'mistralai/devstral-small:free',
-                    'stepfun/step-3.5-flash:free',
-                    'liquid/lfm-2.5-1.2b-instruct:free',
-                    'arcee/trinity-large-preview:free',
-                    'upstage/solar-pro-3:free',
-                    'moonshot/kimi-k2:free',
-                    'google/gemma-3-12b:free'
+                 'meta-llama/llama-3.3-70b-instruct:free', // 70B 巨型模型，邏輯最強，完美遵循防呆規則
+                 'deepseek/deepseek-chat:free',            // DeepSeek V3 (非 R1)，出題與 JSON 格式極度穩定
+                 'qwen/qwen-2.5-coder-32b-instruct:free',  // 32B 程式碼專精模型，對 JSON 陣列結構絕對服從
+                  'mistralai/mixtral-8x7b-instruct:free'  // 47B 混合專家模型，適合處理多樣化情境
                 ];
                 return whitelist.filter(m => {
                     const idL = m.toLowerCase();
