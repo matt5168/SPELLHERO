@@ -204,7 +204,35 @@
                 this.groqKey = getGroqKey(); 
             }
             updateKeys(gKey, oKey, grKey) { if (gKey) this.geminiKey = gKey; if (oKey) this.openRouterKey = oKey; if (grKey) this.groqKey = grKey; }
-            async checkAvailableModels(signal) { let bg = "gemini-2.0-flash"; try { const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?key=" + this.geminiKey, signal ? {signal} : {}); if (res.ok) { const data = await res.json(); const vm = (data.models || []).filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent')).map(m => m.name.replace('models/', '')); if (vm.indexOf('gemini-2.5-flash') !== -1) bg = 'gemini-2.5-flash'; else if (vm.indexOf('gemini-2.0-flash') !== -1) bg = 'gemini-2.0-flash'; else if (vm.indexOf('gemini-1.5-pro') !== -1) bg = 'gemini-1.5-pro'; else if (vm.indexOf('gemini-pro') !== -1) bg = 'gemini-pro'; } } catch (e) {} return { gemini: bg }; }
+async checkAvailableModels(signal) { 
+    // 💡 1. 實作當日快取機制
+    const today = new Date().toLocaleDateString();
+    const cachedModel = localStorage.getItem('sh_gemini_model_cache');
+    const cacheDate = localStorage.getItem('sh_gemini_model_cache_date');
+    if (cachedModel && cacheDate === today) {
+        return { gemini: cachedModel };
+    }
+
+    let bg = "gemini-2.0-flash"; 
+    try { 
+        const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?key=" + this.geminiKey, signal ? {signal} : {}); 
+        if (res.ok) { 
+            const data = await res.json(); 
+            const vm = (data.models || []).filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent')).map(m => m.name.replace('models/', '')); 
+            
+            // 💡 2. 補回 1.5-flash，避免掉入 50 次/天的 pro 陷阱
+            if (vm.indexOf('gemini-2.5-flash') !== -1) bg = 'gemini-2.5-flash'; 
+            else if (vm.indexOf('gemini-2.0-flash') !== -1) bg = 'gemini-2.0-flash'; 
+            else if (vm.indexOf('gemini-1.5-flash') !== -1) bg = 'gemini-1.5-flash'; 
+            else if (vm.indexOf('gemini-1.5-pro') !== -1) bg = 'gemini-1.5-pro'; 
+            else if (vm.indexOf('gemini-pro') !== -1) bg = 'gemini-pro'; 
+            
+            localStorage.setItem('sh_gemini_model_cache', bg);
+            localStorage.setItem('sh_gemini_model_cache_date', today);
+        } 
+    } catch (e) {} 
+    return { gemini: bg }; 
+}
             
             async fetchOpenRouterFreeModels() {
                 const whitelist = [
