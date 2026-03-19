@@ -265,7 +265,8 @@
                     if (signal) signal.addEventListener('abort', onAbort);
                     
                     let firstChunk = false;
-                    const baseTTFT = 10000;
+                    const baseTTFT = modelName.includes('2.5') ? 18000 : 
+                                     modelName.includes('2.0') ? 10000 : 12000;
                     const ttftLimit = taskType === 'micro' ? 7000 : baseTTFT;
                     
                     const ttftTimeout = setTimeout(() => { 
