@@ -249,10 +249,11 @@
             
             async fetchOpenRouterFreeModels() {
                 const whitelist = [
+                    'meta-llama/llama-4-maverick:free',
+                    'nvidia/nemotron-3-super-120b-a12b:free',
                     'meta-llama/llama-3.3-70b-instruct:free',
-                    'deepseek/deepseek-chat:free',
+                    'openai/gpt-oss-120b:free',
                     'qwen/qwen-2.5-coder-32b-instruct:free',
-                    'mistralai/mixtral-8x7b-instruct:free'
                 ];
                 return whitelist;
             }
@@ -650,7 +651,7 @@
               setIsBenchmarking(true);
               setDiagStatus('testing');
               clearLogs();
-              addLog("🔍 啟白名單體檢程序，正在向 OpenRouter 獲取清單...");
+              addLog("🔍 啟動白名單體檢程序，正在向 OpenRouter 獲取清單...");
               
               try {
                   const fetchedModels = await sharedAIClient.fetchOpenRouterFreeModels();
@@ -735,7 +736,7 @@
                 }
                 
                 if(freeModels.length === 0) {
-                     setFreeModels(['meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-chat:free', 'qwen/qwen-2.5-coder-32b-instruct:free', 'mistralai/mixtral-8x7b-instruct:free']);
+                     setFreeModels(['meta-llama/llama-4-maverick:free', 'nvidia/nemotron-3-super-120b-a12b:free', 'meta-llama/llama-3.3-70b-instruct:free', 'openai/gpt-oss-120b:free', 'qwen/qwen-2.5-coder-32b-instruct:free']);
                 }
               } catch (e) { }
             }; load();
@@ -792,7 +793,7 @@
               setDiagStatus('testing');
               setDiagMsg(`正在測試 ${provider.toUpperCase()} 連線...`);
               clearLogs();
-              const testMsg = 'Reply with exact JSON only: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["a","b","c","d"]}]}';
+              const testMsg = 'Reply with exact JSON only: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["opt1","opt2","opt3","opt4"]}]}';
               const controller = new AbortController();
               const timeoutId = setTimeout(() => controller.abort(), 20000);
               try {
@@ -839,7 +840,7 @@
                 if (modelsRes && modelsRes.gemini) setActiveGeminiModel(modelsRes.gemini);
                 const currentGeminiModel = (modelsRes && modelsRes.gemini) ? modelsRes.gemini : activeGeminiModel;
                 const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 60000); 
-                const testMsg = 'Reply with exact JSON only: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["a","b","c","d"]}]}';
+                const testMsg = 'Reply with exact JSON only: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["opt1","opt2","opt3","opt4"]}]}';
                 
                 const providersToTry = ['groq', 'google', 'openrouter'];
 
@@ -1006,24 +1007,24 @@
                         let u5Focus = nbs.includes('PB1 U5 句型庫') ? " 【U5 CORE FOCUS】: Strictly test one of: Illness, Symptoms(have/has), Obligation(have to/has to), Conditionals(When... must...). Use clinic context." : "";
                         let u2Focus = nbs.includes('PB1 U2 句型庫') ? " 【U2 CORE FOCUS】: Strictly test one of: Locations (Where do/does), Verb agreement (live/lives), Spatial prep (above, below, between), Place prep (in, on, at). Use home context." : "";
 
-                        // 💡 安全壓縮版 Prompt，大幅降低 Token 消耗以防 Groq 429 TPM 限制
+                        // 💡 安全壓縮版 Prompt，搭配明確陣列組成命令防呆
                         if (targetMenu === 'grammar') {
                             const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)} | Context Variation: ${s.variationTag}`);
                             systemPrompt = `ESL grammar fill-blank, 3rd grade(9yo).${u5Focus}${u2Focus} RULES:
     ① STRICT SUBJECT LOCK: EXACT SAME grammatical subject & target answer as pattern. Change only context.
     ② ADD context BEFORE blank. Pronouns: state name/gender/plurality.
-    ③ Distractors MUST be grammatically wrong. Pronouns: NEVER mix valid object pronouns(him/her/them/us/me)—use subject(he/she/they) or possessive(his/her/their).
+    ③ OPTIONS ARRAY: 'o' MUST contain 4 items (1 CORRECT answer + 3 grammatically wrong distractors). Pronouns: NEVER mix valid object pronouns(him/her/them)—use subject(he/she/they) or possessive(his/her/their).
     ④ Simple formal English. Blank=______(6 underscores).
-    ⑤ JSON only: [{"idx":0,"a":"ans","s":"sent______","t":"中文翻譯","o":["x","x","x","x"]}]
+    ⑤ JSON only: [{"idx":0,"a":"answer","s":"sent______","t":"中文翻譯","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH pattern below (Total patterns=${chunkPending.length}, so output ${chunkPending.length * 2} objects). Patterns:\n${patterns.join('\n')}`;
                         } else {
                             const wordsToGenerate = chunkPending.map((s, idx) => `[IDX:${idx}] ${s.answer}`);
                             systemPrompt = `ESL vocab fill-blank, 3rd grade(9yo). RULES:
     ① Simple formal English only.
-    ② Blank=______(6 underscores). Phrases→ONE blank.
-    ③ Distractors MUST be grammatically wrong. Pronouns: NEVER mix valid object pronouns(him/her/them/us/me)—use subject(he/she/they) or possessive(his/her/their).
-    ④ JSON only: [{"idx":0,"a":"ans","s":"sent______","t":"中文句翻譯","h":"中文答案+emoji","o":["x","x","x","x"]}]
+    ② Blank=______(6 underscores). Phrases→replace ENTIRE phrase with ONE blank.
+    ③ OPTIONS ARRAY: 'o' MUST contain 4 items (1 CORRECT answer + 3 grammatically wrong distractors). Pronouns: NEVER mix valid object pronouns(him/her/them/us/me)—use subject(he/she/they) or possessive(his/her/their).
+    ④ JSON only: [{"idx":0,"a":"answer","s":"sent______","t":"中文句翻譯","h":"中文答案+emoji","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH word below (Total words=${chunkPending.length}, so output ${chunkPending.length * 2} objects). Words:\n${wordsToGenerate.join('\n')}`;
                         }
@@ -1063,10 +1064,21 @@
                                     let reqUid = expectedItem.reqUid;
                                     let refKey = expectedItem.poolKey;
 
-                                    let ans = q.a || q.answer || expectedItem.answer;
-                                    let options = (q.o || q.options);
+                                    let ans = String(q.a || q.answer || expectedItem.answer).trim();
+                                    let rawOptions = Array.isArray(q.o) ? q.o : (Array.isArray(q.options) ? q.options : []);
 
-                                    // 🛡️ 第二道防線：前端代名詞模稜兩可校驗 (Validation)
+                                    // 🛡️ 終極防線：強制選項洗牌與動態補齊
+                                    let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ans.toLowerCase());
+                                    
+                                    if (distractors.length < 3) {
+                                        const fallbackOpts = generateVocabOptions(ans, activeDB).filter(opt => String(opt).toLowerCase().trim() !== ans.toLowerCase() && !distractors.includes(opt));
+                                        distractors = [...distractors, ...fallbackOpts];
+                                    }
+
+                                    let safeOptions = [ans, ...distractors.slice(0, 3)];
+                                    safeOptions = shuffleArray(safeOptions);
+
+                                    // 🛡️ 前端代名詞模稜兩可校驗
                                     const objPronouns = ['him', 'her', 'them', 'us', 'me'];
                                     const isPronounAmbiguous = (answerStr, optsArr) => {
                                         if (!optsArr || !Array.isArray(optsArr)) return false;
@@ -1078,7 +1090,7 @@
                                         return false;
                                     };
 
-                                    if (isPronounAmbiguous(ans, options)) {
+                                    if (isPronounAmbiguous(ans, safeOptions)) {
                                         addLog(`🛡️ [防護攔截] 捨棄瑕疵題：包含多個合法受格代名詞 (答案: ${ans})`);
                                         return; 
                                     }
@@ -1106,7 +1118,7 @@
                                     cleanTrans = cleanTrans.replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').replace(/^🇹🇼\s*/, '').trim();
                                     let explanation = (q.e || q.explanation) || (targetMenu === 'grammar' ? "" : "這題的文法規則要再多留意喔！可以向老師詢問相關用法。");
                                     
-                                    const finalQ = { id: "ai_" + Math.random() + "_" + Date.now(), poolKey: refKey, runtimeId: Math.random(), answer: ans, sentence: sentence, translation: cleanTrans, hint: finalHint, explanation: explanation, options: (options && options.length === 4) ? options : generateVocabOptions(ans, activeDB), isAI: true, modelName: cardModelName };
+                                    const finalQ = { id: "ai_" + Math.random() + "_" + Date.now(), poolKey: refKey, runtimeId: Math.random(), answer: ans, sentence: sentence, translation: cleanTrans, hint: finalHint, explanation: explanation, options: safeOptions, isAI: true, modelName: cardModelName };
 
                                     if (currentUIQs.length < targetTotal && !uiPoolKeys.has(refKey)) {
                                         currentUIQs.push(finalQ);
@@ -1152,7 +1164,6 @@
                         let lastError = null;
 
                         if (routingMode === 'sequential') {
-                            // 💡 [模式 A] 傳統順序備援 (硬撞模式)
                             const genProvidersToTry = ['groq', 'google', 'openrouter'];
                             for (let i = 0; i < genProvidersToTry.length; i++) {
                                 const currentP = genProvidersToTry[i];
@@ -1172,22 +1183,18 @@
                                 }
                             }
                         } else {
-                            // 💡 [模式 B] 智慧動態路由 (紅綠燈狀態機)
                             const tryDynamicRoute = async () => {
                                 if (batchController.signal.aborted) throw new Error('任務已取消');
                                 const priority = ['groq', 'google', 'openrouter'];
-                                // 1. 排除紅燈 (熔斷中) 的引擎
                                 const available = priority.filter(p => sharedAIClient.getEngineStatus(p) !== 'red');
                                 
                                 if (available.length === 0) {
                                     throw new Error("所有 AI 引擎皆因 429 處於熔斷保護中 (紅燈)，請稍後再試！");
                                 }
 
-                                // 2. 挑選順位最高且可用的引擎
                                 const selectedP = available[0];
                                 const status = sharedAIClient.getEngineStatus(selectedP);
 
-                                // 3. 如果是黃燈，精準補足冷卻時間
                                 if (status === 'yellow') {
                                     const waitTime = sharedAIClient.cooldowns[selectedP] - (Date.now() - sharedAIClient.lastCallTime[selectedP]);
                                     addLog(`[動態路由] 🟡 ${selectedP.toUpperCase()} 節流防護，等待 ${(waitTime/1000).toFixed(1)} 秒...`);
@@ -1195,7 +1202,7 @@
                                 }
                                 
                                 addLog(`[動態路由] 🟢 啟動連線 -> ${selectedP.toUpperCase()}`);
-                                sharedAIClient.lastCallTime[selectedP] = Date.now(); // 紀錄呼叫時間
+                                sharedAIClient.lastCallTime[selectedP] = Date.now();
 
                                 try {
                                     if (selectedP === 'groq') return await attemptCall('groq', () => sharedAIClient.callGroq(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, groqModel, 'batch'));
@@ -1206,10 +1213,10 @@
                                     if (errMsg.includes('429') || errMsg.includes('Too Many Requests')) {
                                         addLog(`[動態路由] 🔴 ${selectedP.toUpperCase()} 遭遇 429，系統判定強制熔斷 60 秒！`);
                                         sharedAIClient.handle429(selectedP);
-                                        return await tryDynamicRoute(); // 遞迴：自動尋找下一個綠燈/黃燈引擎
+                                        return await tryDynamicRoute(); 
                                     } else {
                                         addLog(`[動態路由] ⚠️ ${selectedP.toUpperCase()} 連線失敗: ${errMsg.substring(0,30)}`);
-                                        sharedAIClient.handle429(selectedP); // 其他錯誤同樣暫時熔斷避免死迴圈
+                                        sharedAIClient.handle429(selectedP); 
                                         return await tryDynamicRoute();
                                     }
                                 }
