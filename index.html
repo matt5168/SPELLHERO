@@ -204,35 +204,34 @@
                 this.groqKey = getGroqKey(); 
             }
             updateKeys(gKey, oKey, grKey) { if (gKey) this.geminiKey = gKey; if (oKey) this.openRouterKey = oKey; if (grKey) this.groqKey = grKey; }
-async checkAvailableModels(signal) { 
-    // 💡 1. 實作當日快取機制
-    const today = new Date().toLocaleDateString();
-    const cachedModel = localStorage.getItem('sh_gemini_model_cache');
-    const cacheDate = localStorage.getItem('sh_gemini_model_cache_date');
-    if (cachedModel && cacheDate === today) {
-        return { gemini: cachedModel };
-    }
+            
+            async checkAvailableModels(signal) { 
+                const today = new Date().toLocaleDateString();
+                const cachedModel = localStorage.getItem('sh_gemini_model_cache');
+                const cacheDate = localStorage.getItem('sh_gemini_model_cache_date');
+                if (cachedModel && cacheDate === today) {
+                    return { gemini: cachedModel };
+                }
 
-    let bg = "gemini-2.0-flash"; 
-    try { 
-        const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?key=" + this.geminiKey, signal ? {signal} : {}); 
-        if (res.ok) { 
-            const data = await res.json(); 
-            const vm = (data.models || []).filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent')).map(m => m.name.replace('models/', '')); 
-            
-            // 💡 2. 補回 1.5-flash，避免掉入 50 次/天的 pro 陷阱
-            if (vm.indexOf('gemini-2.5-flash') !== -1) bg = 'gemini-2.5-flash'; 
-            else if (vm.indexOf('gemini-2.0-flash') !== -1) bg = 'gemini-2.0-flash'; 
-            else if (vm.indexOf('gemini-1.5-flash') !== -1) bg = 'gemini-1.5-flash'; 
-            else if (vm.indexOf('gemini-1.5-pro') !== -1) bg = 'gemini-1.5-pro'; 
-            else if (vm.indexOf('gemini-pro') !== -1) bg = 'gemini-pro'; 
-            
-            localStorage.setItem('sh_gemini_model_cache', bg);
-            localStorage.setItem('sh_gemini_model_cache_date', today);
-        } 
-    } catch (e) {} 
-    return { gemini: bg }; 
-}
+                let bg = "gemini-2.0-flash"; 
+                try { 
+                    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?key=" + this.geminiKey, signal ? {signal} : {}); 
+                    if (res.ok) { 
+                        const data = await res.json(); 
+                        const vm = (data.models || []).filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent')).map(m => m.name.replace('models/', '')); 
+                        
+                        if (vm.indexOf('gemini-2.5-flash') !== -1) bg = 'gemini-2.5-flash'; 
+                        else if (vm.indexOf('gemini-2.0-flash') !== -1) bg = 'gemini-2.0-flash'; 
+                        else if (vm.indexOf('gemini-1.5-flash') !== -1) bg = 'gemini-1.5-flash'; 
+                        else if (vm.indexOf('gemini-1.5-pro') !== -1) bg = 'gemini-1.5-pro'; 
+                        else if (vm.indexOf('gemini-pro') !== -1) bg = 'gemini-pro'; 
+                        
+                        localStorage.setItem('sh_gemini_model_cache', bg);
+                        localStorage.setItem('sh_gemini_model_cache_date', today);
+                    } 
+                } catch (e) {} 
+                return { gemini: bg }; 
+            }
             
             async fetchOpenRouterFreeModels() {
                 const whitelist = [
@@ -293,7 +292,7 @@ async checkAvailableModels(signal) {
                                         const data = JSON.parse(line.slice(6)); 
                                         if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) { 
                                             fullText += data.candidates[0].content.parts[0].text; 
-                                            if(onChunk) onChunk(fullText, modelName); // 👈 補回 fullText; 
+                                            if(onChunk) onChunk(fullText, modelName); 
                                         } 
                                     } catch(e) {} 
                                 } 
@@ -480,7 +479,6 @@ async checkAvailableModels(signal) {
           const [uiLayout, setUiLayout] = useState(localStorage.getItem('sh_ui_layout') || 'layout1');
           const [ttsEngine, setTtsEngine] = useState(localStorage.getItem('sh_tts_engine') || 'native');
           
-          // 💡 完全拔除 Hardcoded 的預設金鑰！
           const [openAITtsKey, setOpenAITtsKey] = useState(getOpenAITtsKey() || '');
           const [openAITtsVoice, setOpenAITtsVoice] = useState(localStorage.getItem('sh_openai_tts_voice') || 'nova');
           const [inputKey, setInputKey] = useState(getGeminiKey() || '');
@@ -513,7 +511,7 @@ async checkAvailableModels(signal) {
           
           const overrideTriggeredRef = useRef({});
           const readyRef = useRef(false);
-          // ===== 匯出 / 匯入 JSON =====
+          
           const importFileRef = useRef(null);
           const handleExportData = () => {
               const payload = {
@@ -587,14 +585,12 @@ async checkAvailableModels(signal) {
               reader.readAsText(file);
               e.target.value = '';
           };
-          // ===== END =====
 
           const logScrollRef = useRef(null);
           const addLog = msg => {
               setAiLogs(p => {
                   const newLogs = [...p, "[" + new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) + "] " + msg].slice(-40);
                   try { localStorage.setItem('sh_logs', JSON.stringify(newLogs)); } catch(e){}
-                  // 即時捲動到底部
                   setTimeout(() => {
                       if (logScrollRef.current) {
                           logScrollRef.current.scrollTop = logScrollRef.current.scrollHeight;
@@ -606,13 +602,14 @@ async checkAvailableModels(signal) {
 
           const clearLogs = () => { setAiLogs([]); try { localStorage.setItem('sh_logs', '[]'); } catch(e){} };
           const showAlert = msg => { setAlertMessage(msg); setShowFallbackAlert(true); setTimeout(() => setShowFallbackAlert(false), 4000); };
-// 💡 補回遺失的文字換行渲染函式
-const renderFormattedText = (text) => {
-    if (!text) return null;
-    return String(text).split(/\\n|\n/).map((line, idx) => (
-        line.trim() ? <div key={idx} className="mb-1 leading-relaxed">{line}</div> : <div key={idx} className="h-1"></div>
-    ));
-};
+
+          const renderFormattedText = (text) => {
+              if (!text) return null;
+              return String(text).split(/\\n|\n/).map((line, idx) => (
+                  line.trim() ? <div key={idx} className="mb-1 leading-relaxed">{line}</div> : <div key={idx} className="h-1"></div>
+              ));
+          };
+
           const runBatchModelCheck = async () => {
               setIsBenchmarking(true);
               setDiagStatus('testing');
@@ -692,15 +689,14 @@ const renderFormattedText = (text) => {
                 let sz = 0; Object.values(currentPool).forEach(arr => sz += arr.length);
                 setPoolStats(p => ({...p, size: sz}));
 
-sharedAIClient.updateKeys(inputKey || getGeminiKey(), inputOrKey || getOpenRouterKey(), inputGroqKey || getGroqKey());
-    
-    // 💡 配合快取機制，不再無腦發 API
-    const todayStr = new Date().toLocaleDateString();
-    if (localStorage.getItem('sh_gemini_model_cache') && localStorage.getItem('sh_gemini_model_cache_date') === todayStr) {
-        setActiveGeminiModel(localStorage.getItem('sh_gemini_model_cache'));
-    } else {
-        sharedAIClient.checkAvailableModels().then(res => { if (res && res.gemini) { setActiveGeminiModel(res.gemini); } });
-    }
+                sharedAIClient.updateKeys(inputKey || getGeminiKey(), inputOrKey || getOpenRouterKey(), inputGroqKey || getGroqKey());
+                
+                const todayStr = new Date().toLocaleDateString();
+                if (localStorage.getItem('sh_gemini_model_cache') && localStorage.getItem('sh_gemini_model_cache_date') === todayStr) {
+                    setActiveGeminiModel(localStorage.getItem('sh_gemini_model_cache'));
+                } else {
+                    sharedAIClient.checkAvailableModels().then(res => { if (res && res.gemini) { setActiveGeminiModel(res.gemini); } });
+                }
                 
                 if(freeModels.length === 0) {
                      setFreeModels(['meta-llama/llama-3.1-8b-instruct:free', 'deepseek/deepseek-chat:free']);
@@ -711,7 +707,6 @@ sharedAIClient.updateKeys(inputKey || getGeminiKey(), inputOrKey || getOpenRoute
 
           useEffect(() => { sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey); }, [inputKey, inputOrKey, inputGroqKey]);
 
-          // 💡 儲存設定時，自動將金鑰透過 Obfuscator 進行防護編碼再存入
           const saveCustomKey = () => { 
               try { 
                   localStorage.setItem('gemini_api_key', Obfuscator.encode(inputKey)); 
@@ -756,50 +751,50 @@ sharedAIClient.updateKeys(inputKey || getGeminiKey(), inputOrKey || getOpenRoute
           };
 
           const handleModeChange = newMode => { setVocabMode(newMode); setQuestions([]); setReady(false); readyRef.current = false; overrideTriggeredRef.current = {}; };
-const runSingleDiag = async (provider) => {
-    setDiagStatus('testing');
-    setDiagMsg(`正在測試 ${provider.toUpperCase()} 連線...`);
-    clearLogs();
-    const testMsg = 'Reply with exact JSON only: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["a","b","c","d"]}]}';
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
-    try {
-        let result = null;
-        if (provider === 'groq') {
-            result = await sharedAIClient.callGroq("You are a diagnostic tool.", testMsg, controller.signal, () => {}, addLog, groqModel, 'micro');
-        } else if (provider === 'google') {
-            result = await sharedAIClient.callGemini(activeGeminiModel, "You are a diagnostic tool.", testMsg, controller.signal, () => {}, addLog, 'micro');
-        } else if (provider === 'openrouter') {
-            result = await sharedAIClient.callOpenRouter("You are a diagnostic tool.", testMsg, controller.signal, () => {}, addLog, openRouterModel, 'micro', freeModels);
-        } else if (provider === 'openai') {
-            if (!openAITtsKey) throw new Error('尚未設定 OpenAI Key');
-            addLog(`📡 [OpenAI] 發送連線測試請求...`);
-            const startTime = Date.now();
-            const res = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${openAITtsKey}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'Reply OK.' }], max_tokens: 5 }),
-                signal: controller.signal
-            });
-            const latency = Date.now() - startTime;
-            if (!res.ok) { const err = await res.text(); throw new Error(`HTTP ${res.status}: ${err.substring(0, 60)}`); }
-            addLog(`✅ [OpenAI] 連線成功！(耗時 ${latency}ms)`);
-            result = { modelName: 'GPT-4O-MINI', provider: 'openai' };
-        }
-        clearTimeout(timeoutId);
-        setAiModel(result.modelName);
-        setDiagStatus('success');
-        setDiagMsg(`✅ ${provider.toUpperCase()} 連線成功！模型：${result.modelName}`);
-        setShowLogsPanel(true);
-    } catch(e) {
-        clearTimeout(timeoutId);
-        const errMsg = e.message === 'TIMEOUT_TTFT' ? '首字元超時 (TTFT 超過限制)' : e.message;
-        setDiagStatus('error');
-        setDiagMsg(`❌ ${provider.toUpperCase()} 連線失敗：${errMsg}`);
-        setShowLogsPanel(true);
-    }
-};
 
+          const runSingleDiag = async (provider) => {
+              setDiagStatus('testing');
+              setDiagMsg(`正在測試 ${provider.toUpperCase()} 連線...`);
+              clearLogs();
+              const testMsg = 'Reply with exact JSON only: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["a","b","c","d"]}]}';
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 20000);
+              try {
+                  let result = null;
+                  if (provider === 'groq') {
+                      result = await sharedAIClient.callGroq("You are a diagnostic tool.", testMsg, controller.signal, () => {}, addLog, groqModel, 'micro');
+                  } else if (provider === 'google') {
+                      result = await sharedAIClient.callGemini(activeGeminiModel, "You are a diagnostic tool.", testMsg, controller.signal, () => {}, addLog, 'micro');
+                  } else if (provider === 'openrouter') {
+                      result = await sharedAIClient.callOpenRouter("You are a diagnostic tool.", testMsg, controller.signal, () => {}, addLog, openRouterModel, 'micro', freeModels);
+                  } else if (provider === 'openai') {
+                      if (!openAITtsKey) throw new Error('尚未設定 OpenAI Key');
+                      addLog(`📡 [OpenAI] 發送連線測試請求...`);
+                      const startTime = Date.now();
+                      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+                          method: 'POST',
+                          headers: { 'Authorization': `Bearer ${openAITtsKey}`, 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ model: 'gpt-4o-mini', messages: [{ role: 'user', content: 'Reply OK.' }], max_tokens: 5 }),
+                          signal: controller.signal
+                      });
+                      const latency = Date.now() - startTime;
+                      if (!res.ok) { const err = await res.text(); throw new Error(`HTTP ${res.status}: ${err.substring(0, 60)}`); }
+                      addLog(`✅ [OpenAI] 連線成功！(耗時 ${latency}ms)`);
+                      result = { modelName: 'GPT-4O-MINI', provider: 'openai' };
+                  }
+                  clearTimeout(timeoutId);
+                  setAiModel(result.modelName);
+                  setDiagStatus('success');
+                  setDiagMsg(`✅ ${provider.toUpperCase()} 連線成功！模型：${result.modelName}`);
+                  setShowLogsPanel(true);
+              } catch(e) {
+                  clearTimeout(timeoutId);
+                  const errMsg = e.message === 'TIMEOUT_TTFT' ? '首字元超時 (TTFT 超過限制)' : e.message;
+                  setDiagStatus('error');
+                  setDiagMsg(`❌ ${provider.toUpperCase()} 連線失敗：${errMsg}`);
+                  setShowLogsPanel(true);
+              }
+          };
 
           const runDiagnostic = async () => {
             setDiagStatus('testing'); setDiagMsg(`正在測試智慧三重備援連線...`); clearLogs(); setStreamCount(0);
@@ -973,23 +968,23 @@ const runSingleDiag = async (provider) => {
 
                         if (targetMenu === 'grammar') {
                             const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)} | Context Variation: ${s.variationTag}`);
-    systemPrompt = `Role: Expert ESL textbook author for 3rd grade(9yo). Task: Grammar fill-in-the-blank.${u5Focus}${u2Focus} RULES: 
+                            systemPrompt = `Role: Expert ESL textbook author for 3rd grade(9yo). Task: Grammar fill-in-the-blank.${u5Focus}${u2Focus} RULES: 
     1. STRICT SUBJECT LOCK: Keep EXACT SAME grammatical subject & target answer as the pattern. Change ONLY surrounding context. 
     2. STRICT CONTEXT REQUIRED: You MUST add a clear context sentence BEFORE the blank. If testing pronouns (him/her/them/us), the context MUST explicitly state a specific name/gender/plurality. 
-    3. CRITICAL DISTRACTOR RULE: Mentally test each distractor. The 3 distractors MUST be GRAMMATICALLY WRONG or LOGICALLY IMPOSSIBLE. For pronoun questions, NEVER use valid object pronouns (him/her/them/us/me) together as options. Instead, force grammatical errors by using subject pronouns (he/she/they) or possessive pronouns (his/her/their) as distractors.
+    3. CRITICAL DISTRACTOR RULE: Mentally test each distractor. The 3 distractors MUST be GRAMMATICALLY WRONG or LOGICALLY IMPOSSIBLE. For pronoun questions, NEVER use valid object pronouns (him/her/them/us/me) together as options. Instead, force grammatical errors by using subject pronouns (he/she/they) or possessive pronouns (his/her/their).
     4. TEXTBOOK QUALITY: Formal exam English. Simple words ONLY. 
     5. BLANK: MUST be exactly '______'(6 underscores). 
     6. CRITICAL JSON: Output ONLY a valid JSON array. Format: [{"idx":0,"a":"answer","s":"sentence","t":"Traditional Chinese translation","o":["opt1","opt2","opt3","opt4"]}]. Output EXACTLY 2 DIFFERENT items for each IDX.`;
-    userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH pattern below (Total patterns=${chunkPending.length}, so output ${chunkPending.length * 2} objects). Patterns:\n${patterns.join('\n')}`;
+                            userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH pattern below (Total patterns=${chunkPending.length}, so output ${chunkPending.length * 2} objects). Patterns:\n${patterns.join('\n')}`;
+                        } else {
                             const wordsToGenerate = chunkPending.map((s, idx) => `[IDX:${idx}] ${s.answer}`);
-    systemPrompt = `Role: Expert ESL textbook author for 3rd grade(9yo). Task: Fill-in-the-blank vocabulary. RULES: 
+                            systemPrompt = `Role: Expert ESL textbook author for 3rd grade(9yo). Task: Fill-in-the-blank vocabulary. RULES: 
     1. TEXTBOOK QUALITY: Formal exam English ONLY. 
     2. VOCAB: Context MUST use ONLY simple words a 9-year-old knows. 
     3. BLANK: MUST be exactly '______'(6 underscores). For phrases, replace ENTIRE phrase with ONE blank. 
     4. CRITICAL DISTRACTOR RULE: Mentally test each distractor. They MUST be GRAMMATICALLY WRONG or LOGICALLY IMPOSSIBLE. For pronoun questions, NEVER use valid object pronouns (him/her/them/us/me) together. Instead, force grammatical errors by using subject pronouns (he/she/they) or possessive pronouns (his/her/their).
     5. CRITICAL JSON: Output ONLY a valid JSON array. Format: [{"idx":0,"a":"answer","s":"sentence","t":"Traditional Chinese translation of the sentence ONLY","h":"Traditional Chinese translation of answer + emoji","o":["opt1","opt2","opt3","opt4"]}]. Output EXACTLY 2 DIFFERENT items for each IDX.`;
-    userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH word below (Total words=${chunkPending.length}, so output ${chunkPending.length * 2} objects). Words:\n${wordsToGenerate.join('\n')}`;
-}
+                            userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH word below (Total words=${chunkPending.length}, so output ${chunkPending.length * 2} objects). Words:\n${wordsToGenerate.join('\n')}`;
                         }
 
                         if (loopGuard === 1) setAiStatus(`接收第 ${cIdx + 1} 批次串流中...`);
@@ -1028,30 +1023,26 @@ const runSingleDiag = async (provider) => {
                                     let refKey = expectedItem.poolKey;
 
                                     let ans = q.a || q.answer || expectedItem.answer;
+                                    let options = (q.o || q.options);
+
+                                    const objPronouns = ['him', 'her', 'them', 'us', 'me'];
+                                    const isPronounAmbiguous = (answerStr, optsArr) => {
+                                        if (!optsArr || !Array.isArray(optsArr)) return false;
+                                        const lowerAns = String(answerStr).toLowerCase().trim();
+                                        if (objPronouns.includes(lowerAns)) {
+                                            const overlapCount = optsArr.filter(opt => objPronouns.includes(String(opt).toLowerCase().trim())).length;
+                                            if (overlapCount > 1) return true; 
+                                        }
+                                        return false;
+                                    };
+
+                                    if (isPronounAmbiguous(ans, options)) {
+                                        addLog(`🛡️ [防護攔截] 捨棄瑕疵題：包含多個合法受格代名詞 (答案: ${ans})`);
+                                        return; 
+                                    }
+
                                     let sentence = (q.s || q.sentence) ? String(q.s || q.sentence) : "";
-                                    let ans = q.a || q.answer || expectedItem.answer;
-let options = (q.o || q.options);
-
-// 🛡️ 第二道防線：前端代名詞模稜兩可校驗 (Validation)
-const objPronouns = ['him', 'her', 'them', 'us', 'me'];
-const isPronounAmbiguous = (answerStr, optsArr) => {
-    if (!optsArr || !Array.isArray(optsArr)) return false;
-    const lowerAns = String(answerStr).toLowerCase().trim();
-    if (objPronouns.includes(lowerAns)) {
-        // 計算選項中包含了幾個受格代名詞
-        const overlapCount = optsArr.filter(opt => objPronouns.includes(String(opt).toLowerCase().trim())).length;
-        if (overlapCount > 1) return true; // 如果出現兩個以上，判定為瑕疵題目
-    }
-    return false;
-};
-
-// 如果校驗未通過，直接捨棄這題，不進入 UI 或快取池
-if (isPronounAmbiguous(ans, options)) {
-    addLog(`🛡️ [防護攔截] 捨棄瑕疵題：包含多個合法受格代名詞 (答案: ${ans})`);
-    return; 
-}
-
-let sentence = (q.s || q.sentence) ? String(q.s || q.sentence) : "";
+                                    
                                     sentence = sentence.replace(/[a-zA-Z]*_{2,}[a-zA-Z]*/g, '______');
                                     
                                     if (sentence.indexOf('______') === -1) { 
@@ -1072,7 +1063,6 @@ let sentence = (q.s || q.sentence) ? String(q.s || q.sentence) : "";
                                     let cleanTrans = (q.t || q.translation) || ""; 
                                     cleanTrans = cleanTrans.replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').replace(/^🇹🇼\s*/, '').trim();
                                     let explanation = (q.e || q.explanation) || (targetMenu === 'grammar' ? "" : "這題的文法規則要再多留意喔！可以向老師詢問相關用法。");
-                                    let options = (q.o || q.options);
                                     
                                     const finalQ = { id: "ai_" + Math.random() + "_" + Date.now(), poolKey: refKey, runtimeId: Math.random(), answer: ans, sentence: sentence, translation: cleanTrans, hint: finalHint, explanation: explanation, options: (options && options.length === 4) ? options : generateVocabOptions(ans, activeDB), isAI: true, modelName: cardModelName };
 
@@ -1284,12 +1274,11 @@ let sentence = (q.s || q.sentence) ? String(q.s || q.sentence) : "";
                       }
                   };
                   
-const getRankedProviders = () => {
-    // 💡 3. 將 google 移到最後，保護 Gemini 額度
-    const p = ['groq', 'openrouter', 'google'];
-    const v = storage.modelVotes || {};
-    return p.sort((a, b) => (v[b] || 0) - (v[a] || 0));
-};
+                  const getRankedProviders = () => {
+                      const p = ['groq', 'openrouter', 'google'];
+                      const v = storage.modelVotes || {};
+                      return p.sort((a, b) => (v[b] || 0) - (v[a] || 0));
+                  };
                   
                   let providersToTry = getRankedProviders();
                   
@@ -1444,13 +1433,13 @@ const getRankedProviders = () => {
               
               <nav className="bg-[#ebe6df] p-2 md:p-3 shadow-sm sticky top-0 z-[150] border-b border-[#d6cfc5] flex justify-center">
                   <div className="max-w-4xl w-full flex gap-2">
-                      <button onClick={() => handleMainMenuChange('vocab')} disabled={isGenerating} className={`flex-1 py-2 md:py-3 rounded-xl font-bold text-xs md:text-sm transition-all shadow-sm flex flex-col items-center justify-center gap-1 ${(isGenerating && !ready) ? 'opacity-50 cursor-not-allowed' : ''} ${mainMenu === 'vocab' && !isReview ? 'bg-[#8b9586] text-white border border-[#7a8575]' : 'bg-[#f4f1ea] text-[#7a8575] border border-[#d6cfc5] hover:bg-[#e6e9e4]'}`}>
+                      <button onClick={() => handleMainMenuChange('vocab')} disabled={isGenerating} className={`flex-1 py-2 md:py-3 rounded-xl font-bold text-xs md:text-sm transition-all shadow-sm flex flex-col items-center justify-center gap-1 ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''} ${mainMenu === 'vocab' && !isReview ? 'bg-[#8b9586] text-white border border-[#7a8575]' : 'bg-[#f4f1ea] text-[#7a8575] border border-[#d6cfc5] hover:bg-[#e6e9e4]'}`}>
                           <div className="flex items-center gap-1"><Sparkles size={14}/> 開始單字測驗</div>
                       </button>
-                      <button onClick={() => handleMainMenuChange('grammar')} disabled={isGenerating && !ready} className={`flex-1 py-2 md:py-3 rounded-xl font-bold text-xs md:text-sm transition-all shadow-sm flex flex-col items-center justify-center gap-1 ${(isGenerating && !ready) ? 'opacity-50 cursor-not-allowed' : ''} ${mainMenu === 'grammar' && !isReview ? 'bg-[#968b95] text-white border border-[#7f7680]' : 'bg-[#f4f1ea] text-[#857b84] border border-[#d6cfc5] hover:bg-[#e6e9e4]'}`}>
+                      <button onClick={() => handleMainMenuChange('grammar')} disabled={isGenerating} className={`flex-1 py-2 md:py-3 rounded-xl font-bold text-xs md:text-sm transition-all shadow-sm flex flex-col items-center justify-center gap-1 ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''} ${mainMenu === 'grammar' && !isReview ? 'bg-[#968b95] text-white border border-[#7f7680]' : 'bg-[#f4f1ea] text-[#857b84] border border-[#d6cfc5] hover:bg-[#e6e9e4]'}`}>
                           <div className="flex items-center gap-1"><Sparkles size={14}/> 開始文法測驗</div>
                       </button>
-                      <button onClick={startReview} disabled={mistakePool.length===0 || (isGenerating && !ready)} className={`flex-1 py-2 md:py-3 rounded-xl font-bold text-xs md:text-sm transition-all shadow-sm flex flex-col items-center justify-center gap-1 ${(isGenerating && !ready) ? 'opacity-50 cursor-not-allowed' : ''} ${isReview ? 'bg-[#b5847e] text-white border border-[#a3756f]' : mistakePool.length>0 ? 'bg-[#f2e7e6] text-[#b5847e] border border-[#dcb5b0] hover:bg-[#e8d5d3]' : 'bg-[#dedad4] text-[#a6a198] border border-[#c5bbae] cursor-not-allowed opacity-50'}`}>
+                      <button onClick={startReview} disabled={mistakePool.length===0 || isGenerating} className={`flex-1 py-2 md:py-3 rounded-xl font-bold text-xs md:text-sm transition-all shadow-sm flex flex-col items-center justify-center gap-1 ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''} ${isReview ? 'bg-[#b5847e] text-white border border-[#a3756f]' : mistakePool.length>0 ? 'bg-[#f2e7e6] text-[#b5847e] border border-[#dcb5b0] hover:bg-[#e8d5d3]' : 'bg-[#dedad4] text-[#a6a198] border border-[#c5bbae] cursor-not-allowed opacity-50'}`}>
                           <div className="flex items-center gap-1"><AlertOctagon size={14}/> 錯題特訓 {mistakePool.length > 0 && `(${mistakePool.length})`}</div>
                       </button>
                   </div>
@@ -1573,36 +1562,34 @@ const getRankedProviders = () => {
                                     </select>
                                 </div>
                                 
-<div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 animate-in fade-in mt-2">
-    <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px]">🧠 OR 模型：</span>
-    
-    <select 
-        value={(openRouterModel === 'openrouter/auto' || openRouterModel === 'auto_filtered') ? openRouterModel : 'custom'} 
-        onChange={e => { 
-            if (e.target.value === 'custom') setOpenRouterModel('');
-            else setOpenRouterModel(e.target.value); 
-        }} 
-        className="w-full sm:w-auto bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#c4cec1] text-white font-mono min-w-[200px]"
-    >
-        <option value="openrouter/auto">官方 AUTO (自動路由)</option>
-        <option value="auto_filtered">免費白名單 (智慧切換)</option>
-        <option value="custom">✍️ 自訂模型...</option>
-    </select>
-    
-    <input 
-        type="text" 
-        value={openRouterModel} 
-        onChange={e => setOpenRouterModel(e.target.value.toLowerCase().replace(/／/g, '/').replace(/\s+/g, '-'))}
-        onBlur={e => setOpenRouterModel(openRouterModel.replace(/[^a-z0-9\-\.\/:]/g, ''))}
-        placeholder={(openRouterModel === 'openrouter/auto' || openRouterModel === 'auto_filtered') ? "請先由左側下拉切換為自訂" : "輸入格式 例: google/gemma-3-12b"} 
-        disabled={openRouterModel === 'openrouter/auto' || openRouterModel === 'auto_filtered'}
-        className={`flex-1 w-full rounded-lg px-3 py-2 text-sm outline-none font-mono tracking-widest transition-all ${
-            (openRouterModel === 'openrouter/auto' || openRouterModel === 'auto_filtered') 
-            ? 'bg-[#5a6356] border border-[#5a6356] text-[#a4b1a1] cursor-not-allowed opacity-50' 
-            : 'bg-[#6b7566] border border-[#5a6356] focus:border-[#c4cec1] text-white placeholder-[#a4b1a1]'
-        }`}
-    />
-</div>
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 animate-in fade-in mt-2">
+                                    <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px]">🧠 OR 模型：</span>
+                                    <select 
+                                        value={(openRouterModel === 'openrouter/auto' || openRouterModel === 'auto_filtered') ? openRouterModel : 'custom'} 
+                                        onChange={e => { 
+                                            if (e.target.value === 'custom') setOpenRouterModel('');
+                                            else setOpenRouterModel(e.target.value); 
+                                        }} 
+                                        className="w-full sm:w-auto bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none focus:border-[#c4cec1] text-white font-mono min-w-[200px]"
+                                    >
+                                        <option value="openrouter/auto">官方 AUTO (自動路由)</option>
+                                        <option value="auto_filtered">免費白名單 (智慧切換)</option>
+                                        <option value="custom">✍️ 自訂模型...</option>
+                                    </select>
+                                    <input 
+                                        type="text" 
+                                        value={openRouterModel} 
+                                        onChange={e => setOpenRouterModel(e.target.value.toLowerCase().replace(/／/g, '/').replace(/\s+/g, '-'))}
+                                        onBlur={e => setOpenRouterModel(openRouterModel.replace(/[^a-z0-9\-\.\/:]/g, ''))}
+                                        placeholder={(openRouterModel === 'openrouter/auto' || openRouterModel === 'auto_filtered') ? "請先由左側下拉切換為自訂" : "輸入格式 例: google/gemma-3-12b"} 
+                                        disabled={openRouterModel === 'openrouter/auto' || openRouterModel === 'auto_filtered'}
+                                        className={`flex-1 w-full rounded-lg px-3 py-2 text-sm outline-none font-mono tracking-widest transition-all ${
+                                            (openRouterModel === 'openrouter/auto' || openRouterModel === 'auto_filtered') 
+                                            ? 'bg-[#5a6356] border border-[#5a6356] text-[#a4b1a1] cursor-not-allowed opacity-50' 
+                                            : 'bg-[#6b7566] border border-[#5a6356] focus:border-[#c4cec1] text-white placeholder-[#a4b1a1]'
+                                        }`}
+                                    />
+                                </div>
                                 
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 animate-in fade-in mt-2 border-t border-[#7a8575] pt-3">
                                     <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px] flex items-center gap-1"><Layout size={16}/> 畫面排版：</span>
@@ -1718,12 +1705,12 @@ const getRankedProviders = () => {
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
                           <div className="flex items-center gap-1.5 font-black text-[#7a8575] text-[13px] min-w-max px-1"><BookOpen size={16}/> 題庫來源</div>
                           <div className="flex flex-wrap gap-1.5">
-                            {availableNotebooks.map(nb => ( <button key={nb} onClick={() => handleNotebookChange(nb)} disabled={isGenerating && !ready} className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${(isGenerating && !ready) ? 'opacity-50 cursor-not-allowed' : ''} ${selectedNotebooks.includes(nb) ? 'bg-[#e6e9e4] shadow-sm text-[#6b7566] ring-1 ring-[#c4cec1]' : 'bg-[#ebe6df] text-[#8a847c] hover:bg-[#dedad4] border border-[#d6cfc5]'}`}>{nb === 'All' ? '全部混合' : nb}</button> ))}
+                            {availableNotebooks.map(nb => ( <button key={nb} onClick={() => handleNotebookChange(nb)} disabled={isGenerating} className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''} ${selectedNotebooks.includes(nb) ? 'bg-[#e6e9e4] shadow-sm text-[#6b7566] ring-1 ring-[#c4cec1]' : 'bg-[#ebe6df] text-[#8a847c] hover:bg-[#dedad4] border border-[#d6cfc5]'}`}>{nb === 'All' ? '全部混合' : nb}</button> ))}
                           </div>
                       </div>
                       
-                      <button onClick={() => generateAIBatch(storage.memory, selectedNotebooks, vocabMode, mainMenu, activeGeminiModel, mistakePool)} disabled={isGenerating && !ready} className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-black text-sm text-white shadow-sm transition-all flex items-center justify-center gap-2 flex-shrink-0 border-b-4 ${(isGenerating && !ready) ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed' : 'bg-[#cca677] hover:bg-[#b89063] border-[#a68258] active:scale-95'}`}>
-                          {isGenerating && !ready ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18} fill="currentColor"/>}
+                      <button onClick={() => generateAIBatch(storage.memory, selectedNotebooks, vocabMode, mainMenu, activeGeminiModel, mistakePool)} disabled={isGenerating} className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-black text-sm text-white shadow-sm transition-all flex items-center justify-center gap-2 flex-shrink-0 border-b-4 ${isGenerating ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed' : 'bg-[#cca677] hover:bg-[#b89063] border-[#a68258] active:scale-95'}`}>
+                          {isGenerating ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18} fill="currentColor"/>}
                           <span>開始測驗</span>
                       </button>
                   </div>
@@ -1731,15 +1718,15 @@ const getRankedProviders = () => {
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3 border-t border-[#d6cfc5] pt-3">
                       <div className="flex flex-wrap items-center gap-1 bg-[#ebe6df] rounded-lg p-1 border border-[#d6cfc5] flex-1 sm:flex-none justify-center sm:justify-start">
                           <span className="text-[11px] font-black text-[#7a8575] px-2 hidden sm:flex items-center"><Target size={14} className="mr-1"/>題型</span>
-                          <button onClick={() => handleModeChange('mixed')} disabled={isGenerating && !ready} className={`px-3 py-1.5 rounded font-bold text-xs transition-all ${(isGenerating && !ready) ? 'opacity-50 cursor-not-allowed' : ''} ${vocabMode==='mixed'?'bg-[#f4f1ea] shadow-sm text-[#5a6356] ring-1 ring-[#d6cfc5]':'text-[#8a847c] hover:text-[#524d46]'}`}>綜合</button>
-                          <button onClick={() => handleModeChange('word')} disabled={isGenerating && !ready} className={`px-3 py-1.5 rounded font-bold text-xs transition-all ${(isGenerating && !ready) ? 'opacity-50 cursor-not-allowed' : ''} ${vocabMode==='word'?'bg-[#f4f1ea] shadow-sm text-[#5a6356] ring-1 ring-[#d6cfc5]':'text-[#8a847c] hover:text-[#524d46]'}`}>單字</button>
-                          <button onClick={() => handleModeChange('phrase')} disabled={isGenerating && !ready} className={`px-3 py-1.5 rounded font-bold text-xs transition-all ${(isGenerating && !ready) ? 'opacity-50 cursor-not-allowed' : ''} ${vocabMode==='phrase'?'bg-[#f4f1ea] shadow-sm text-[#5a6356] ring-1 ring-[#d6cfc5]':'text-[#8a847c] hover:text-[#524d46]'}`}>片語</button>
+                          <button onClick={() => handleModeChange('mixed')} disabled={isGenerating} className={`px-3 py-1.5 rounded font-bold text-xs transition-all ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''} ${vocabMode==='mixed'?'bg-[#f4f1ea] shadow-sm text-[#5a6356] ring-1 ring-[#d6cfc5]':'text-[#8a847c] hover:text-[#524d46]'}`}>綜合</button>
+                          <button onClick={() => handleModeChange('word')} disabled={isGenerating} className={`px-3 py-1.5 rounded font-bold text-xs transition-all ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''} ${vocabMode==='word'?'bg-[#f4f1ea] shadow-sm text-[#5a6356] ring-1 ring-[#d6cfc5]':'text-[#8a847c] hover:text-[#524d46]'}`}>單字</button>
+                          <button onClick={() => handleModeChange('phrase')} disabled={isGenerating} className={`px-3 py-1.5 rounded font-bold text-xs transition-all ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''} ${vocabMode==='phrase'?'bg-[#f4f1ea] shadow-sm text-[#5a6356] ring-1 ring-[#d6cfc5]':'text-[#8a847c] hover:text-[#524d46]'}`}>片語</button>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-1 bg-[#ebe6df] rounded-lg p-1 border border-[#d6cfc5] flex-1 sm:flex-none justify-center sm:justify-start">
                           <span className="text-[11px] font-black text-[#a68258] px-2 hidden sm:flex items-center"><MousePointerClick size={14} className="mr-1"/>模式</span>
-                          <button onClick={() => setQuizMode('multiple_choice')} disabled={isGenerating && !ready} className={`px-3 py-1.5 rounded font-bold text-xs transition-all ${(isGenerating && !ready) ? 'opacity-50 cursor-not-allowed' : ''} ${quizMode==='multiple_choice'?'bg-[#f4f1ea] shadow-sm text-[#8c6b44] ring-1 ring-[#d6cfc5]':'text-[#8a847c] hover:text-[#524d46]'}`}>選擇</button>
-                          <button onClick={() => setQuizMode('fill_in')} disabled={isGenerating && !ready} className={`px-3 py-1.5 rounded font-bold text-xs transition-all ${(isGenerating && !ready) ? 'opacity-50 cursor-not-allowed' : ''} ${quizMode==='fill_in'?'bg-[#f4f1ea] shadow-sm text-[#8c6b44] ring-1 ring-[#d6cfc5]':'text-[#8a847c] hover:text-[#524d46]'}`}>鍵盤</button>
+                          <button onClick={() => setQuizMode('multiple_choice')} disabled={isGenerating} className={`px-3 py-1.5 rounded font-bold text-xs transition-all ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''} ${quizMode==='multiple_choice'?'bg-[#f4f1ea] shadow-sm text-[#8c6b44] ring-1 ring-[#d6cfc5]':'text-[#8a847c] hover:text-[#524d46]'}`}>選擇</button>
+                          <button onClick={() => setQuizMode('fill_in')} disabled={isGenerating} className={`px-3 py-1.5 rounded font-bold text-xs transition-all ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''} ${quizMode==='fill_in'?'bg-[#f4f1ea] shadow-sm text-[#8c6b44] ring-1 ring-[#d6cfc5]':'text-[#8a847c] hover:text-[#524d46]'}`}>鍵盤</button>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-3 bg-[#ebe6df] rounded-lg p-1.5 px-3 border border-[#d6cfc5] w-full sm:w-auto sm:ml-auto justify-between sm:justify-start">
@@ -1799,7 +1786,6 @@ const getRankedProviders = () => {
             {q.isAI && <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#a68258] bg-[#f4ebd9] px-2 py-1 rounded-lg border border-[#e0c9aa] shadow-sm"><Sparkles size={14}/> {q.modelName || 'AI MODEL'}</div>}
             {!q.isAI && <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#8a847c] bg-[#ebe6df] px-2 py-1 rounded-lg border border-[#d6cfc5] shadow-sm"><BookOpen size={14}/> OFFLINE</div>}
             
-            {/* 💡 移除文法語音：僅在非文法模式顯示 */}
             {mainMenu !== 'grammar' && (
                 <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className="px-3 py-1.5 md:px-4 md:py-2 bg-[#e6e9e4] text-[#6b7566] rounded-xl active:scale-95 border border-[#c4cec1] flex items-center gap-1.5 font-bold text-sm shadow-sm transition-all hover:bg-[#d5dcd3]">
                     <Megaphone size={18}/> <span>英文語音</span>
@@ -1818,7 +1804,6 @@ const getRankedProviders = () => {
                 <span className={`mx-1 inline-block ${!isLocked && hintMask.indexOf('_') !== -1 && mainMenu !== 'grammar' ? 'tracking-[0.2em]' : ''} ${isLocked ? (isFinallyCorrect ? "text-[#7a8575]" : "text-[#b5847e] line-through decoration-[#b5847e] decoration-[3px]") : (combo >= 3 ? "text-[#cca677]" : "text-[#8b9586]")} transition-colors duration-300`}>{isLocked ? (currentAns || '______') : hintMask}</span>
                 <span>{p1}</span>
                 
-                {/* 💡 移除文法語音：僅在非文法模式顯示 */}
                 {mainMenu !== 'grammar' && (
                     <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className={`ml-3 inline-flex items-center justify-center p-2 rounded-full transition-all active:scale-90 align-middle ${isLocked ? 'bg-[#e6e9e4] text-[#6b7566] hover:bg-[#d5dcd3]' : 'bg-[#f4ebd9] text-[#cca677] hover:bg-[#eadecc]'}`}>
                         <Volume2 size={24}/>
@@ -1834,7 +1819,6 @@ const getRankedProviders = () => {
                               {(q.options || []).map((opt, optIdx) => (
                                   <div key={optIdx} className="relative flex w-full">
                                       <button disabled={submitted} onClick={() => handleCheckSingle(i, opt)} className={`bg-white border-2 border-[#d6cfc5] hover:border-[#8b9586] hover:bg-[#e6e9e4] text-[#524d46] font-black text-lg py-3 px-5 rounded-xl shadow-sm active:scale-95 transition-all text-left flex-grow ${mainMenu !== 'grammar' ? 'pr-12' : ''}`}>{opt}</button>
-                                      {/* 💡 移除文法語音：僅在非文法模式顯示 */}
                                       {mainMenu !== 'grammar' && (
                                           <button onClick={e => { e.stopPropagation(); playTTS(opt, false, ''); }} className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-[#8a847c] hover:bg-[#c4cec1] hover:text-[#524d46] rounded-full transition-all active:scale-90"><Megaphone size={18} /></button>
                                       )}
@@ -1859,7 +1843,6 @@ const getRankedProviders = () => {
               {/* Tools */}
               {(!isLocked || (isLayout2 && isLocked)) && (!isLayout3 || !isLocked) && (
                   <div className={`flex flex-wrap gap-3 w-full ${isLayout2 ? 'justify-end' : 'justify-center'} ${quizMode==='multiple_choice' ? 'hidden md:flex' : ''}`}>
-                    {/* 💡 移除文法語音：僅在非文法模式顯示 */}
                     {mainMenu !== 'grammar' && (
                         <button onClick={() => playTTS(safeAnswerStr, false)} className="text-sm md:text-base font-black text-[#8c6b44] bg-[#f4ebd9] px-4 md:px-6 py-3 rounded-xl active:scale-95 border border-[#e0c9aa] flex items-center gap-2 shadow-sm hover:bg-[#eadecc]"><Megaphone size={20} /> 單字發音</button>
                     )}
@@ -1895,7 +1878,6 @@ const getRankedProviders = () => {
                           <div className="flex flex-col items-center justify-center text-center py-4">
                               <CheckCircle size={48} className="text-[#8b9586] mb-3 drop-shadow-sm animate-bounce"/>
                               <div className="text-2xl md:text-3xl font-black text-[#6b7566]">答對了！</div>
-                              {/* 💡 移除文法語音：僅在非文法模式顯示 */}
                               {mainMenu !== 'grammar' && (
                                   <button onClick={() => playTTS(safeAnswerStr, false)} className="mt-4 text-[#8b9586] font-bold hover:text-[#6b7566] transition-colors flex items-center gap-1"><Volume2 size={16}/> 聽聽發音</button>
                               )}
@@ -1905,21 +1887,18 @@ const getRankedProviders = () => {
                               <div className="absolute -top-10 bg-[#b5847e] text-white px-4 py-1.5 rounded-full font-black shadow-md border-2 border-white flex items-center gap-2"><XCircle size={16}/> 拼字錯誤</div>
                               <span className="text-sm font-bold text-[#a6a198] mt-2 mb-1">正確答案</span>
                               
-                              {/* 💡 移除文法語音：文法模式時拔除游標指針與發音事件 */}
                               {mainMenu !== 'grammar' ? (
                                   <div className="text-4xl md:text-5xl font-black text-[#524d46] tracking-[0.1em] my-2 underline decoration-[#cca677] decoration-4 underline-offset-8 cursor-pointer hover:text-[#cca677] transition-colors" onClick={() => playTTS(safeAnswerStr, false)}>{safeAnswerStr}</div>
                               ) : (
                                   <div className="text-4xl md:text-5xl font-black text-[#524d46] tracking-[0.1em] my-2">{safeAnswerStr}</div>
                               )}
                               
-                              {/* 💡 移除文法語音：僅在非文法模式顯示 */}
                               {mainMenu !== 'grammar' && (
                                   <button onClick={() => playTTS(safeAnswerStr, false)} className="mt-4 bg-white text-[#8c6b44] px-5 py-2.5 rounded-full font-black shadow-sm border border-[#e0c9aa] hover:bg-[#f4ebd9] transition-all flex items-center gap-2 active:scale-95"><Megaphone size={18}/> 聆聽發音</button>
                               )}
                           </div>
                       )}
                       
-                      {/* 💡 新增：統一全句中英對照與單字翻譯區塊 */}
                       <div className="mt-5 w-full bg-white/60 p-4 rounded-xl border border-[#c4cec1] shadow-sm text-left">
                           <div className="text-xs font-black text-[#7a8575] mb-1 flex items-center gap-1 uppercase tracking-widest"><BookOpen size={14}/> 完整中英對照</div>
                           <div className="text-lg font-black text-[#524d46] mb-1 leading-relaxed">
@@ -1937,7 +1916,6 @@ const getRankedProviders = () => {
                           )}
                       </div>
 
-                      {/* AI Teacher Explanation for Grammar */}
                       {mainMenu === 'grammar' && !isFinallyCorrect && (
                           <div className={`mt-6 border-t-2 pt-4 w-full text-left ${isLayout3 ? 'border-[#e0c9aa]' : 'border-[#c4cec1]'}`}>
                               <div className="font-black text-[#7a8575] mb-3 flex items-center gap-1.5"><GraduationCap size={18}/> AI 老師文法解題</div>
@@ -1990,7 +1968,7 @@ const getRankedProviders = () => {
                 {questions.length > 0 && (
                   <div className="mt-10 mb-20 text-center">
                     {!submitted ? (
-                      <button onClick={handleGradeAll} disabled={isGenerating && !ready} className={`w-full bg-[#8b9586] hover:bg-[#7a8575] text-white px-8 py-5 md:py-6 rounded-3xl text-2xl md:text-4xl font-black shadow-[0_8px_0_#6b7566] hover:shadow-[0_4px_0_#6b7566] active:shadow-none transform transition active:translate-y-2 flex justify-center items-center gap-3 tracking-wide ${(isGenerating && !ready) ? 'opacity-50 cursor-not-allowed' : ''}`}><CheckCircle size={36} className="hidden sm:block" /> {(isGenerating && !ready) ? '等待 AI 準備題目中...' : '檢查我的答案！ ✍️'}</button>
+                      <button onClick={handleGradeAll} disabled={isGenerating} className={`w-full bg-[#8b9586] hover:bg-[#7a8575] text-white px-8 py-5 md:py-6 rounded-3xl text-2xl md:text-4xl font-black shadow-[0_8px_0_#6b7566] hover:shadow-[0_4px_0_#6b7566] active:shadow-none transform transition active:translate-y-2 flex justify-center items-center gap-3 tracking-wide ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}><CheckCircle size={36} className="hidden sm:block" /> {isGenerating ? '等待 AI 準備題目中...' : '檢查我的答案！ ✍️'}</button>
                     ) : (
                       <div className="space-y-8 animate-in zoom-in text-center">
                         <div className="bg-[#f4ebd9] p-8 rounded-[3rem] border-[8px] border-white shadow-xl relative w-full text-center">
