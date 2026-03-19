@@ -206,6 +206,7 @@
             updateKeys(gKey, oKey, grKey) { if (gKey) this.geminiKey = gKey; if (oKey) this.openRouterKey = oKey; if (grKey) this.groqKey = grKey; }
             
             async checkAvailableModels(signal) { 
+                // 💡 實作當日快取機制
                 const today = new Date().toLocaleDateString();
                 const cachedModel = localStorage.getItem('sh_gemini_model_cache');
                 const cacheDate = localStorage.getItem('sh_gemini_model_cache_date');
@@ -220,6 +221,7 @@
                         const data = await res.json(); 
                         const vm = (data.models || []).filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent')).map(m => m.name.replace('models/', '')); 
                         
+                        // 💡 補回 1.5-flash，避免掉入 50 次/天的 pro 陷阱
                         if (vm.indexOf('gemini-2.5-flash') !== -1) bg = 'gemini-2.5-flash'; 
                         else if (vm.indexOf('gemini-2.0-flash') !== -1) bg = 'gemini-2.0-flash'; 
                         else if (vm.indexOf('gemini-1.5-flash') !== -1) bg = 'gemini-1.5-flash'; 
@@ -234,17 +236,14 @@
             }
             
             async fetchOpenRouterFreeModels() {
+                // 💡 終極嚴選白名單：只留下「高智商、高參數、絕對服從 JSON 格式」的真實免費模型
                 const whitelist = [
-                 'meta-llama/llama-3.3-70b-instruct:free', // 70B 巨型模型，邏輯最強，完美遵循防呆規則
-                 'deepseek/deepseek-chat:free',            // DeepSeek V3 (非 R1)，出題與 JSON 格式極度穩定
-                 'qwen/qwen-2.5-coder-32b-instruct:free',  // 32B 程式碼專精模型，對 JSON 陣列結構絕對服從
-                  'mistralai/mixtral-8x7b-instruct:free'  // 47B 混合專家模型，適合處理多樣化情境
+                    'meta-llama/llama-3.3-70b-instruct:free',
+                    'deepseek/deepseek-chat:free',
+                    'qwen/qwen-2.5-coder-32b-instruct:free',
+                    'mistralai/mixtral-8x7b-instruct:free'
                 ];
-                return whitelist.filter(m => {
-                    const idL = m.toLowerCase();
-                    if (idL.includes('mini') || idL.includes('nano') || idL.includes('tiny') || idL.includes('small') || idL.includes('1.2b') || idL.includes('1b') || idL.includes('2b') || idL.includes('3b') || idL.includes('preview') || idL.includes('arcee') || idL.includes('liquid') || idL.includes('stepfun') || idL.includes('devstral')) return false;
-                    return true;
-                });
+                return whitelist;
             }
 
             async callGemini(modelName, systemPrompt, userQuery, signal, onChunk, onLog, taskType = "batch") {
@@ -254,8 +253,9 @@
                     if (signal) signal.addEventListener('abort', onAbort);
                     
                     let firstChunk = false;
-                    const baseTTFT = modelName.includes('2.5') ? 18000 : 
-                                     modelName.includes('2.0') ? 10000 : 12000;
+                    
+                    // 💡 動態 TTFT 超時機制
+                    const baseTTFT = modelName.includes('2.5') ? 18000 : modelName.includes('2.0') ? 10000 : 12000;
                     const ttftLimit = taskType === 'micro' ? 7000 : baseTTFT;
                     
                     const ttftTimeout = setTimeout(() => { 
@@ -282,7 +282,7 @@
                                         const data = JSON.parse(line.slice(6)); 
                                         if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) { 
                                             fullText += data.candidates[0].content.parts[0].text; 
-                                            if(onChunk) onChunk(fullText, modelName); 
+                                            if(onChunk) onChunk(fullText, modelName); // 👈 補回 fullText
                                         } 
                                     } catch(e) {} 
                                 } 
@@ -320,11 +320,11 @@
                         if (specificModel === 'auto_filtered') {
                             if (freeModelsList && freeModelsList.length > 0) {
                                 specificModelFinal = freeModelsList[0]; 
-                           } else {
-                         // 💡 關鍵修改：清空時直接拋出錯誤，讓外層的 try-catch 捕捉，進而觸發下一順位 (Gemini) 接手
-                            throw new Error("白名單模型已全數失效或尚未體檢，觸發自動備援");
+                            } else {
+                                // 💡 清空時直接拋出錯誤，讓外層的 try-catch 捕捉，進而觸發下一順位
+                                throw new Error("白名單模型已全數失效或尚未體檢，觸發自動備援");
                             }
-                         }
+                        }
                         
                         const combinedContent = "System Instructions:\n" + systemPrompt + "\n\nUser Request:\n" + userQuery;
                         const payload = { 
@@ -502,7 +502,7 @@
           
           const overrideTriggeredRef = useRef({});
           const readyRef = useRef(false);
-          
+
           const importFileRef = useRef(null);
           const handleExportData = () => {
               const payload = {
@@ -538,6 +538,7 @@
               URL.revokeObjectURL(url);
               showAlert('✅ 資料已匯出！');
           };
+          
           const handleImportData = (e) => {
               const file = e.target.files && e.target.files[0];
               if (!file) return;
@@ -576,18 +577,18 @@
               reader.readAsText(file);
               e.target.value = '';
           };
-          // 💡 新增：清空快取題庫函式
-        const handleClearPoolCache = () => {
-            if (window.confirm("確定要清空所有動態預載的快取題目嗎？這將迫使系統下次測驗時重新向 AI 請求。")) {
-                try {
-                    localStorage.removeItem('sh_qpool_v33');
-                    setPoolStats(p => ({ ...p, size: 0 }));
-                    addLog("🗑️ [系統] 已手動清空動態預載快取池");
-                    showAlert("✅ 預載快取已清空！");
-                } catch(e) {}
-            }
-        };
-        // ===== END =====
+          
+          const handleClearPoolCache = () => {
+              if (window.confirm("確定要清空所有動態預載的快取題目嗎？這將迫使系統下次測驗時重新向 AI 請求。")) {
+                  try {
+                      localStorage.removeItem('sh_qpool_v33');
+                      setPoolStats(p => ({ ...p, size: 0 }));
+                      addLog("🗑️ [系統] 已手動清空動態預載快取池");
+                      showAlert("✅ 預載快取已清空！");
+                  } catch(e) {}
+              }
+          };
+
           const logScrollRef = useRef(null);
           const addLog = msg => {
               setAiLogs(p => {
@@ -701,7 +702,7 @@
                 }
                 
                 if(freeModels.length === 0) {
-                     setFreeModels(['meta-llama/llama-3.1-8b-instruct:free', 'deepseek/deepseek-chat:free']);
+                     setFreeModels(['meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-chat:free']);
                 }
               } catch (e) { }
             }; load();
@@ -807,6 +808,7 @@
                 const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 60000); 
                 const testMsg = 'Reply with exact JSON only: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["a","b","c","d"]}]}';
                 
+                // 💡 全域路由設定
                 const providersToTry = ['groq', 'google', 'openrouter'];
 
                 let result = null;
@@ -968,6 +970,7 @@
                         let u5Focus = nbs.includes('PB1 U5 句型庫') ? " 【U5 CORE FOCUS】: Strictly test one of: Illness, Symptoms(have/has), Obligation(have to/has to), Conditionals(When... must...). Use clinic context." : "";
                         let u2Focus = nbs.includes('PB1 U2 句型庫') ? " 【U2 CORE FOCUS】: Strictly test one of: Locations (Where do/does), Verb agreement (live/lives), Spatial prep (above, below, between), Place prep (in, on, at). Use home context." : "";
 
+                        // 💡 雙重模式 Prompt 防呆機制
                         if (targetMenu === 'grammar') {
                             const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)} | Context Variation: ${s.variationTag}`);
                             systemPrompt = `Role: Expert ESL textbook author for 3rd grade(9yo). Task: Grammar fill-in-the-blank.${u5Focus}${u2Focus} RULES: 
@@ -1027,6 +1030,7 @@
                                     let ans = q.a || q.answer || expectedItem.answer;
                                     let options = (q.o || q.options);
 
+                                    // 🛡️ 第二道防線：前端代名詞模稜兩可校驗 (Validation)
                                     const objPronouns = ['him', 'her', 'them', 'us', 'me'];
                                     const isPronounAmbiguous = (answerStr, optsArr) => {
                                         if (!optsArr || !Array.isArray(optsArr)) return false;
@@ -1108,6 +1112,7 @@
                             return { ...res, provider };
                         };
 
+                        // 💡 全域路由設定
                         const genProvidersToTry = ['groq', 'google', 'openrouter'];
 
                         let result = null;
@@ -1276,6 +1281,7 @@
                       }
                   };
                   
+                  // 💡 全域路由設定
                   const getRankedProviders = () => {
                       const p = ['groq', 'google', 'openrouter'];
                       const v = storage.modelVotes || {};
@@ -1548,12 +1554,11 @@
                             </div>
                             
                             <div className="mt-4 flex flex-col gap-3 border-t border-[#7a8575] pt-4">
-<div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-    <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px]">🤖 全域強制路由：</span>
-    <div className="flex bg-[#6b7566] px-3 py-1.5 rounded-lg w-full sm:w-auto shadow-inner items-center gap-2 text-sm font-bold text-[#e6e9e4]">
-        <span><span className="text-white">Groq</span> ➡️ <span className="text-[#c4cec1]">Gemini</span> ➡️ <span className="text-[#a4b1a1]">OpenRouter</span></span>
-    </div>
-</div>
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                                    <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px]">🤖 全域強制路由：</span>
+                                    <div className="flex bg-[#6b7566] px-3 py-1.5 rounded-lg w-full sm:w-auto shadow-inner items-center gap-2 text-sm font-bold text-[#e6e9e4]">
+                                        <span><span className="text-white">Groq</span> ➡️ <span className="text-[#c4cec1]">Gemini</span> ➡️ <span className="text-[#a4b1a1]">OpenRouter</span></span>
+                                    </div>
                                 </div>
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-2 animate-in fade-in">
                                     <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px]">🧠 Groq 模型：</span>
@@ -1667,11 +1672,11 @@
                         </div>
 
                         <div className="bg-[#e6e9e4] p-4 rounded-2xl border border-[#c4cec1] shadow-sm flex flex-col justify-between">
-    <div className="flex items-center justify-between mb-4 text-[#524d46] font-black text-sm tracking-widest">
-        <div className="flex items-center"><Database size={18} className="text-[#8b9586] mr-2" /> 動態預載快取監控</div>
-        <button onClick={handleClearPoolCache} className="text-[10px] bg-[#b5847e] text-white px-2 py-1 rounded shadow-sm active:scale-95 flex items-center gap-1 hover:bg-[#a3756f] transition-colors"><RefreshCcw size={12}/> 清空快取</button>
-    </div>
-    <div className="grid grid-cols-3 gap-2 text-center h-full">
+                            <div className="flex items-center justify-between mb-4 text-[#524d46] font-black text-sm tracking-widest">
+                                <div className="flex items-center"><Database size={18} className="text-[#8b9586] mr-2" /> 動態預載快取監控</div>
+                                <button onClick={handleClearPoolCache} className="text-[10px] bg-[#b5847e] text-white px-2 py-1 rounded shadow-sm active:scale-95 flex items-center gap-1 hover:bg-[#a3756f] transition-colors"><RefreshCcw size={12}/> 清空快取</button>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-center h-full">
                                 <div className="bg-white p-2 rounded-xl border border-[#c4cec1] shadow-sm flex flex-col justify-center">
                                     <div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1">總庫存 (Pool)</div>
                                     <div className="text-lg md:text-xl font-black text-[#6b7566]">{poolStats.size} <span className="text-xs font-bold text-[#a6a198]">題</span></div>
