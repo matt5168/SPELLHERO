@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版</title>
+    <title>Spelling Hero - 互動家教版 V0320.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -251,6 +251,7 @@
             async fetchOpenRouterFreeModels() {
                 const whitelist = [
                     'meta-llama/llama-4-maverick:free',
+                    'nvidia/nemotron-3-super-120b-a12b:free',
                     'meta-llama/llama-3.3-70b-instruct:free',
                     'openai/gpt-oss-120b:free',
                     'qwen/qwen-2.5-coder-32b-instruct:free',
@@ -467,7 +468,7 @@
           const [submitted, setSubmitted] = useState(false); const [hints, setHints] = useState([]);
           const [qStatus, setQStatus] = useState([]); 
           const [ready, setReady] = useState(false); const [mistakePool, setMistakePool] = useState([]); 
-          const [isReview, setIsReview] = useState(false); const [config, setConfig] = useState({ accent: 'US', speed: 0.9, auto autoRead: true });
+          const [isReview, setIsReview] = useState(false); const [config, setConfig] = useState({ accent: 'US', speed: 0.9, autoRead: true });
           
           const [selectedNotebooks, setSelectedNotebooks] = useState(['All']); 
           const [vocabMode, setVocabMode] = useState('mixed'); 
