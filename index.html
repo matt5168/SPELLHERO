@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 V0320.1</title>
+    <title>Spelling Hero - 互動家教版 V0320.1 (防熔斷架構)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -196,6 +196,26 @@
         const getGroqKey = () => Obfuscator.decode(localStorage.getItem('groq_api_key')) || "";
         const getOpenAITtsKey = () => Obfuscator.decode(localStorage.getItem('sh_openai_tts_key')) || "";
 
+        // ============================================================================
+        // 1. Mutex 序列化佇列防禦
+        // ============================================================================
+        class Mutex {
+            constructor() {
+                this.queue = Promise.resolve();
+            }
+            async lock(delayMs = 4500) {
+                let unlockNext;
+                const willLock = new Promise(resolve => unlockNext = resolve);
+                const willUnlock = this.queue.then(() => new Promise(res => setTimeout(res, delayMs)));
+                this.queue = this.queue.then(() => willLock);
+                await willUnlock;
+                return unlockNext;
+            }
+        }
+
+        // ============================================================================
+        // 2. PersistentAIClient (實裝斷路器、Retry-After與佇列)
+        // ============================================================================
         class PersistentAIClient {
             constructor() { 
                 this.geminiKey = getGeminiKey(); 
@@ -204,18 +224,49 @@
                 
                 this.lastCallTime = { groq: 0, google: 0, openrouter: 0 };
                 this.cooldowns = { groq: 3000, google: 4000, openrouter: 2000 }; 
-                this.circuitBreakers = { groq: 0, google: 0, openrouter: 0 };
+                
+                this.mutex = new Mutex();
+                this.circuitBreakers = {
+                    groq: { failures: 0, lockUntil: 0 },
+                    google: { failures: 0, lockUntil: 0 },
+                    openrouter: { failures: 0, lockUntil: 0 }
+                };
+            }
+
+            checkCircuitBreaker(engine) {
+                if (Date.now() < this.circuitBreakers[engine].lockUntil) {
+                    const remain = Math.ceil((this.circuitBreakers[engine].lockUntil - Date.now()) / 1000);
+                    throw new Error(`[Circuit Breaker] ${engine.toUpperCase()} 引擎目前處於 429 熔斷冷卻中 (剩餘 ${remain}s)`);
+                }
+            }
+
+            recordFailure(engine, retryAfterMs = 0) {
+                const cb = this.circuitBreakers[engine];
+                cb.failures += 1;
+                if (retryAfterMs > 0) {
+                    cb.lockUntil = Date.now() + retryAfterMs;
+                    cb.failures = 0; 
+                    return;
+                }
+                if (cb.failures >= 3) {
+                    cb.lockUntil = Date.now() + (5 * 60 * 1000); // 鎖定 5 分鐘
+                    cb.failures = 0; 
+                }
+            }
+
+            recordSuccess(engine) {
+                this.circuitBreakers[engine].failures = 0;
             }
 
             getEngineStatus(provider) {
                 const now = Date.now();
-                if (now < this.circuitBreakers[provider]) return 'red'; 
+                if (now < this.circuitBreakers[provider].lockUntil) return 'red'; 
                 if (now - this.lastCallTime[provider] < this.cooldowns[provider]) return 'yellow'; 
                 return 'green'; 
             }
 
             handle429(provider) {
-                this.circuitBreakers[provider] = Date.now() + 60000;
+                this.recordFailure(provider, 60000); // 手動寫入60秒
             }
 
             updateKeys(gKey, oKey, grKey) { if (gKey) this.geminiKey = gKey; if (oKey) this.openRouterKey = oKey; if (grKey) this.groqKey = grKey; }
@@ -260,60 +311,101 @@
                 return whitelist;
             }
 
-            async callGemini(modelName, systemPrompt, userQuery, signal, onChunk, onLog, taskType = "batch") {
-                return new Promise(async (resolve, reject) => {
+            async callGemini(modelName, systemPrompt, userQuery, signal, onChunk, onLog, taskType = "batch", retryCount = 0) {
+                this.checkCircuitBreaker('google');
+                let unlock = () => {};
+                
+                try {
+                    // 序列化等待
+                    unlock = await this.mutex.lock(4500);
+                    
                     const localController = new AbortController();
                     const onAbort = () => localController.abort(new Error("AbortError"));
                     if (signal) signal.addEventListener('abort', onAbort);
                     
                     let firstChunk = false;
-                    const baseTTFT = modelName.includes('2.5') ? 18000 : modelName.includes('2.0') ? 10000 : 12000;
-                    const ttftLimit = taskType === 'micro' ? 7000 : baseTTFT;
+                    const baseTTFT = 12000; // 放寬容忍至 12s
+                    const ttftLimit = taskType === 'micro' ? 8000 : baseTTFT;
                     
                     const ttftTimeout = setTimeout(() => { 
-                        if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); reject(new Error("TIMEOUT_TTFT")); } 
+                        if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } 
                     }, ttftLimit);
                     
-                    try {
-                        const url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":streamGenerateContent?alt=sse&key=" + this.geminiKey;
-                        const payload = { contents: [{ parts: [{ text: userQuery }] }], systemInstruction: { parts: [{ text: systemPrompt }] }, generationConfig: { responseMimeType: taskType === 'micro' ? "text/plain" : "application/json", temperature: 0.1 } };
-                        const startTime = Date.now(); onLog && onLog(`📡 [Gemini] 發送連線請求 (${modelName})...`);
-                        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
-                        onLog && onLog(`📥 [Gemini] 收到回應，狀態碼: HTTP ${res.status} (耗時 ${Date.now() - startTime}ms)`);
-                        if (res.status === 429) { throw new Error('HTTP 429: Too Many Requests'); }
-                        if (!res.ok) { let err = ""; try { err = await res.text(); } catch(e){} throw new Error(`HTTP ${res.status} ${err.substring(0, 50)}`); }
-                        onLog && onLog(`⏳ [Gemini] 等待首字元生成 (TTFT LIMIT: ${ttftLimit/1000}s)...`);
-                        const reader = res.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = "";
-                        while (true) {
-                            const { done, value } = await reader.read(); if (done) break;
-                            if (!firstChunk) { firstChunk = true; clearTimeout(ttftTimeout); onLog && onLog(`⚡ [Gemini] 收到首批串流封包！(TTFT: ${Date.now() - startTime}ms)`); }
-                            buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop(); 
-                            for (let i=0; i<lines.length; i++) { 
-                                let line = lines[i].trim(); 
-                                if (line.startsWith('data: ')) { 
-                                    try { 
-                                        const data = JSON.parse(line.slice(6)); 
-                                        if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) { 
-                                            fullText += data.candidates[0].content.parts[0].text; 
-                                            if(onChunk) onChunk(fullText, modelName); 
-                                        } 
-                                    } catch(e) {} 
-                                } 
-                            }
-                        } 
-                        if (signal) signal.removeEventListener('abort', onAbort);
-                        onLog && onLog(`✅ [Gemini] 串流接收完畢，總字元: ${fullText.length}`); 
-                        resolve({ rawText: fullText, modelName: modelName.toUpperCase(), provider: "google" });
-                    } catch (e) {
+                    const url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":streamGenerateContent?alt=sse&key=" + this.geminiKey;
+                    
+                    // 強制加入 maxOutputTokens: 1500 避免幻覺
+                    const payload = { 
+                        contents: [{ parts: [{ text: userQuery }] }], 
+                        systemInstruction: { parts: [{ text: systemPrompt }] }, 
+                        generationConfig: { responseMimeType: taskType === 'micro' ? "text/plain" : "application/json", temperature: 0.1, maxOutputTokens: 1500 } 
+                    };
+                    
+                    const startTime = Date.now(); onLog && onLog(`📡 [Gemini] 發送連線請求 (${modelName})...`);
+                    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
+                    
+                    onLog && onLog(`📥 [Gemini] 收到回應，狀態碼: HTTP ${res.status} (耗時 ${Date.now() - startTime}ms)`);
+                    
+                    if (!res.ok) {
                         clearTimeout(ttftTimeout);
-                        if (signal) signal.removeEventListener('abort', onAbort);
-                        reject(e);
+                        if (res.status === 429) {
+                            const retryAfter = res.headers.get('Retry-After') || res.headers.get('x-ratelimit-reset');
+                            let delayMs = 0;
+                            if (retryAfter) delayMs = isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000);
+                            this.recordFailure('google', Math.max(delayMs, 0));
+                            throw new Error('HTTP 429: Too Many Requests');
+                        }
+                        this.recordFailure('google');
+                        let err = ""; try { err = await res.text(); } catch(e){} 
+                        throw new Error(`HTTP ${res.status} ${err.substring(0, 50)}`);
                     }
-                });
+
+                    this.recordSuccess('google');
+                    onLog && onLog(`⏳ [Gemini] 等待首字元生成 (TTFT LIMIT: ${ttftLimit/1000}s)...`);
+                    
+                    const reader = res.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = "";
+                    while (true) {
+                        const { done, value } = await reader.read(); if (done) break;
+                        if (!firstChunk) { firstChunk = true; clearTimeout(ttftTimeout); onLog && onLog(`⚡ [Gemini] 收到首批串流封包！(TTFT: ${Date.now() - startTime}ms)`); }
+                        buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop(); 
+                        for (let i=0; i<lines.length; i++) { 
+                            let line = lines[i].trim(); 
+                            if (line.startsWith('data: ')) { 
+                                try { 
+                                    const data = JSON.parse(line.slice(6)); 
+                                    if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) { 
+                                        fullText += data.candidates[0].content.parts[0].text; 
+                                        if(onChunk) onChunk(fullText, modelName); 
+                                    } 
+                                } catch(e) {} 
+                            } 
+                        }
+                    } 
+                    if (signal) signal.removeEventListener('abort', onAbort);
+                    onLog && onLog(`✅ [Gemini] 串流接收完畢，總字元: ${fullText.length}`); 
+                    
+                    unlock(); // 提早釋放鎖
+                    return { rawText: fullText, modelName: modelName.toUpperCase(), provider: "google" };
+
+                } catch (e) {
+                    unlock(); // 發生異常時必須釋放鎖
+                    if (retryCount < 3 && !e.message.includes('Circuit Breaker') && e.name !== 'AbortError') {
+                        // Jitter 指數退避
+                        const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000);
+                        onLog && onLog(`[重試] Gemini 節流，等待 ${Math.round(backoffMs/1000)}s 後重試 (${retryCount + 1}/3)...`);
+                        await new Promise(r => setTimeout(r, backoffMs));
+                        return this.callGemini(modelName, systemPrompt, userQuery, signal, onChunk, onLog, taskType, retryCount + 1);
+                    }
+                    throw e;
+                }
             }
 
-            async callOpenRouter(systemPrompt, userQuery, signal, onChunk, onLog, specificModel = "openrouter/auto", taskType = "batch", freeModelsList = []) {
-                return new Promise(async (resolve, reject) => {
+            async callOpenRouter(systemPrompt, userQuery, signal, onChunk, onLog, specificModel = "openrouter/auto", taskType = "batch", freeModelsList = [], retryCount = 0) {
+                this.checkCircuitBreaker('openrouter');
+                let unlock = () => {};
+                
+                try {
+                    unlock = await this.mutex.lock(4500);
+                    
                     const localController = new AbortController();
                     const onAbort = () => localController.abort(new Error("AbortError"));
                     if (signal) signal.addEventListener('abort', onAbort);
@@ -323,126 +415,179 @@
                     const ttftLimit = taskType === 'micro' ? 10000 : baseTTFT;
 
                     const ttftTimeout = setTimeout(() => { 
-                        if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); reject(new Error("TIMEOUT_TTFT")); } 
+                        if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } 
                     }, ttftLimit);
                     
-                    try {
-                        const url = 'https://openrouter.ai/api/v1/chat/completions';
-                        let specificModelFinal = specificModel;
-                        
-                        if (specificModel === 'auto_filtered') {
-                            if (freeModelsList && freeModelsList.length > 0) {
-                                specificModelFinal = freeModelsList[0]; 
-                            } else {
-                                throw new Error("白名單模型已全數失效或尚未體檢，觸發自動備援");
+                    const url = 'https://openrouter.ai/api/v1/chat/completions';
+                    let specificModelFinal = specificModel;
+                    
+                    if (specificModel === 'auto_filtered') {
+                        if (freeModelsList && freeModelsList.length > 0) {
+                            specificModelFinal = freeModelsList[0]; 
+                        } else {
+                            throw new Error("白名單模型已全數失效或尚未體檢，觸發自動備援");
+                        }
+                    }
+                    
+                    const combinedContent = "System Instructions:\n" + systemPrompt + "\n\nUser Request:\n" + userQuery;
+                    const payload = { 
+                        model: specificModelFinal, 
+                        messages: [ { role: "user", content: combinedContent } ], 
+                        stream: true, 
+                        temperature: 0.1,
+                        max_tokens: 1500 // 限制幻覺
+                    };
+
+                    const startTime = Date.now(); onLog && onLog(`📡 [OpenRouter] 發送連線請求 (model: ${specificModelFinal})...`);
+                    const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + this.openRouterKey, 'Content-Type': 'application/json', 'HTTP-Referer': window.location.href, 'X-Title': 'Spelling Hero' }, body: JSON.stringify(payload), signal: localController.signal });
+                    
+                    if (!res.ok) {
+                        clearTimeout(ttftTimeout);
+                        if (res.status === 429) {
+                            const retryAfter = res.headers.get('Retry-After');
+                            let delayMs = 0;
+                            if (retryAfter) delayMs = isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000);
+                            this.recordFailure('openrouter', Math.max(delayMs, 0));
+                            throw new Error('HTTP 429: Too Many Requests');
+                        }
+                        this.recordFailure('openrouter');
+                        let err = ""; try { err = await res.text(); } catch(e){} 
+                        throw new Error(`HTTP ${res.status} ${err.substring(0, 50)}`);
+                    }
+
+                    this.recordSuccess('openrouter');
+                    onLog && onLog(`⏳ [OpenRouter] 等待首字元生成 (TTFT LIMIT: ${ttftLimit/1000}s)...`);
+                    
+                    const reader = res.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = ""; let actualModel = specificModelFinal;
+                    while (true) {
+                        const { done, value } = await reader.read(); if (done) break;
+                        if (!firstChunk) { firstChunk = true; clearTimeout(ttftTimeout); onLog && onLog(`⚡ [OpenRouter] 收到首批串流封包！(TTFT: ${Date.now() - startTime}ms)`); }
+                        buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop();
+                        for (let i=0; i<lines.length; i++) {
+                            let line = lines[i].trim();
+                            if (line.startsWith('data: ') && line !== 'data: [DONE]') { 
+                                try { 
+                                    const data = JSON.parse(line.slice(6)); 
+                                    if (data.model) actualModel = data.model; 
+                                    let content = ""; 
+                                    if (data.choices && data.choices[0]) { 
+                                        if (data.choices[0].delta && data.choices[0].delta.content !== undefined) content = data.choices[0].delta.content; 
+                                        else if (data.choices[0].message && data.choices[0].message.content !== undefined) content = data.choices[0].message.content; 
+                                    } 
+                                    if (content) { 
+                                        fullText += content; 
+                                        if(onChunk) onChunk(fullText, actualModel); 
+                                    } 
+                                } catch(e) {} 
                             }
                         }
-                        
-                        const combinedContent = "System Instructions:\n" + systemPrompt + "\n\nUser Request:\n" + userQuery;
-                        const payload = { 
-                            model: specificModelFinal, 
-                            messages: [ { role: "user", content: combinedContent } ], 
-                            stream: true, 
-                            temperature: 0.1 
-                        };
+                    } 
+                    if (signal) signal.removeEventListener('abort', onAbort);
+                    onLog && onLog(`✅ [OpenRouter] 串流接收完畢，總字元: ${fullText.length}`); 
+                    
+                    unlock();
+                    return { rawText: fullText, modelName: actualModel.toUpperCase(), provider: "openrouter" };
 
-                        const startTime = Date.now(); onLog && onLog(`📡 [OpenRouter] 發送連線請求 (model: ${specificModelFinal})...`);
-                        const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + this.openRouterKey, 'Content-Type': 'application/json', 'HTTP-Referer': window.location.href, 'X-Title': 'Spelling Hero' }, body: JSON.stringify(payload), signal: localController.signal });
-                        onLog && onLog(`📥 [OpenRouter] 收到回應，狀態碼: HTTP ${res.status} (耗時 ${Date.now() - startTime}ms)`);
-                        if (res.status === 429) { throw new Error('HTTP 429: Too Many Requests'); }
-                        if (!res.ok) { let err = ""; try { err = await res.text(); } catch(e){} throw new Error(`HTTP ${res.status} ${err.substring(0, 50)}`); }
-                        onLog && onLog(`⏳ [OpenRouter] 等待首字元生成 (TTFT LIMIT: ${ttftLimit/1000}s)...`);
-                        const reader = res.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = ""; let actualModel = specificModelFinal;
-                        while (true) {
-                            const { done, value } = await reader.read(); if (done) break;
-                            if (!firstChunk) { firstChunk = true; clearTimeout(ttftTimeout); onLog && onLog(`⚡ [OpenRouter] 收到首批串流封包！(TTFT: ${Date.now() - startTime}ms)`); }
-                            buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop();
-                            for (let i=0; i<lines.length; i++) {
-                                let line = lines[i].trim();
-                                if (line.startsWith('data: ') && line !== 'data: [DONE]') { 
-                                    try { 
-                                        const data = JSON.parse(line.slice(6)); 
-                                        if (data.model) actualModel = data.model; 
-                                        let content = ""; 
-                                        if (data.choices && data.choices[0]) { 
-                                            if (data.choices[0].delta && data.choices[0].delta.content !== undefined) content = data.choices[0].delta.content; 
-                                            else if (data.choices[0].message && data.choices[0].message.content !== undefined) content = data.choices[0].message.content; 
-                                        } 
-                                        if (content) { 
-                                            fullText += content; 
-                                            if(onChunk) onChunk(fullText, actualModel); 
-                                        } 
-                                    } catch(e) {} 
-                                }
-                            }
-                        } 
-                        if (signal) signal.removeEventListener('abort', onAbort);
-                        onLog && onLog(`✅ [OpenRouter] 串流接收完畢，總字元: ${fullText.length}`); 
-                        resolve({ rawText: fullText, modelName: actualModel.toUpperCase(), provider: "openrouter" });
-                    } catch (e) {
-                        clearTimeout(ttftTimeout);
-                        if (signal) signal.removeEventListener('abort', onAbort);
-                        reject(e);
+                } catch (e) {
+                    unlock();
+                    if (retryCount < 3 && !e.message.includes('Circuit Breaker') && e.name !== 'AbortError') {
+                        const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000);
+                        onLog && onLog(`[重試] OR 節流，等待 ${Math.round(backoffMs/1000)}s 後重試 (${retryCount + 1}/3)...`);
+                        await new Promise(r => setTimeout(r, backoffMs));
+                        return this.callOpenRouter(systemPrompt, userQuery, signal, onChunk, onLog, specificModel, taskType, freeModelsList, retryCount + 1);
                     }
-                });
+                    throw e;
+                }
             }
 
-            async callGroq(systemPrompt, userQuery, signal, onChunk, onLog, specificModel = "llama-3.3-70b-versatile", taskType = "batch") {
-                return new Promise(async (resolve, reject) => {
+            async callGroq(systemPrompt, userQuery, signal, onChunk, onLog, specificModel = "llama-3.3-70b-versatile", taskType = "batch", retryCount = 0) {
+                this.checkCircuitBreaker('groq');
+                let unlock = () => {};
+                
+                try {
+                    unlock = await this.mutex.lock(4500);
+
                     const localController = new AbortController();
                     const onAbort = () => localController.abort(new Error("AbortError"));
                     if (signal) signal.addEventListener('abort', onAbort);
                     
                     let firstChunk = false;
-                    const baseTTFT = 5000;
-                    const ttftLimit = taskType === 'micro' ? 3500 : baseTTFT;
+                    const baseTTFT = 8000; // 放寬至 8s
+                    const ttftLimit = taskType === 'micro' ? 5000 : baseTTFT;
 
                     const ttftTimeout = setTimeout(() => { 
-                        if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); reject(new Error("TIMEOUT_TTFT")); } 
+                        if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } 
                     }, ttftLimit);
                     
-                    try {
-                        const url = 'https://api.groq.com/openai/v1/chat/completions';
-                        const payload = { model: specificModel, messages: [ { role: "system", content: systemPrompt }, { role: "user", content: userQuery } ], stream: true, temperature: 0.1 };
-                        const startTime = Date.now(); onLog && onLog(`📡 [Groq] 發送連線請求 (model: ${specificModel})...`);
-                        const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + this.groqKey, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
-                        onLog && onLog(`📥 [Groq] 收到回應，狀態碼: HTTP ${res.status} (耗時 ${Date.now() - startTime}ms)`);
-                        if (res.status === 429) { throw new Error('HTTP 429: Too Many Requests'); }
-                        if (!res.ok) { let err = ""; try { err = await res.text(); } catch(e){} throw new Error(`HTTP ${res.status} ${err.substring(0, 50)}`); }
-                        onLog && onLog(`⏳ [Groq] 等待首字元生成 (TTFT LIMIT: ${ttftLimit/1000}s)...`);
-                        const reader = res.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = ""; let actualModel = specificModel;
-                        while (true) {
-                            const { done, value } = await reader.read(); if (done) break;
-                            if (!firstChunk) { firstChunk = true; clearTimeout(ttftTimeout); onLog && onLog(`⚡ [Groq] 收到首批串流封包！(極速 LPU TTFT: ${Date.now() - startTime}ms)`); }
-                            buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop();
-                            for (let i=0; i<lines.length; i++) {
-                                let line = lines[i].trim();
-                                if (line.startsWith('data: ') && line !== 'data: [DONE]') { 
-                                    try { 
-                                        const data = JSON.parse(line.slice(6)); 
-                                        if (data.model) actualModel = data.model; 
-                                        let content = ""; 
-                                        if (data.choices && data.choices[0]) { 
-                                            if (data.choices[0].delta && data.choices[0].delta.content !== undefined) content = data.choices[0].delta.content; 
-                                            else if (data.choices[0].message && data.choices[0].message.content !== undefined) content = data.choices[0].message.content; 
-                                        } 
-                                        if (content) { 
-                                            fullText += content; 
-                                            if(onChunk) onChunk(fullText, actualModel); 
-                                        } 
-                                    } catch(e) {} 
-                                }
-                            }
-                        } 
-                        if (signal) signal.removeEventListener('abort', onAbort);
-                        onLog && onLog(`✅ [Groq] 串流接收完畢，總字元: ${fullText.length}`); 
-                        resolve({ rawText: fullText, modelName: actualModel.toUpperCase(), provider: "groq" });
-                    } catch (e) {
+                    const url = 'https://api.groq.com/openai/v1/chat/completions';
+                    const payload = { 
+                        model: specificModel, 
+                        messages: [ { role: "system", content: systemPrompt }, { role: "user", content: userQuery } ], 
+                        stream: true, 
+                        temperature: 0.1,
+                        max_tokens: 1500 // 限制避免爆 TPM
+                    };
+
+                    const startTime = Date.now(); onLog && onLog(`📡 [Groq] 發送連線請求 (model: ${specificModel})...`);
+                    const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + this.groqKey, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
+                    
+                    if (!res.ok) {
                         clearTimeout(ttftTimeout);
-                        if (signal) signal.removeEventListener('abort', onAbort);
-                        reject(e);
+                        if (res.status === 429) {
+                            const retryAfter = res.headers.get('Retry-After') || res.headers.get('x-ratelimit-reset');
+                            let delayMs = 0;
+                            if (retryAfter) delayMs = isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000);
+                            this.recordFailure('groq', Math.max(delayMs, 0));
+                            throw new Error('HTTP 429: Too Many Requests');
+                        }
+                        this.recordFailure('groq');
+                        let err = ""; try { err = await res.text(); } catch(e){} 
+                        throw new Error(`HTTP ${res.status} ${err.substring(0, 50)}`);
                     }
-                });
+
+                    this.recordSuccess('groq');
+                    onLog && onLog(`⏳ [Groq] 等待首字元生成 (TTFT LIMIT: ${ttftLimit/1000}s)...`);
+                    
+                    const reader = res.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = ""; let actualModel = specificModel;
+                    while (true) {
+                        const { done, value } = await reader.read(); if (done) break;
+                        if (!firstChunk) { firstChunk = true; clearTimeout(ttftTimeout); onLog && onLog(`⚡ [Groq] 收到首批串流封包！(極速 LPU TTFT: ${Date.now() - startTime}ms)`); }
+                        buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop();
+                        for (let i=0; i<lines.length; i++) {
+                            let line = lines[i].trim();
+                            if (line.startsWith('data: ') && line !== 'data: [DONE]') { 
+                                try { 
+                                    const data = JSON.parse(line.slice(6)); 
+                                    if (data.model) actualModel = data.model; 
+                                    let content = ""; 
+                                    if (data.choices && data.choices[0]) { 
+                                        if (data.choices[0].delta && data.choices[0].delta.content !== undefined) content = data.choices[0].delta.content; 
+                                        else if (data.choices[0].message && data.choices[0].message.content !== undefined) content = data.choices[0].message.content; 
+                                    } 
+                                    if (content) { 
+                                        fullText += content; 
+                                        if(onChunk) onChunk(fullText, actualModel); 
+                                    } 
+                                } catch(e) {} 
+                            }
+                        }
+                    } 
+                    if (signal) signal.removeEventListener('abort', onAbort);
+                    onLog && onLog(`✅ [Groq] 串流接收完畢，總字元: ${fullText.length}`); 
+                    
+                    unlock();
+                    return { rawText: fullText, modelName: actualModel.toUpperCase(), provider: "groq" };
+
+                } catch (e) {
+                    unlock();
+                    if (retryCount < 3 && !e.message.includes('Circuit Breaker') && e.name !== 'AbortError') {
+                        const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000);
+                        onLog && onLog(`[重試] Groq 節流，等待 ${Math.round(backoffMs/1000)}s 後重試 (${retryCount + 1}/3)...`);
+                        await new Promise(r => setTimeout(r, backoffMs));
+                        return this.callGroq(systemPrompt, userQuery, signal, onChunk, onLog, specificModel, taskType, retryCount + 1);
+                    }
+                    throw e;
+                }
             }
         }
         const sharedAIClient = new PersistentAIClient();
@@ -478,7 +623,12 @@
           const [dash, setDash] = useState(false); const [earnedCoins, setEarnedCoins] = useState(0); 
           const [earnedExp, setEarnedExp] = useState(0); const [levelUpData, setLevelUpData] = useState(null);
           const [redeemAmount, setRedeemAmount] = useState(100); const [redeemMessage, setRedeemMessage] = useState("");
-          const [isGenerating, setIsGenerating] = useState(false); const [showFallbackAlert, setShowFallbackAlert] = useState(false);
+          
+          // UI 實體同步鎖定
+          const isGeneratingRef = useRef(false);
+          const [isGenerating, setIsGenerating] = useState(false); 
+          
+          const [showFallbackAlert, setShowFallbackAlert] = useState(false);
           const [alertMessage, setAlertMessage] = useState(""); const [streamCount, setStreamCount] = useState(0); 
           
           const [uiLayout, setUiLayout] = useState(localStorage.getItem('sh_ui_layout') || 'layout1');
@@ -838,9 +988,6 @@
                   setDiagStatus('error');
                   setDiagMsg(`❌ ${provider.toUpperCase()} 連線失敗：${errMsg}`);
                   setShowLogsPanel(true);
-                  if (['groq', 'google', 'openrouter'].includes(provider)) {
-                      sharedAIClient.handle429(provider); 
-                  }
               }
           };
 
@@ -867,7 +1014,6 @@
                     } catch (e) {
                         let errMsg = e.message === 'TIMEOUT_TTFT' || e.name === 'AbortError' ? '首字元超時 (TTFT 超過限制)' : e.message;
                         addLog(`[錯誤] ${currentP.toUpperCase()} 測試失敗: ${errMsg}`);
-                        sharedAIClient.handle429(currentP); 
                         if (i === providersToTry.length - 1) throw e;
                     }
                 }
@@ -879,6 +1025,11 @@
           };
 
           const generateAIBatch = async (m, nbs, mode, targetMenu, forceGeminiModel, currentMistakes) => {
+            // UI 實體同步鎖定防連點
+            if (isGeneratingRef.current) return;
+            isGeneratingRef.current = true;
+            setIsGenerating(true);
+            
             m = m || storage.memory; nbs = nbs || selectedNotebooks; mode = mode || vocabMode; targetMenu = targetMenu || mainMenu;
             const targetGeminiModel = forceGeminiModel || activeGeminiModel;
             readyRef.current = false; overrideTriggeredRef.current = {};
@@ -886,12 +1037,13 @@
             setDynamicContent({}); setLoadingStates({}); setDynamicModels({}); setDynamicProviders({});
             
             const currentPool = JSON.parse(localStorage.getItem('sh_qpool_v33') || '{}');
-            setIsGenerating(true); clearLogs(); setStreamCount(0); setAiStatus("初始化連線程序...");
+            clearLogs(); setStreamCount(0); setAiStatus("初始化連線程序...");
             
             let activeDB = targetMenu === 'review' ? (currentMistakes||[]).map(w=>({answer:w, hint:""})) : (targetMenu === 'grammar' ? getActiveGrammarDB(nbs) : getActiveDB(nbs, mode));
-            if (activeDB.length === 0) { setIsGenerating(false); setReady(true); return; }
+            if (activeDB.length === 0) { setIsGenerating(false); isGeneratingRef.current = false; setReady(true); return; }
 
-            const targetTotal = targetMenu === 'grammar' ? 25 : Math.min(25, activeDB.length);
+            // 依據產題規模優化：修改為 10 題
+            const targetTotal = targetMenu === 'grammar' ? 10 : Math.min(10, activeDB.length);
             const selected = []; 
             let tempPool = [...activeDB];
             const patternUsageCount = {};
@@ -976,6 +1128,7 @@
             if (needed.length === 0) {
                 setAiStatus("任務完成，準備測驗！");
                 setIsGenerating(false);
+                isGeneratingRef.current = false;
                 setTimeout(() => { window.scrollTo(0, 0); }, 300);
                 return;
             }
@@ -998,11 +1151,7 @@
                     let chunkPending = chunks[cIdx];
                     let loopGuard = 0;
 
-                    if (cIdx > 0 && chunkPending.length > 0) {
-                        addLog(`[排程] 避免頻率限制，等待 1 秒後發送第 ${cIdx + 1} 批次...`);
-                        await new Promise(r => setTimeout(r, 1000));
-                    }
-
+                    // 取消原本的 1秒延遲，改由 Mutex 的 4500ms 強制接管
                     while (chunkPending.length > 0 && loopGuard < 3) {
                         loopGuard++;
                         if (loopGuard > 1) {
@@ -1019,13 +1168,12 @@
                         let u5Focus = nbs.includes('PB1 U5 句型庫') ? " 【U5 CORE FOCUS】: Strictly test one of: Illness, Symptoms(have/has), Obligation(have to/has to), Conditionals(When... must...). Use clinic context." : "";
                         let u2Focus = nbs.includes('PB1 U2 句型庫') ? " 【U2 CORE FOCUS】: Strictly test one of: Locations (Where do/does), Verb agreement (live/lives), Spatial prep (above, below, between), Place prep (in, on, at). Use home context." : "";
 
-                        // 💡 10/10 終極最佳化 Prompt：條件式防呆 + 前端陣列兜底輔助
                         if (targetMenu === 'grammar') {
                             const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)} | Context Variation: ${s.variationTag}`);
                             systemPrompt = `ESL grammar fill-blank, 3rd grade.${u5Focus}${u2Focus} RULES:
     ① STRICT SUBJECT: Keep EXACT target answer & grammatical subject from pattern. Change ONLY the situation.
-    ② PRONOUN CONTEXT: If the answer is a pronoun (him/her/them), you MUST write a compound sentence with a specific name/gender BEFORE the blank (e.g., "Mary is hurt, what's the matter with ______?").
-    ③ OPTIONS: 'o' array MUST have 4 items (1 CORRECT answer + 3 grammatically WRONG distractors). Pronouns: NEVER mix valid object pronouns—use subject(he/she/they) or possessive(his/her/their) as wrong options.
+    ② PRONOUN CONTEXT: If the answer is a pronoun (him/her/them), you MUST write a compound sentence with a specific name/gender BEFORE the blank.
+    ③ OPTIONS: 'o' array MUST have 4 items (1 CORRECT answer + 3 grammatically WRONG distractors).
     ④ Blank=______(6 underscores).
     ⑤ JSON only: [{"idx":0,"a":"answer","s":"sent______","t":"中文翻譯","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
@@ -1035,7 +1183,7 @@
                             systemPrompt = `ESL vocab fill-blank, 3rd grade. RULES:
     ① Simple formal English. Blank=______(6 underscores). Phrases→ONE blank.
     ② CONTEXT: Sentence MUST contain enough logical clues for the answer.
-    ③ OPTIONS: 'o' MUST have 4 items (1 CORRECT answer + 3 completely WRONG distractors). Pronouns: NEVER mix valid object pronouns.
+    ③ OPTIONS: 'o' MUST have 4 items (1 CORRECT answer + 3 completely WRONG distractors).
     ④ JSON only: [{"idx":0,"a":"answer","s":"sent______","t":"中文句翻譯","h":"中文答案+emoji","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH word below (Total words=${chunkPending.length}, so output ${chunkPending.length * 2} objects). Words:\n${wordsToGenerate.join('\n')}`;
@@ -1064,7 +1212,6 @@
                                 newObjs.forEach((rawQ, idx) => {
                                     if (!rawQ) return;
                                     
-                                    // 💡 安全解構：強制將所有鍵名轉小寫，防止 AI 輸出 q.IDX 造成提取失敗
                                     const q = {};
                                     Object.keys(rawQ).forEach(k => { q[k.toLowerCase()] = rawQ[k]; });
                                     
@@ -1083,7 +1230,6 @@
                                     let ans = String(q.a || q.answer || expectedItem.answer).trim();
                                     let rawOptions = Array.isArray(q.o) ? q.o : (Array.isArray(q.options) ? q.options : []);
 
-                                    // 🛡️ 終極防線：強制選項洗牌與動態補齊
                                     let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ans.toLowerCase());
                                     
                                     if (distractors.length < 3) {
@@ -1094,7 +1240,6 @@
                                     let safeOptions = [ans, ...distractors.slice(0, 3)];
                                     safeOptions = shuffleArray(safeOptions);
 
-                                    // 🛡️ 前端代名詞模稜兩可校驗
                                     const objPronouns = ['him', 'her', 'them', 'us', 'me'];
                                     const isPronounAmbiguous = (answerStr, optsArr) => {
                                         if (!optsArr || !Array.isArray(optsArr)) return false;
@@ -1226,13 +1371,11 @@
                                     if (selectedP === 'openrouter') return await attemptCall('openrouter', () => sharedAIClient.callOpenRouter(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, openRouterModel, 'batch', freeModels));
                                 } catch (err) {
                                     const errMsg = err.message || '';
-                                    if (errMsg.includes('429') || errMsg.includes('Too Many Requests')) {
-                                        addLog(`[動態路由] 🔴 ${selectedP.toUpperCase()} 遭遇 429，系統判定強制熔斷 60 秒！`);
-                                        sharedAIClient.handle429(selectedP);
+                                    if (errMsg.includes('429') || errMsg.includes('Too Many Requests') || errMsg.includes('Circuit Breaker')) {
+                                        addLog(`[動態路由] 🔴 ${selectedP.toUpperCase()} 熔斷跳轉中！`);
                                         return await tryDynamicRoute(); 
                                     } else {
                                         addLog(`[動態路由] ⚠️ ${selectedP.toUpperCase()} 連線失敗: ${errMsg.substring(0,30)}`);
-                                        sharedAIClient.handle429(selectedP); 
                                         return await tryDynamicRoute();
                                     }
                                 }
@@ -1264,6 +1407,9 @@
                 addLog(`[嚴重錯誤] ${fatalErr.message}`);
             } finally {
                 clearTimeout(batchTimeoutId);
+                // 解鎖狀態
+                isGeneratingRef.current = false;
+                setIsGenerating(false);
             }
             
             setAiStatus("接收完畢，檢查完整度...");
@@ -1278,7 +1424,7 @@
             }
 
             addLog(`[完成] 成功準備 ${currentUIQs.length} 題！`); 
-            setIsGenerating(false);
+            
             if (!readyRef.current && currentUIQs.length > 0) { setReady(true); setTimeout(() => { window.scrollTo(0, 0); }, 300); }
           };
 
@@ -1434,7 +1580,8 @@
                           if (currentP === 'groq') {
                               await sharedAIClient.callGroq(sysPrompt, prompt, demandController.signal, onChunk, () => {}, groqModel, 'micro');
                           } else if (currentP === 'google') {
-                              await sharedAIClient.callGemini(activeGeminiModel, sysPrompt, prompt, demandController.signal, onChunk, () => {}, 'micro');
+                              // 解說任務切換至能力較強之 2.5-flash
+                              await sharedAIClient.callGemini('gemini-2.5-flash', sysPrompt, prompt, demandController.signal, onChunk, () => {}, 'micro');
                           } else if (currentP === 'openrouter') {
                               await sharedAIClient.callOpenRouter(sysPrompt, prompt, demandController.signal, onChunk, () => {}, openRouterModel, 'micro', freeModels);
                           }
@@ -1448,10 +1595,6 @@
                           const errMsg = isAbort ? '3秒首字元超時 (觸發強制中斷)' : e.message;
                           
                           addLog(`[單題解說] ⚠️ ${currentP.toUpperCase()} 連線異常: ${errMsg}，切換備援...`);
-                          
-                          if (routingMode === 'dynamic' && !isAbort) {
-                              sharedAIClient.handle429(currentP);
-                          }
                           lastErr = errMsg;
                       } 
                   }
@@ -2155,7 +2298,7 @@
   );
 })}
                   
-                  {isGenerating && questions.length > 0 && questions.length < Math.min(25, (mainMenu === 'grammar' ? getActiveGrammarDB(selectedNotebooks).length : getActiveDB(selectedNotebooks, vocabMode).length)) && (
+                  {isGenerating && questions.length > 0 && questions.length < Math.min(10, (mainMenu === 'grammar' ? getActiveGrammarDB(selectedNotebooks).length : getActiveDB(selectedNotebooks, vocabMode).length)) && (
                       <div className="bg-[#e6e9e4]/50 rounded-[2rem] border-[3px] border-dashed border-[#c4cec1] p-8 flex flex-col items-center justify-center gap-3 animate-pulse opacity-70">
                           <Loader2 size={32} className="text-[#8b9586] animate-spin" />
                           <div className="text-[#6b7566] font-bold text-sm tracking-widest">AI 正在為您產生下一題...</div>
