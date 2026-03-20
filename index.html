@@ -131,33 +131,6 @@
           playCombo: function() { try { const ctx = this.init(); if (!ctx) return; const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.type = 'triangle'; const now = ctx.currentTime; osc.frequency.setValueAtTime(800, now); osc.frequency.linearRampToValueAtTime(1200, now + 0.1); gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(0.2, now + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3); osc.start(now); osc.stop(now + 0.3); } catch (e) {} }
         };
 
-        const SYSTEM_ENGINE = {
-          isCorrect: (ui, ca) => String(ui||'').trim().toLowerCase().replace(/\s+/g, ' ') === String(ca||'').trim().toLowerCase().replace(/\s+/g, ' '),
-          capitalize: s => { const str = String(s||""); const fc = str.search(/[a-zA-Z]/); return fc === -1 ? str : str.substring(0, fc) + str.charAt(fc).toUpperCase() + str.substring(fc + 1); },
-          createHintMask: w => String(w||"").split(' ').map(wd => { const ch = wd.split(''); const ls = ch.filter(c => /[a-zA-Z]/.test(c)); if (ls.length <= 2) return ch.map(c => /[a-zA-Z]/.test(c) ? '_' : c).join(''); let r = []; let lI = 0; for (let i = 0; i < ch.length; i++) { if (/[a-zA-Z]/.test(ch[i])) { lI++; r.push((lI === 1 || lI === ls.length) ? ch[i] : '_'); } else { r.push(ch[i]); } } return r.join(''); }).join(' '),
-          
-          extractJSONObjects: function(text) {
-              let objects = []; let braceCount = 0; let inString = false; let escape = false; let startIdx = -1;
-              for (let i = 0; i < text.length; i++) {
-                  let char = text[i];
-                  if (escape) { escape = false; continue; }
-                  if (char === '\\') { escape = true; continue; }
-                  if (char === '"') { inString = !inString; continue; }
-                  if (!inString) {
-                      if (char === '{') { if (braceCount === 0) startIdx = i; braceCount++; } 
-                      else if (char === '}') {
-                          braceCount--;
-                          if (braceCount === 0 && startIdx !== -1) {
-                              try { objects.push(JSON.parse(text.substring(startIdx, i + 1))); } catch(e) {}
-                              startIdx = -1;
-                          }
-                      }
-                  }
-              }
-              return objects;
-          }
-        };
-
         const shuffleArray = arr => { const n = [...arr]; for (let i = n.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); let t = n[i]; n[i] = n[j]; n[j] = t; } return n; };
         const generateVocabOptions = (ca, fDB) => { const s = String(ca||""); const opts = new Set([s]); const pool = fDB.filter(i => String(i.answer||"").toLowerCase() !== s.toLowerCase()); const sp = shuffleArray([...pool]); for (let i = 0; i < sp.length; i++) { if (opts.size >= 4) break; opts.add(String(sp[i].answer||"")); } return shuffleArray(Array.from(opts)); };
 
@@ -261,7 +234,7 @@
             async callGemini(modelName, systemPrompt, userQuery, signal, onChunk, onLog, taskType = "batch") {
                 return new Promise(async (resolve, reject) => {
                     const localController = new AbortController();
-                    const onAbort = () => localController.abort();
+                    const onAbort = () => localController.abort(new Error("AbortError")); // 確保拋出 AbortError 讓外層精準捕捉
                     if (signal) signal.addEventListener('abort', onAbort);
                     
                     let firstChunk = false;
@@ -269,7 +242,7 @@
                     const ttftLimit = taskType === 'micro' ? 7000 : baseTTFT;
                     
                     const ttftTimeout = setTimeout(() => { 
-                        if (!firstChunk) { localController.abort(); reject(new Error("TIMEOUT_TTFT")); } 
+                        if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); reject(new Error("TIMEOUT_TTFT")); } 
                     }, ttftLimit);
                     
                     try {
@@ -313,7 +286,7 @@
             async callOpenRouter(systemPrompt, userQuery, signal, onChunk, onLog, specificModel = "openrouter/auto", taskType = "batch", freeModelsList = []) {
                 return new Promise(async (resolve, reject) => {
                     const localController = new AbortController();
-                    const onAbort = () => localController.abort();
+                    const onAbort = () => localController.abort(new Error("AbortError"));
                     if (signal) signal.addEventListener('abort', onAbort);
                     
                     let firstChunk = false;
@@ -321,7 +294,7 @@
                     const ttftLimit = taskType === 'micro' ? 10000 : baseTTFT;
 
                     const ttftTimeout = setTimeout(() => { 
-                        if (!firstChunk) { localController.abort(); reject(new Error("TIMEOUT_TTFT")); } 
+                        if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); reject(new Error("TIMEOUT_TTFT")); } 
                     }, ttftLimit);
                     
                     try {
@@ -388,7 +361,7 @@
             async callGroq(systemPrompt, userQuery, signal, onChunk, onLog, specificModel = "llama-3.3-70b-versatile", taskType = "batch") {
                 return new Promise(async (resolve, reject) => {
                     const localController = new AbortController();
-                    const onAbort = () => localController.abort();
+                    const onAbort = () => localController.abort(new Error("AbortError"));
                     if (signal) signal.addEventListener('abort', onAbort);
                     
                     let firstChunk = false;
@@ -396,7 +369,7 @@
                     const ttftLimit = taskType === 'micro' ? 3500 : baseTTFT;
 
                     const ttftTimeout = setTimeout(() => { 
-                        if (!firstChunk) { localController.abort(); reject(new Error("TIMEOUT_TTFT")); } 
+                        if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); reject(new Error("TIMEOUT_TTFT")); } 
                     }, ttftLimit);
                     
                     try {
@@ -832,7 +805,7 @@
                   setShowLogsPanel(true);
               } catch(e) {
                   clearTimeout(timeoutId);
-                  const errMsg = e.message === 'TIMEOUT_TTFT' ? '首字元超時 (TTFT 超過限制)' : e.message;
+                  const errMsg = e.message === 'TIMEOUT_TTFT' || e.name === 'AbortError' ? '首字元超時 (TTFT 超過限制)' : e.message;
                   setDiagStatus('error');
                   setDiagMsg(`❌ ${provider.toUpperCase()} 連線失敗：${errMsg}`);
                   setShowLogsPanel(true);
@@ -863,7 +836,7 @@
                         else result = await sharedAIClient.callOpenRouter("You are a diagnostic tool.", testMsg, controller.signal, () => {}, addLog, openRouterModel, 'micro', freeModels);
                         break;
                     } catch (e) {
-                        let errMsg = e.message === 'TIMEOUT_TTFT' ? '首字元超時 (TTFT 超過限制)' : e.message;
+                        let errMsg = e.message === 'TIMEOUT_TTFT' || e.name === 'AbortError' ? '首字元超時 (TTFT 超過限制)' : e.message;
                         addLog(`[錯誤] ${currentP.toUpperCase()} 測試失敗: ${errMsg}`);
                         sharedAIClient.handle429(currentP); 
                         if (i === providersToTry.length - 1) throw e;
@@ -1289,9 +1262,9 @@
               setTimeout(() => setVoteStatus(prev => ({...prev, [provider]: null})), 2000);
           };
 
-          const handleOnDemand = async (index, type, isRetry = false) => {
+          const handleOnDemand = async (index, type, isRetry = false, retryCount = 0) => {
               const key = `${type}_${index}`;
-              if (loadingStates[key]) return;
+              if (loadingStates[key] && !isRetry) return;
 
               setLoadingStates(prev => ({...prev, [key]: true}));
               if (!isRetry) setDynamicContent(prev => ({...prev, [key]: ""}));
@@ -1323,7 +1296,10 @@
               const sysPrompt = "You are a helpful assistant. Output EXACTLY as requested, RAW TEXT ONLY, NO JSON FORMAT, NO MARKDOWN.";
 
               try {
+                  let firstChunk = false;
+                  
                   const onChunk = (text, chunkModelName) => {
+                      firstChunk = true; // 💡 解除 TTFT 定時炸彈
                       let clean = text.replace(/^["']|["']$/g, '');
                       
                       if (clean.includes('[OVERRIDE_CORRECT]')) {
@@ -1403,6 +1379,7 @@
                   for (let currentP of providersToTry) {
                       try {
                           setDynamicProviders(prev => ({...prev, [key]: currentP}));
+                          addLog(`[單題解說] 🟢 啟動連線 -> ${currentP.toUpperCase()}`);
                           
                           if (routingMode === 'dynamic') {
                               const status = sharedAIClient.getEngineStatus(currentP);
@@ -1413,29 +1390,57 @@
                               sharedAIClient.lastCallTime[currentP] = Date.now();
                           }
                           
+                          // 💡 3秒首字元(TTFT)自毀定時炸彈
+                          const demandController = new AbortController();
+                          firstChunk = false;
+                          const ttftTimer = setTimeout(() => {
+                              if (!firstChunk) {
+                                  demandController.abort(new Error("TTFT_3S_TIMEOUT"));
+                              }
+                          }, 3000);
+                          
                           if (currentP === 'groq') {
-                              await sharedAIClient.callGroq(sysPrompt, prompt, new AbortController().signal, onChunk, () => {}, groqModel, 'micro');
+                              await sharedAIClient.callGroq(sysPrompt, prompt, demandController.signal, onChunk, () => {}, groqModel, 'micro');
                           } else if (currentP === 'google') {
-                              await sharedAIClient.callGemini(activeGeminiModel, sysPrompt, prompt, new AbortController().signal, onChunk, () => {}, 'micro');
+                              await sharedAIClient.callGemini(activeGeminiModel, sysPrompt, prompt, demandController.signal, onChunk, () => {}, 'micro');
                           } else if (currentP === 'openrouter') {
-                              await sharedAIClient.callOpenRouter(sysPrompt, prompt, new AbortController().signal, onChunk, () => {}, openRouterModel, 'micro', freeModels);
+                              await sharedAIClient.callOpenRouter(sysPrompt, prompt, demandController.signal, onChunk, () => {}, openRouterModel, 'micro', freeModels);
                           }
+                          
+                          clearTimeout(ttftTimer);
                           success = true;
+                          addLog(`[單題解說] ✅ ${currentP.toUpperCase()} 解說接收完畢`);
                           break;
                       } catch (e) {
-                          if (routingMode === 'dynamic' && e.message && e.message.includes('429')) {
+                          const isAbort = e.name === 'AbortError' || (e.message && e.message.includes('TTFT_3S_TIMEOUT'));
+                          const errMsg = isAbort ? '3秒首字元超時 (觸發強制中斷)' : e.message;
+                          
+                          addLog(`[單題解說] ⚠️ ${currentP.toUpperCase()} 連線異常: ${errMsg}，切換備援...`);
+                          
+                          if (routingMode === 'dynamic' && !isAbort) {
                               sharedAIClient.handle429(currentP);
                           }
-                          lastErr = e.message === 'TIMEOUT_TTFT' ? '首字元回應超時 (TTFT 超時)' : e.message;
+                          lastErr = errMsg;
                       } 
                   }
                   
                   if(!success) throw new Error(lastErr || "無可用引擎");
+                  
+                  setLoadingStates(prev => ({...prev, [key]: false}));
 
               } catch (e) {
-                  setDynamicContent(prev => ({...prev, [key]: `⚠️ 產生失敗，請稍後再試。(${e.message})`}));
-              } finally {
-                  setLoadingStates(prev => ({...prev, [key]: false}));
+                  // 💡 背景幽靈重試機制 (最多 3 次)
+                  if (retryCount < 3) {
+                      addLog(`[單題解說] 🔴 所有引擎皆忙碌或超時，進入幽靈重試機制 (${retryCount + 1}/3)...`);
+                      setDynamicContent(prev => ({...prev, [key]: `⏳ 系統忙碌中，請先進行下一題，過 10 秒再回來看解答... (自動重試 ${retryCount + 1}/3)`}));
+                      setTimeout(() => {
+                          handleOnDemand(index, type, true, retryCount + 1);
+                      }, 10000);
+                  } else {
+                      addLog(`[單題解說] ❌ 放棄連線 (已達最大重試次數)`);
+                      setDynamicContent(prev => ({...prev, [key]: `⚠️ 老師目前極度忙碌，請稍後再試。(${e.message})`}));
+                      setLoadingStates(prev => ({...prev, [key]: false}));
+                  }
               }
           };
 
@@ -2071,13 +2076,21 @@
 
                       {mainMenu === 'grammar' && !isFinallyCorrect && (
                           <div className={`mt-6 border-t-2 pt-4 w-full text-left ${isLayout3 ? 'border-[#e0c9aa]' : 'border-[#c4cec1]'}`}>
-                              <div className="font-black text-[#7a8575] mb-3 flex items-center gap-1.5"><GraduationCap size={18}/> AI 老師文法解題</div>
+                              <div className="font-black text-[#7a8575] mb-3 flex items-center gap-1.5 flex-wrap">
+                                  <div className="flex items-center gap-1.5"><GraduationCap size={18}/> AI 老師文法解題</div>
+                                  {dynamicModels[`exp_${i}`] && (
+                                      <div className="text-[10px] font-black text-[#a68258] bg-[#f4ebd9] px-2 py-0.5 rounded-lg border border-[#e0c9aa] shadow-sm ml-2 flex items-center gap-1">
+                                          <Sparkles size={12}/> {dynamicModels[`exp_${i}`]}
+                                      </div>
+                                  )}
+                              </div>
                               {q.isAI ? (
                                   dynamicContent[`exp_${i}`] ? (
                                       <div className="animate-in fade-in bg-white p-4 rounded-xl border border-[#d6cfc5] shadow-sm">
-                                          <div className="text-[#524d46] text-sm md:text-base mb-3 leading-relaxed">
+                                          <div className={`text-[#524d46] text-sm md:text-base mb-3 leading-relaxed ${dynamicContent[`exp_${i}`].includes('系統忙碌中') ? 'font-bold text-[#cca677] animate-pulse' : ''}`}>
                                               {renderFormattedText(dynamicContent[`exp_${i}`])}
                                           </div>
+                                          {!dynamicContent[`exp_${i}`].includes('系統忙碌中') && (
                                           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#d6cfc5] pt-3 mt-1">
                                               <div className="flex items-center gap-1 text-[10px] text-[#8a847c]">
                                                   為解說評分：
@@ -2088,6 +2101,7 @@
                                                   <RefreshCcw size={12}/> 換老師說明
                                               </button>
                                           </div>
+                                          )}
                                       </div>
                                   ) : loadingStates[`exp_${i}`] ? (
                                       <span className="animate-pulse flex items-center gap-2 text-[#8b9586] font-bold"><Loader2 className="animate-spin" size={16}/> 老師正在思考中...</span>
