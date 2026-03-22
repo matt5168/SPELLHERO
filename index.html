@@ -9,7 +9,7 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     
-    <script src="database.js?v=1"></script>
+    <script src="database.js?v=2"></script>
 
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: manipulation; }
@@ -331,7 +331,7 @@
                     const payload = { model: specificModel, messages: [ { role: "system", content: systemPrompt }, { role: "user", content: userQuery } ], stream: true, temperature: 0.1, max_tokens: 1500 };
 
                     const startTime = Date.now(); onLog && onLog(`📡 [OpenAI] 發送請求 (${specificModel})...`);
-                    const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + this.openAITtsKey, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
+                    const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${this.openAITtsKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
                     
                     if (!res.ok) {
                         clearTimeout(ttftTimeout); let errBody = ""; try { errBody = await res.text(); } catch(e){} const errMsg = `HTTP ${res.status} ${errBody.substring(0, 100).replace(/\n/g, ' ')}`;
@@ -366,7 +366,6 @@
             }
         }
         const sharedAIClient = new PersistentAIClient();
-
         class ErrorBoundary extends Component {
           constructor(props) { super(props); this.state = { hasError: false, errorInfo: "" }; }
           static getDerivedStateFromError(error) { return { hasError: true }; }
@@ -1056,7 +1055,6 @@
                                     <div className="flex gap-2 w-full sm:w-auto bg-[#6b7566] p-1 rounded-lg"><button onClick={() => handleRoutingModeChange('dynamic')} className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 ${routingMode === 'dynamic' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>🚦 智慧動態路由</button><button onClick={() => handleRoutingModeChange('sequential')} className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 ${routingMode === 'sequential' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>➡️ 傳統順序備援</button></div>
                                 </div>
 
-                                {/* 🟢 還原燈號區塊 */}
                                 {routingMode === 'dynamic' ? (
                                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-1 animate-in fade-in">
                                         <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px]">🚦 即時健康狀態：</span>
@@ -1116,9 +1114,19 @@
                                         <input type="password" value={openAITtsKey} onChange={e => setOpenAITtsKey(e.target.value)} placeholder="sk-proj-..." disabled={!enginesEnabled.openai} className="flex-1 w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white placeholder-[#6b655f] font-mono tracking-widest disabled:opacity-50"/>
                                     </div>
                                 </div>
+
                                 <button onClick={saveCustomKey} className="self-end w-full sm:w-auto bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-6 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-sm active:scale-95 mt-2">💾 儲存金鑰與設定</button>
-                                
-                                {/* 🟢 還原 LOG 面板 */}
+
+                                <div className="flex gap-2 mt-3 flex-wrap w-full">
+                                    <button onClick={handleExportData} className="flex-1 bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-4 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2 border border-[#d6cfc5]">
+                                        📤 匯出備份 JSON
+                                    </button>
+                                    <button onClick={() => importFileRef.current && importFileRef.current.click()} className="flex-1 bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-4 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2 border border-[#d6cfc5]">
+                                        📥 匯入備份 JSON
+                                    </button>
+                                    <input ref={importFileRef} type="file" accept=".json" onChange={handleImportData} className="hidden" />
+                                </div>
+
                                 <div className="mt-4 border-t border-[#7a8575] pt-4 w-full">
                                     <button onClick={() => setShowLogsPanel(!showLogsPanel)} className="w-full bg-[#6b7566] hover:bg-[#5a6356] text-[#e6e9e4] py-2 rounded-lg text-sm font-bold transition-colors shadow-inner flex items-center justify-center gap-2"><ScrollText size={16}/> {showLogsPanel ? '隱藏日誌面板' : '📜 檢視最近一次連線日誌'}</button>
                                     {showLogsPanel && (
@@ -1128,6 +1136,7 @@
                                                     {log.indexOf('[錯誤]') !== -1 || log.indexOf('[超時]') !== -1 || log.indexOf('[異常]') !== -1 || log.indexOf('[失敗]') !== -1 || log.indexOf('❌') !== -1 ? <span className="text-[#b5847e] font-bold">{log}</span> : log.indexOf('[成功]') !== -1 || log.indexOf('[完成]') !== -1 || log.indexOf('[快取]') !== -1 || log.indexOf('✅') !== -1 ? <span className="text-[#8b9586] font-bold">{log}</span> : log.indexOf('[遞補]') !== -1 || log.indexOf('[定額預載]') !== -1 || log.indexOf('[動態預載]') !== -1 || log.indexOf('[備援]') !== -1 || log.indexOf('[重試]') !== -1 || log.indexOf('⏳') !== -1 || log.indexOf('🟡') !== -1 || log.indexOf('🔴') !== -1 || log.indexOf('🟢') !== -1 ? <span className="text-[#cca677] font-bold">{log}</span> : <span className="text-[#c5bbae]">{log}</span>}
                                                 </div>
                                             ))}
+                                            <div ref={el => el && el.scrollIntoView({behavior: 'smooth'})} />
                                         </div>
                                     )}
                                 </div>
