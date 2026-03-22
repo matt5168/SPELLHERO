@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 V0320.1 (防熔斷與全題庫架構)</title>
+    <title>Spelling Hero - 互動家教版 V0320.2 (防熔斷與全題庫架構)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -64,7 +64,25 @@
             ]
         };
 
-        // 新增全域翻譯字典
+        const getActiveGrammarDB = function(notebooks) {
+            let target = [];
+            const nbArray = Array.isArray(notebooks) ? notebooks : ['All'];
+            if (nbArray.includes('All')) {
+                Object.keys(GRAMMAR_NOTEBOOKS).forEach(k => {
+                    if (Array.isArray(GRAMMAR_NOTEBOOKS[k])) {
+                        target = target.concat(GRAMMAR_NOTEBOOKS[k]);
+                    }
+                });
+            } else {
+                nbArray.forEach(nb => {
+                    if (GRAMMAR_NOTEBOOKS[nb] && Array.isArray(GRAMMAR_NOTEBOOKS[nb])) {
+                        target = target.concat(GRAMMAR_NOTEBOOKS[nb]);
+                    }
+                });
+            }
+            return target;
+        };
+
         window.SH_DICTIONARY = {"a":"一個","a lot":"很多(用於句尾)","a lot of":"很多的","a.m.":"早上","about":"關於","above":"在…之上","across":"穿過","act":"行為;演出","actor":"演員","actually":"實際上","add":"增加","address":"地址","adventure":"冒險","afraid":"害怕","after":"在…之後","afternoon":"下午","again":"再次","age":"年紀","ago":"…以前(指時間)","agree":"贊同","air":"空氣","airport":"機場","alex":"艾力克斯(男子名)","alice":"愛麗絲(女子名)","alien":"外星人","all":"全部","all right":"尚可的","alone":"單獨","along":"沿著","alphabet":"字母","already":"已經","also":"而且;此外","always":"總是","amazing":"驚人的","ambulance":"救護車","america":"美國","an":"一個","and":"和","angry":"生氣的","animal":"動物","ann":"安(女子名)","anna":"安(女子名)","another":"另一個","answer":"回答","any":"任何","anyone":"任何人","anything":"任何東西","anywhere":"任何地方","apartment":"公寓 (UK flat)","app":"應用程式","appear":"出現","apple":"蘋果","april":"四月","arm":"手臂","armchair":"扶手椅","around":"周圍","arrive":"到達","art":"美術","artist":"藝術家","as":"像…(一樣)","as...as":"像…(一樣)","ask":"問","astronaut":"太空人","at":"在…","at the moment":"現在","august":"八月","aunt":"姑姑/阿姨","australia":"澳洲","autumn":"秋天","awake":"清醒","away":"離開","baby":"嬰兒","back":"回到","backpack":"背包 (UK rucksack)","bad":"壞的","badly":"嚴重地","badminton":"羽毛球","bag":"袋子","balcony":"陽台","ball":"球","balloon":"氣球","banana":"香蕉","band":"樂團 (music)","bandage":"繃帶","bank":"銀行","baseball":"棒球","baseball cap":"棒球帽","basement":"地下室","basketball":"籃球","bat":"球拍;蝙蝠","bath":"洗澡","bathroom":"廁所","be":"是…;在…","be called":"召喚;叫來","beach":"海灘","bean":"豆子","bear":"熊","beard":"鬍子","beautiful":"美麗的","because":"因為","bed":"床","bedroom":"臥室","bee":"蜜蜂","beetle":"甲蟲","before":"在…之前","begin":"開始","behind":"在…之後","believe":"相信","below":"在…之下","belt":"皮帶","ben":"班(男子名)","best":"最好的","better":"更好的","betty":"貝蒂(女子名)","between":"在…之中","bicycle":"腳踏車","big":"大的","bike":"腳踏車","bill":"比爾(男子名)","bird":"鳥","birthday":"生日","bit":"少許","black":"黑色的","blackboard":"黑板","blanket":"毯子","blond":"金黃色的","blonde":"金黃色的","blue":"藍色的","board":"木板;牌子","board game":"桌遊","boat":"船","body":"身體","book":"書","bookcase":"書櫃","bookshop":"書店","boots":"靴子","bored":"感到無聊的","boring":"無趣的","borrow":"借","both":"兩者都…","bottle":"瓶子","bottom":"底部","bounce":"彈起;彈跳","bowl":"碗","box":"盒子","boy":"男生","bracelet":"手鐲","brave":"勇敢的","brazil":"巴西","bread":"麵包","break":"打破","breakfast":"早餐","bridge":"橋","brilliant":"聰穎的","bring":"帶來","broken":"破損的","brother":"兄弟","brown":"咖啡色的","brush":"牙刷;刷子","build":"建造","building":"建築物","burger":"漢堡","burn":"燃燒","bus":"公車","bus station":"公車站","bus stop":"公車站","business":"職業;生意","businessman":"商人","businesswoman":"商人","busy":"忙碌的","but":"但是","butter":"奶油","butterfly":"蝴蝶","buy":"買","by":"藉由","by myself":"靠我自己","by yourself":"靠你自己","bye":"再見","café":"咖啡店","cage":"籠子","cake":"蛋糕","calendar":"日曆","call":"叫;打電話","camel":"駱駝","camera":"相機","camp":"營地","can":"可以","canada":"加拿大","candy":"糖果 (UK sweets)","car":"車子","car park":"停車場","card":"卡片","careful":"小心仔細的","carefully":"小心仔細地","carrot":"胡蘿蔔","carry":"攜帶","cartoon":"卡通","castle":"城堡","cat":"貓","catch":"抓;接到","caterpillar":"毛毛蟲","cave":"洞穴","cd":"光碟","center":"中央 (UK centre)","century":"一百年;世紀","cereal":"穀物","chair":"椅子","change":"換;改變","channel":"頻道","charlie":"查利(男子名)","chat":"聊天","cheap":"便宜的","cheese":"起士","chemist":"化學家","chess":"西洋棋","chicken":"雞肉","child":"孩童","children":"孩童","china":"中國","chocolate":"巧克力","choose":"選擇","chopsticks":"筷子","cinema":"電影院","circle":"圓形;圓形的","circus":"馬戲團;馬戲表演","city":"城市","city center":"市中心","town center":"市中心","clap":"拍手","clare":"克萊爾(英文名)","class":"課堂","classmate":"同學","classroom":"教室","clean":"清潔","clever":"聰穎的","climb":"爬","clock":"時鐘","close":"關閉","closed":"關閉的","clothes":"衣服","cloud":"雲","cloudy":"多雲的","clown":"小丑","club":"俱樂部;社團","coat":"大衣","coconut":"椰子","coffee":"咖啡","cold":"冷的","collect":"收集","college":"大學","color":"顏色 (UK colour)","comb":"梳;梳子","come":"來","come on":"來吧","comic":"漫畫","comic book":"漫畫書","competition":"比賽","complete":"完成","computer":"電腦","concert":"演唱會","conversation":"對話","cook":"烹煮","cooker":"爐具","cookie":"餅乾 (UK biscuit)","cool":"涼的","corner":"角落","correct":"正確的","costume":"服裝","cough":"咳嗽","could":"可以","count":"計算","country":"國家","countryside":"鄉間","cousin":"表兄弟姐妹","cow":"乳牛","crayon":"蠟筆","creature":"生物","crocodile":"鱷魚","cross":"越過","crown":"王冠","cry":"哭泣","cup":"杯子","cupboard":"壁櫥","curly":"捲的","cushion":"墊子","dad":"爸爸","daisy":"黛西(女子名)","dan":"丹(男子名)","dance":"舞蹈;跳舞","dangerous":"危險的","dark":"暗的;深色的","date":"日期;約會","daughter":"女兒","david":"大衛(男子名)","day":"日子","dear":"親愛的","december":"十二月","decide":"決定","deep":"深的","delicious":"美味的","dentist":"牙醫","desert":"沙漠","design":"設計","designer":"設計師","desk":"書桌","diary":"日記","dictionary":"字典","difference":"不同處","different":"不同的","difficult":"困難的","dining room":"飯廳","dinner":"晚餐","dinosaur":"恐龍","dirty":"髒的","disappear":"消失","do":"做","doctor":"博士;醫生","dog":"狗","doll":"娃娃","dolphin":"海豚","donkey":"驢","don't worry":"不用擔心","door":"門","double":"兩倍","down":"向下","downstairs":"樓下的","draw":"畫","drawing":"圖畫","dream":"夢","dress":"洋裝","dress up":"裝扮","drink":"喝;飲料","drive":"開車","driver":"駕駛","drop":"滴","drum":"鼓","dry":"乾燥的","duck":"鴨子","during":"在…期間","dvd":"數位影碟","each":"每一個","eagle":"鷹","ear":"耳朵","earache":"耳朵痛","early":"提早","earth":"地球","east":"東邊的","easy":"簡單的","eat":"吃","e-book":"電子書","egg":"蛋","egypt":"埃及","elbow":"手肘","elephant":"大象","elevator":"電梯 (UK lift)","else":"其他","email":"電子郵件","emma":"艾瑪(女子名)","empty":"空的","end":"結束","engine":"引擎","engineer":"工程師","england":"英國","english":"英文","enjoy":"享受","enormous":"巨大的","enough":"足夠的","enter":"進入","entrance":"入口","envelope":"信封","environment":"環境","eraser":"橡皮擦 (UK rubber)","eva":"伊娃(女子名)","evening":"晚上","ever":"從來","every":"每一個","everyone":"每個人","everything":"每件事","everywhere":"每個地方","exam":"考試","example":"例子","excellent":"卓越的","excited":"興奮的","exciting":"令人興奮的","excuse":"藉口","excuse me":"對不起","exit":"出口;離開","expensive":"昂貴的","explain":"解釋","explore":"探索","extinct":"絕種的","eye":"眼睛","face":"臉","factory":"工廠","fair":"公平的","fall":"秋天 (UK autumn)","fall over":"跌倒","family":"家庭","famous":"出名的","fan":"風扇","fantastic":"極好的","fish":"魚","fishing":"釣魚","fix":"修理","flag":"旗子","flashlight":"手電筒 (UK torch)","floor":"地板;樓層","flour":"麵粉","flower":"花","flute":"長笛","fly":"飛;蒼蠅","fog":"霧","foggy":"多霧的","follow":"跟隨","food":"食物","foot":"腳(單數)","for":"為了…","forest":"森林","forget":"忘記","fork":"叉子","frank":"法蘭克(男子名)","fred":"佛列得(男子名)","free time":"空暇時間","friday":"星期五","fridge":"冰箱","friend":"朋友","friendly":"友善的","fries":"炸薯條 (UK chips)","frightened":"害怕的","frightening":"令人害怕的","frog":"青蛙","from":"從…來;來自","front":"前面的","fruit":"水果","full":"充滿的","fun":"樂趣","funfair":"露天遊樂場","funny":"有趣的","fur":"皮毛","furry":"毛皮的","future":"未來","game":"遊戲","garden":"花園(英式用法)","gate":"大門","geography":"地理","george":"喬治(男子名)","germany":"德國","get":"拿到","get dressed":"穿衣服","get off":"離開;下車","get on":"上車","get to":"抵達","get undressed":"脫衣服","get up":"起床","giraffe":"長頸鹿","girl":"女孩","give":"給","glass":"玻璃","glasses":"眼鏡","glove":"手套","glue":"膠水","go":"去","go away":"走開","go out":"出去","go shopping":"買東西","go to bed":"去睡覺","go to sleep":"去睡覺","goal":"目標","goat":"山羊","gold":"黃金","golf":"高爾夫球","good":"好的","goodbye":"再見","grace":"格雷斯(女子名)","granddaughter":"孫女","grandfather":"祖父","grandma":"祖母","grandmother":"祖母","grandpa":"祖父","grandparent":"祖父母","grandson":"孫子","grape":"葡萄","grass":"草","gray":"灰色 (UK grey)","grey":"灰色","great":"非常好的","green":"綠色的","ground":"空地","group":"組;群","grow":"成長","grown-up":"長大的;大人","guess":"猜測","guitar":"吉他","gym":"體育館","hair":"頭髮","half":"一半","hall":"大廳","hallway":"走廊","hand":"手","handbag":"手提包","happen":"發生","happy":"快樂的","hard":"堅硬的;困難的","harry":"哈利(男子名)","hat":"帽子","hate":"憎恨","have":"有","have got to":"必須","have got":"有","he":"他","head":"頭","headache":"頭痛","hear":"聽到","heavy":"重的","helen":"海倫(女子名)","helicopter":"直升機","hello":"哈囉","helmet":"頭盔;安全帽","help":"幫忙","her":"她(所有格)","here":"這裡","hers":"她的(東西)","hi":"嗨","hide":"躲藏","high":"高的","hill":"小山","him":"他(受詞)","hippo":"河馬","his":"他的","history":"歷史","hit":"打","hobby":"嗜好","hockey":"曲棍球","hold":"握;抱","hole":"洞","holiday":"假日","holly":"霍莉(女子名)","home":"家","homework":"家庭作業","honey":"蜂蜜","hook":"掛鉤","hooray":"萬歲","hop":"跳","hope":"希望","horrible":"糟透的","horse":"馬","hospital":"醫院","hot":"熱的","hotel":"旅館","hour":"小時","house":"房子","how":"如何","how many":"(可數)多少","how much":"(不可數)多少","how often":"多久一次","how old":"…幾歲？","hugo":"雨果(男子名)","hungry":"飢餓的","hurry":"加快","hurt":"受傷的","husband":"丈夫","i":"我","ice":"冰","ice cream":"冰淇淋","ice skates":"溜冰鞋","ice skating":"溜冰","idea":"想法","if":"如果","if you want":"如果你想要","ill":"生病的","important":"重要的","improve":"進步","in":"在…","in a minute":"很快","in front of":"在…前面","india":"印度","information":"資訊","insect":"昆蟲","inside":"在…裡面","instead":"代替","instrument":"樂器","interested":"感興趣的","interesting":"有趣的","internet":"網路","into":"進入","invent":"發明","invitation":"邀請","invite":"邀請","island":"島嶼","it":"它","italy":"義大利","its":"它的","jack":"傑克","jacket":"夾克","jam":"果醬;塞車","jane":"珍(女子名)","january":"一月","japan":"日本","jeans":"牛仔褲","jellyfish":"水母","jim":"吉姆(男子名)","job":"工作","join":"加入","joke":"笑話","journalist":"新聞記者","journey":"旅行","juice":"果汁","julia":"茱莉亞(女子名)","july":"七月","jump":"跳","june":"六月","jungle":"叢林","just":"只是;剛才;正好","kangaroo":"袋鼠","katy":"凱蒂(女子名)","keep":"保有","key":"鑰匙","keyboard":"鍵盤","kick":"踢","kid":"小孩","kilometer":"公里 (UK kilometre)","kilometre":"公里","kim":"金(女子名與男子名)","kind":"仁慈的;種類","king":"國王","kitchen":"廚房","kite":"風箏","kitten":"小貓","kiwi":"奇異果","knee":"膝蓋","knife":"刀子","know":"知道","lake":"湖泊","lamp":"檯燈;立燈","land":"土地","language":"語言","laptop":"筆記型電腦","large":"大的","last":"最後的;上一個","late":"遲到的;晚的","later":"較晚的","laugh":"笑","lazy":"懶惰的","leaf":"樹葉(單數)","leaves":"樹葉(複數)","learn":"學習","leave":"離開","left":"左邊的","leg":"腿","lemon":"檸檬","lemonade":"檸檬汁","lesson":"課","let":"讓;允許","let's":"讓我們…吧","letter":"信;字母","library":"圖書館","lie down":"躺下","lift":"電梯(英式用法)","light":"光線;亮的","like":"喜歡;像","lily":"莉莉(女子名)","lime":"萊姆","line":"線","lion":"獅子","listen":"聽","little":"小的","live":"生活","living room":"客廳","lizard":"蜥蜴","long":"長的","look":"看","look after":"照顧","look at":"看","look for":"尋找","look like":"長得像","lorry":"貨車(英式用法)","lose":"遺失;輸","lots":"抽籤","lots of":"很多的","loud":"大聲的","loudly":"大聲地","love":"愛","lovely":"可愛的;美好的","low":"低的","lucky":"幸運的","lucy":"露西(女子名)","lunch":"午餐","machine":"機器","magazine":"雜誌","make":"做","make sure":"確定","man":"男人(單數)","men":"男人(複數)","manager":"經理;主管","mango":"芒果","many":"很多的","map":"地圖","march":"三月","mark":"馬克(男子名)","market":"市場","mary":"瑪莉(女子名)","mat":"墊子","match":"比賽;配對;火柴","math":"數學 (UK maths)","maths":"數學","matt":"馬特(男子名)","matter":"事情;關係","may":"五月;梅(女子名)","me":"我(受詞)","me too":"我也是","meal":"進餐","mean":"意思;刻薄的","measure":"測量","meat":"肉","meatballs":"肉丸","medicine":"藥","meet":"相識;會面","meeting":"會議","member":"成員","message":"訊息","messy":"髒亂的;不整潔的","metal":"金屬","mexico":"墨西哥","michael":"邁克爾(男子名)","midday":"中午","middle":"中間","midnight":"午夜","might":"可能;可以","milk":"牛奶","milkshake":"奶昔","million":"一百萬","mind":"注意","mine":"我的(東西)","minute":"分鐘","mirror":"鏡子","miss":"小姐(尊稱)","missing":"失蹤的","mistake":"錯誤","mix":"混合","model":"模範","mom":"媽媽","mum":"媽媽","monday":"星期一","money":"錢","monkey":"猴子","monster":"怪物","month":"月","moon":"月亮","more":"較多的","morning":"早上","most":"最多","mother":"母親","motorbike":"摩托車","motorway":"高速公路","mountain":"山","mouse":"滑鼠;老鼠","mice":"老鼠(複數)","moustache":"八字鬍","mouth":"嘴巴","move":"移動","mr.":"先生(尊稱)","mrs.":"太太(尊稱)","ms.":"女士(尊稱)","much":"多的(不可數)","museum":"博物館","music":"音樂","must":"必須","my":"我的","name":"名字","naughty":"頑皮的","near":"靠近","neck":"脖子","necklace":"項鍊","need":"需要","nest":"窩;巢","net":"網","never":"從不","new":"新的","news":"新聞","newspaper":"報紙","next":"下一個","next to":"在…旁邊","nice":"很好的","nick":"尼克(男子名)","night":"夜晚","no":"不是","no problem":"沒問題","noise":"聲響","noisy":"喧鬧的","noodles":"麵條","no-one":"沒有人","north":"北邊","nose":"鼻子","not":"不是","nothing":"沒東西","november":"十一月","now":"現在","nowhere":"任何地方都不","number":"數字","nurse":"護士","ocean":"海洋","o'clock":"…點鐘","october":"十月","octopus":"章魚","of":"…的","of course":"當然","off":"離開;除去","office":"辦公室","often":"經常","oh":"驚嘆號","oh dear":"我的天啊!唉呀!","old":"年老的","oliver":"奧立佛(男子名)","olive":"橄欖","on":"在…上面","once":"一次","one":"一個","onion":"洋蔥","online":"線上的","only":"只有","open":"打開","opposite":"相反的","or":"或是","orange":"橘色的","other":"其他的","our":"我們的","ours":"我們的東西","out":"向外的","out of":"在…範圍之外","outside":"外面","over":"在…上方;結束的","p.m.":"下午;午後","page":"頁","paint":"畫圖","painter":"畫家","painting":"圖畫","pajamas":"睡衣褲 (UK pyjamas)","pyjamas":"睡衣褲","pancake":"鬆餅","panda":"熊貓","paper":"紙","pardon":"原諒;饒恕","parent":"父母","park":"公園","parrot":"鸚鵡","part":"部分","party":"派對","passenger":"乘客","past":"過去的","pasta":"義大利麵","pat":"派特(男子名)","path":"小徑","paul":"保羅(男子名)","pea":"豆子","pear":"洋梨","pen":"原子筆","pencil case":"鉛筆盒","pencil":"鉛筆","penguin":"企鵝","pepper":"胡椒","perhaps":"或許;大概","person":"人","people":"人(複數)","pet":"寵物","peter":"彼得(男子名)","phone":"電話","photo":"照片","photographer":"攝影師","piano":"鋼琴","pick up":"拾起","picnic":"野餐","picture":"圖片","pie":"派","piece":"一個;一塊","pilot":"飛行員","pineapple":"鳳梨","pink":"粉紅色的","pirate":"海盜","pizza":"披薩","place":"地方","plane":"飛機","planet":"星球","plant":"植物","plastic":"塑膠","plate":"盤子","platform":"平臺;月臺","play":"玩耍","player":"玩遊戲的人;選手","playground":"操場","please":"請求","pleased":"開心的","pocket":"口袋","point":"指;點","polar bear":"北極熊","police officer":"警察","police station":"警局","pond":"池塘","pool":"水池","poor":"貧窮的","pop music":"流行音樂","pop star":"流行歌手","popular":"受歡迎的","post office":"郵局","post":"布置;張貼","postcard":"明信片","poster":"海報","potato":"馬鈴薯","practice":"練習","project":"方案","pull":"拉","puppy":"小狗","purple":"紫色的","push":"推","prefer":"更喜愛","present":"禮物","pretty":"漂亮的","prize":"獎","problem":"問題","program":"程式 (UK programme)","programme":"程式","put on":"穿上","put":"放置","puzzle":"難題;謎","pyramid":"金字塔","quarter":"四分之一","queen":"皇后","question":"問題","quick":"很快的","quickly":"很快地","quiet":"安靜的","quietly":"安靜地","quite":"完全地","quiz":"測驗","rabbit":"兔子","race":"比賽","racing":"比賽","radio":"收音機","railway":"鐵路","rain":"雨","rainbow":"彩虹","read":"閱讀","ready":"準備好了的","really":"真正地;事實上","red":"紅色的","remember":"記得","repair":"修理","repeat":"重複","reporter":"記者;報告人","restaurant":"餐廳","rice":"米","rich":"富有的","richard":"理查(男子名)","ride":"騎乘","right":"對的;右邊","ring":"戒指","river":"河流","road":"道路","robert":"羅伯特(男子名)","robot":"機器人","rock":"岩石","rock music":"搖滾樂","rocket":"火箭","roller skates":"輪式溜冰鞋","roller skating":"輪式溜冰","roof":"屋頂","room":"房間","round":"圓的","rubber":"橡膠;橡皮擦","rug":"地毯","ruler":"尺","run":"跑","russia":"蘇俄","sad":"難過的","safe":"安全的","sail":"航行","salad":"沙拉","sally":"莎莉(女子名)","sam":"山姆(男子名)","same":"相同的","sand":"沙子;沙灘","sandwich":"三明治","sarah":"莎拉(女子名)","saturday":"星期六","sauce":"醬","sausage":"香腸","save":"挽救","say":"說","scarf":"圍巾","scary":"恐怖的","school":"學校","science":"科學","scissors":"剪刀","score":"得分","screen":"螢幕","sea":"海","search":"搜索","seat":"座位","second":"第二的;秒","secret":"秘密","see":"看見","see you":"再見","sell":"賣","send":"發送","sentence":"句子","september":"九月","several":"幾個","shall":"將;會","shampoo":"洗髮精","shape":"形狀","shark":"鯊魚","she":"她","sheep":"綿羊","shell":"殼","ship":"船","shirt":"襯衫","shoe":"鞋子","shop":"商店(英式用法)","shopping":"購物","shopping center":"購物中心","short":"短的","shorts":"短褲","should":"應該","shoulder":"肩膀","shout":"吼叫","show":"顯示","shower":"淋浴","sick":"病的","silly":"愚蠢的","silver":"銀","since":"此後;自…以來","sing":"唱歌","singer":"歌手","sister":"姐妹","sit":"坐","skate":"溜冰","skateboard":"滑板","skateboarding":"踩滑板","ski":"滑雪","skip":"跳過","skirt":"裙子","sky":"天空","skyscraper":"摩天大樓","sledge":"雪橇","sleep":"睡覺","slow":"慢慢的","slowly":"慢慢地","small":"小的","smart":"聰明的","smell":"聞","smile":"微笑","snack":"點心","snail":"蝸牛","snake":"蛇","snow":"雪","snowball":"雪球","snowboard":"滑雪板","snowboarding":"滑板滑雪","snowman":"雪人","so":"所以","soap":"肥皂","soccer":"足球 (UK football)","football":"足球","sock":"襪子","sofa":"沙發","soft":"柔軟的","some":"一些","someone":"某人","something":"某個東西","sometimes":"有時","somewhere":"在某處","son":"兒子","song":"歌曲","soon":"不久;很快","sophia":"蘇菲亞(女子名)","sore":"疼痛的","sorry":"抱歉;遺憾的","sound":"聲音","soup":"湯","south":"南方","space":"空間","spaceship":"太空船","speak":"說話","special":"特別的","spell":"拼字","spend":"花費","spider":"蜘蛛","spoon":"湯匙","sport":"運動","sports":"運動的","sports center":"運動中心","spot":"斑點","spotted":"有斑點的","spring":"春天","square":"正方形;廣場","stadium":"體育場","stage":"階段;舞臺","stair":"樓梯","stairs":"樓梯","stand":"站著","star":"星星","start":"開始","station":"車站","stay":"停留","step":"踩;踏;步驟","still":"仍然","stomach":"胃","stomach ache":"胃痛","stone":"石頭","stop":"停止","store":"商店 (UK shop)","storm":"暴風雨","story":"故事","straight":"直的","straight on":"往前直去","strange":"奇怪的","strawberry":"草莓","stream":"小河","street":"街道","stripe":"條紋","striped":"有條紋的","strong":"強壯的","student":"學生","study":"讀書","subject":"主題;科目","suddenly":"突然","sue":"蘇(女生名)","sugar":"糖","suitcase":"手提箱","summer":"夏天","sun":"太陽","sunday":"星期日","sunglasses":"太陽眼鏡","sunny":"晴朗的","supermarket":"超市","sure":"確定的","surname":"姓氏","surprise":"驚奇","surprised":"感到驚訝的","swan":"天鵝","sweater":"毛衣","sweet":"糖果(英式用法);甜的","swim":"游泳","swimming":"游泳","swimming pool":"游泳池","swimsuit":"游泳衣","swing":"擺動","table":"桌子","table tennis":"乒乓球","tablet":"藥片","tail":"尾巴","taiwan":"臺灣","take":"拿","take a photo":"照相","take a picture":"照相","take off":"起飛","talk":"講話","tall":"高的","taste":"嚐…的味道","taxi":"計程車","tea":"茶","teach":"教書","teacher":"老師","team":"隊;組","teddy":"泰迪熊","teddy bear":"泰迪熊","telephone":"電話","television":"電視","tv":"電視","tell":"告訴","temperature":"溫度","tennis":"網球","tennis racket":"網球拍","tent":"帳篷","terrible":"糟糕的","test":"測驗","text":"課文","thailand":"泰國","than":"比…","thank":"謝謝你","thank you":"謝謝你","thanks":"謝謝","that":"那個","the":"用於名詞","theater":"戲院 (UK theatre)","theatre":"戲院","their":"他們的","theirs":"他們的東西","them":"他們(受詞)","then":"然後","there":"那裡","these":"這些","they":"他們","thief":"小偷","thin":"瘦的;薄的","thing":"東西","think":"想","third":"第三的","thirsty":"口渴的","this":"這個","those":"那些","thousand":"一千","through":"通過;穿越","throw":"丟","thursday":"星期四","tick":"打勾;滴答聲","ticket":"票","tidy":"整齊的","tiger":"老虎","time":"時間","timetable":"時間表","tire":"輪胎 (UK tyre)","tyre":"輪胎","tired":"疲累的","to":"到","today":"今天","toe":"腳趾","together":"一起","toilet":"馬桶;洗手間","tom":"湯姆(男子名)","tomato":"番茄","tomorrow":"明天","tonight":"今晚","too":"也","tooth":"牙齒","teeth":"牙齒(複數)","toothache":"牙痛","toothbrush":"牙刷","toothpaste":"牙膏","top":"頂端","tortoise":"陸龜","touch":"碰觸","tour":"旅遊","towel":"毛巾","town":"城鎮","toy":"玩具","tractor":"拖拉機","traffic":"交通;交通量","train":"火車","trainers":"運動鞋","trash":"垃圾","travel":"旅行","treasure":"寶藏","tree":"樹","trip":"旅行","trousers":"長褲(英式用法)","truck":"貨車 (UK lorry)","trumpet":"喇叭;小號","try":"嘗試","t-shirt":"短袖圓領汗衫","tuesday":"星期二","tune":"曲調","turn":"轉動","turn off":"關掉(開關)","turn on":"打開(開關)","twice":"兩次;兩倍","ugly":"醜陋的","umbrella":"雨傘","uncle":"叔叔","under":"在…下方","understand":"了解","unfriendly":"不友好的","unhappy":"不高興的","uniform":"制服","university":"大學","unkind":"不友善的","untidy":"不整齊的","until":"直到……時","unusual":"不平常的","up":"往上","upstairs":"樓上的","us":"我們(受詞)","use":"使用","used":"舊的","usually":"通常地","vegetable":"蔬菜","very":"非常地","vicky":"維琪(女子名)","video":"錄影帶","view":"觀點;景象","village":"村莊","violin":"小提琴","visit":"參觀;拜訪","volleyball":"排球","wait":"等待","waiter":"服務生","waitress":"服務生","wake":"醒起","wake up":"醒起","walk":"行走","wall":"牆壁","want":"想要","warm":"溫暖的","wash":"洗","watch":"觀看;手錶","water":"水","waterfall":"瀑布","watermelon":"西瓜","wave":"揮手","way":"路;方法","we":"我們","weak":"虛弱的","wear":"穿","weather":"天氣","website":"網站","wednesday":"星期三","week":"一週","weekend":"週末","well":"很好地","well done":"做得好","west":"西方","wet":"濕的","whale":"鯨魚","what":"什麼","wheel":"輪子","when":"何時","where":"哪裡","which":"哪一個","whisper":"低語","whistle":"吹口哨","white":"白色的","who":"誰","whose":"誰的","why":"為什麼","wife":"妻子","wi-fi":"無線上網","wild":"瘋狂的","will":"將要","william":"威廉(男子名)","win":"獲勝","wind":"風","window":"窗戶","windy":"刮風的","wing":"翅膀","winner":"獲勝者","winter":"冬天","wish":"希望","with":"和…一起","without":"沒有","woman":"女人(單數)","women":"女人(複數)","wonderful":"極好的","wood":"木頭","wool":"羊毛","word":"字","work":"工作","world":"世界","worm":"蟲;蛀蟲","worried":"擔心的","worse":"更糟的","worst":"最糟的","would":"will 過去式","would like":"想要","wow":"驚呼聲","write":"書寫","wrong":"錯的","x-ray":"X 光","yard":"花園 (UK garden)","year":"年","yellow":"黃色的","yes":"是","yesterday":"昨天","yet":"還","yoghurt":"優格","yogurt":"優格","you":"你","young":"年輕的","your":"你的…","yours":"你的(東西)","zebra":"斑馬","zero":"零","zoe":"柔伊(女子名)","zoo":"動物園"};
 
         const RAW_NOTEBOOKS = {
@@ -81,9 +99,7 @@
             "WTK (K-O)": Object.keys(window.SH_DICTIONARY).filter(w => /^[k-o]/i.test(w)),
             "WTK (P-T)": Object.keys(window.SH_DICTIONARY).filter(w => /^[p-t]/i.test(w)),
             "WTK (U-Z)": Object.keys(window.SH_DICTIONARY).filter(w => /^[u-z]/i.test(w))
-        };
-
-        const DB_BY_NOTEBOOK = {}; const ALL_WORDS = []; const ALL_PHRASES = [];
+        };const DB_BY_NOTEBOOK = {}; const ALL_WORDS = []; const ALL_PHRASES = [];
         const GLOBAL_DICT = new Map();
 
         Object.keys(RAW_NOTEBOOKS).forEach(notebook => {
@@ -105,8 +121,8 @@
             } else { 
                 nbArray.forEach(nb => {
                     if (DB_BY_NOTEBOOK[nb]) { 
-                        targetWords = targetWords.concat(DB_BY_NOTEBOOK[nb].words); 
-                        targetPhrases = targetPhrases.concat(DB_BY_NOTEBOOK[nb].phrases); 
+                        if (Array.isArray(DB_BY_NOTEBOOK[nb].words)) targetWords = targetWords.concat(DB_BY_NOTEBOOK[nb].words); 
+                        if (Array.isArray(DB_BY_NOTEBOOK[nb].phrases)) targetPhrases = targetPhrases.concat(DB_BY_NOTEBOOK[nb].phrases); 
                     }
                 });
                 targetWords = Array.from(new Set(targetWords));
@@ -155,7 +171,19 @@
         };
 
         const shuffleArray = arr => { const n = [...arr]; for (let i = n.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); let t = n[i]; n[i] = n[j]; n[j] = t; } return n; };
-        const generateVocabOptions = (ca, fDB) => { const s = String(ca||""); const opts = new Set([s]); const pool = fDB.filter(i => String(i.answer||"").toLowerCase() !== s.toLowerCase()); const sp = shuffleArray([...pool]); for (let i = 0; i < sp.length; i++) { if (opts.size >= 4) break; opts.add(String(sp[i].answer||"")); } return shuffleArray(Array.from(opts)); };
+        
+        const generateVocabOptions = (ca, fDB) => { 
+            const s = String(ca||""); 
+            const opts = new Set([s]); 
+            const safeDB = Array.isArray(fDB) ? fDB : [];
+            const pool = safeDB.filter(i => String(i.answer||"").toLowerCase() !== s.toLowerCase()); 
+            const sp = shuffleArray([...pool]); 
+            for (let i = 0; i < sp.length; i++) { 
+                if (opts.size >= 4) break; 
+                opts.add(String(sp[i].answer||"")); 
+            } 
+            return shuffleArray(Array.from(opts)); 
+        };
 
         const escapeRegExp = str => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -191,9 +219,6 @@
         const getGroqKey = () => Obfuscator.decode(localStorage.getItem('groq_api_key')) || "";
         const getOpenAITtsKey = () => Obfuscator.decode(localStorage.getItem('sh_openai_tts_key')) || "";
 
-        // ============================================================================
-        // 1. Mutex 序列化佇列防禦
-        // ============================================================================
         class Mutex {
             constructor() {
                 this.queue = Promise.resolve();
@@ -208,9 +233,6 @@
             }
         }
 
-        // ============================================================================
-        // 2. PersistentAIClient (實裝斷路器、Retry-After與佇列)
-        // ============================================================================
         class PersistentAIClient {
             constructor() { 
                 this.geminiKey = getGeminiKey(); 
@@ -244,7 +266,7 @@
                     return;
                 }
                 if (cb.failures >= 3) {
-                    cb.lockUntil = Date.now() + (5 * 60 * 1000); // 鎖定 5 分鐘
+                    cb.lockUntil = Date.now() + (5 * 60 * 1000); 
                     cb.failures = 0; 
                 }
             }
@@ -261,7 +283,7 @@
             }
 
             handle429(provider) {
-                this.recordFailure(provider, 60000); // 手動寫入60秒
+                this.recordFailure(provider, 60000); 
             }
 
             updateKeys(gKey, oKey, grKey) { if (gKey) this.geminiKey = gKey; if (oKey) this.openRouterKey = oKey; if (grKey) this.groqKey = grKey; }
@@ -311,7 +333,6 @@
                 let unlock = () => {};
                 
                 try {
-                    // 序列化等待
                     unlock = await this.mutex.lock(4500);
                     
                     const localController = new AbortController();
@@ -319,7 +340,7 @@
                     if (signal) signal.addEventListener('abort', onAbort);
                     
                     let firstChunk = false;
-                    const baseTTFT = 12000; // 放寬容忍至 12s
+                    const baseTTFT = 12000; 
                     const ttftLimit = taskType === 'micro' ? 8000 : baseTTFT;
                     
                     const ttftTimeout = setTimeout(() => { 
@@ -328,7 +349,6 @@
                     
                     const url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":streamGenerateContent?alt=sse&key=" + this.geminiKey;
                     
-                    // 強制加入 maxOutputTokens: 1500 避免幻覺
                     const payload = { 
                         contents: [{ parts: [{ text: userQuery }] }], 
                         systemInstruction: { parts: [{ text: systemPrompt }] }, 
@@ -378,13 +398,12 @@
                     if (signal) signal.removeEventListener('abort', onAbort);
                     onLog && onLog(`✅ [Gemini] 串流接收完畢，總字元: ${fullText.length}`); 
                     
-                    unlock(); // 提早釋放鎖
+                    unlock(); 
                     return { rawText: fullText, modelName: modelName.toUpperCase(), provider: "google" };
 
                 } catch (e) {
-                    unlock(); // 發生異常時必須釋放鎖
+                    unlock(); 
                     if (retryCount < 3 && !e.message.includes('Circuit Breaker') && e.name !== 'AbortError') {
-                        // Jitter 指數退避
                         const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000);
                         onLog && onLog(`[重試] Gemini 節流，等待 ${Math.round(backoffMs/1000)}s 後重試 (${retryCount + 1}/3)...`);
                         await new Promise(r => setTimeout(r, backoffMs));
@@ -430,7 +449,7 @@
                         messages: [ { role: "user", content: combinedContent } ], 
                         stream: true, 
                         temperature: 0.1,
-                        max_tokens: 1500 // 限制幻覺
+                        max_tokens: 1500 
                     };
 
                     const startTime = Date.now(); onLog && onLog(`📡 [OpenRouter] 發送連線請求 (model: ${specificModelFinal})...`);
@@ -507,7 +526,7 @@
                     if (signal) signal.addEventListener('abort', onAbort);
                     
                     let firstChunk = false;
-                    const baseTTFT = 8000; // 放寬至 8s
+                    const baseTTFT = 8000; 
                     const ttftLimit = taskType === 'micro' ? 5000 : baseTTFT;
 
                     const ttftTimeout = setTimeout(() => { 
@@ -520,7 +539,7 @@
                         messages: [ { role: "system", content: systemPrompt }, { role: "user", content: userQuery } ], 
                         stream: true, 
                         temperature: 0.1,
-                        max_tokens: 1500 // 限制避免爆 TPM
+                        max_tokens: 1500 
                     };
 
                     const startTime = Date.now(); onLog && onLog(`📡 [Groq] 發送連線請求 (model: ${specificModel})...`);
@@ -586,7 +605,6 @@
             }
         }
         const sharedAIClient = new PersistentAIClient();
-
         class ErrorBoundary extends Component {
           constructor(props) { super(props); this.state = { hasError: false, errorInfo: "" }; }
           static getDerivedStateFromError(error) { return { hasError: true }; }
@@ -619,7 +637,6 @@
           const [earnedExp, setEarnedExp] = useState(0); const [levelUpData, setLevelUpData] = useState(null);
           const [redeemAmount, setRedeemAmount] = useState(100); const [redeemMessage, setRedeemMessage] = useState("");
           
-          // UI 實體同步鎖定
           const isGeneratingRef = useRef(false);
           const [isGenerating, setIsGenerating] = useState(false); 
           
@@ -764,7 +781,7 @@
                   try {
                       localStorage.removeItem('sh_qpool_v33');
                       setPoolStats(p => ({ ...p, size: 0 }));
-                      addLog("🗑️ [系統] 已手動清空動態預載快取池");
+                      addLog("🗑️ [系統] 已手手動清空動態預載快取池");
                       showAlert("✅ 預載快取已清空！");
                   } catch(e) {}
               }
@@ -1020,7 +1037,6 @@
           };
 
           const generateAIBatch = async (m, nbs, mode, targetMenu, forceGeminiModel, currentMistakes) => {
-            // UI 實體同步鎖定防連點
             if (isGeneratingRef.current) return;
             isGeneratingRef.current = true;
             setIsGenerating(true);
@@ -1034,10 +1050,18 @@
             const currentPool = JSON.parse(localStorage.getItem('sh_qpool_v33') || '{}');
             clearLogs(); setStreamCount(0); setAiStatus("初始化連線程序...");
             
-            let activeDB = targetMenu === 'review' ? (currentMistakes||[]).map(w=>({answer:w, hint:""})) : (targetMenu === 'grammar' ? getActiveGrammarDB(nbs) : getActiveDB(nbs, mode));
+            let activeDB = [];
+            if (targetMenu === 'review') {
+                activeDB = (Array.isArray(currentMistakes) ? currentMistakes : []).map(w=>({answer:w, hint:""}));
+            } else if (targetMenu === 'grammar') {
+                activeDB = getActiveGrammarDB(nbs);
+            } else {
+                activeDB = getActiveDB(nbs, mode);
+            }
+            if (!Array.isArray(activeDB)) activeDB = [];
+
             if (activeDB.length === 0) { setIsGenerating(false); isGeneratingRef.current = false; setReady(true); return; }
 
-            // 依據產題規模優化：修改為 10 題
             const targetTotal = targetMenu === 'grammar' ? 10 : Math.min(10, activeDB.length);
             const selected = []; 
             let tempPool = [...activeDB];
@@ -1145,7 +1169,7 @@
                 for (let cIdx = 0; cIdx < chunks.length; cIdx++) {
                     let chunkPending = chunks[cIdx];
                     let loopGuard = 0;
-                    const logicFailedEngines = new Set(); // 區域性黑名單
+                    const logicFailedEngines = new Set(); 
 
                     while (chunkPending.length > 0 && loopGuard < 3) {
                         loopGuard++;
@@ -1272,7 +1296,6 @@
                                     }
                                     sentence = sentence.replace(/_{2,}/g, '______');
                                     
-                                    // 綁定字典翻譯
                                     let finalHint = (q.h || q.hint) || (window.SH_DICTIONARY && window.SH_DICTIONARY[ans.toLowerCase()]) || (targetMenu === 'grammar' ? "" : "無提示");
                                     let cleanTrans = (q.t || q.translation) || ""; 
                                     cleanTrans = cleanTrans.replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').replace(/^🇹🇼\s*/, '').trim();
@@ -1319,7 +1342,6 @@
                             const prevFulfilledCount = fulfilledReqUids.size;
                             const res = await func();
                             
-                            // 檢查是否所有生成內容都被防護機制丟棄
                             if (fulfilledReqUids.size === prevFulfilledCount) {
                                 logicFailedEngines.add(provider);
                                 throw new Error(`模型產出邏輯不合規 (被攔截)，切換備援引擎`);
@@ -1729,7 +1751,7 @@
           const currentActiveDB = mainMenu === 'grammar' ? getActiveGrammarDB(selectedNotebooks) : getActiveDB(selectedNotebooks, vocabMode);
           let displayModelName = String(aiModel).toUpperCase(); if (displayModelName.indexOf('OPENROUTER/AUTO') !== -1 || displayModelName.indexOf('OPENROUTER/FREE') !== -1 || displayModelName.indexOf('AUTO_FILTERED') !== -1) displayModelName = 'AUTO-ROUTER'; else if (displayModelName.indexOf('DEEPSEEK') !== -1) displayModelName = 'DEEPSEEK'; else if (displayModelName.indexOf('GEMINI-') !== -1) displayModelName = displayModelName.replace('GEMINI-', ''); else if (displayModelName.indexOf('/') !== -1) displayModelName = displayModelName.split('/')[1];
 
-          const availableNotebooks = mainMenu === 'grammar' 
+ const availableNotebooks = mainMenu === 'grammar' 
               ? ['All', 'PB1 U2 句型庫', 'PB1 U5 句型庫'] 
               : ['All', 'Words to know 1', 'Words to know 2', 'Words to know 3', 'CHINGSHIN Kidboxs 3 U1', 'CHINGSHIN Kidboxs 3 U2', 'CHINGSHIN Kidboxs 3 U3', 'CHINGSHIN Kidboxs 3 U5', '劍橋英檢 Movers', 'WTK (A-E)', 'WTK (F-J)', 'WTK (K-O)', 'WTK (P-T)', 'WTK (U-Z)'];
 
@@ -1820,7 +1842,7 @@
                     </div>
                     
                     <div className="flex items-center gap-2 mt-2 sm:ml-10 flex-wrap">
-                      <div className="text-[10px] font-black text-[#7a6b52] bg-[#e6dcc5]/80 px-1.5 py-0.5 rounded border border-[#d1c4aa]/50 text-left italic shadow-sm">{mainMenu === 'vocab' ? `純單字庫: ${currentActiveDB.length} 字` : mainMenu === 'review' ? `待特訓: ${mistakePool.length} 題` : `文法: ${Object.values(GRAMMAR_NOTEBOOKS).reduce((a,b)=>a+b.length,0)} 題`}</div>
+                      <div className="text-[10px] font-black text-[#7a6b52] bg-[#e6dcc5]/80 px-1.5 py-0.5 rounded border border-[#d1c4aa]/50 text-left italic shadow-sm">{mainMenu === 'vocab' ? `純單字庫: ${currentActiveDB.length} 字` : mainMenu === 'review' ? `待特訓: ${mistakePool.length} 題` : `文法: ${Object.keys(GRAMMAR_NOTEBOOKS).reduce((a,b)=>a+(Array.isArray(GRAMMAR_NOTEBOOKS[b])?GRAMMAR_NOTEBOOKS[b].length:0),0)} 題`}</div>
                       <div className="text-[10px] font-black text-[#576b5d] bg-[#c4d1c8]/80 px-1.5 py-0.5 rounded border border-[#9fb3a6]/50 flex items-center gap-1 text-left shadow-sm cursor-pointer hover:bg-[#b0c0b6]" onClick={() => setDash(true)}><Activity size={10} /> 引擎: 智慧三重備援</div>
                       <div className="text-[10px] font-black text-[#7a6b52] bg-[#e6dcc5]/80 px-1.5 py-0.5 rounded border border-[#d1c4aa]/50 flex items-center gap-1 text-left shadow-sm cursor-pointer hover:bg-[#d1c4aa]" onClick={() => setDash(true)}><Database size={10} /> 預載庫存: {poolStats.size} 題</div>
                       {isGenerating && ready && <div className="text-[10px] font-black text-[#cca677] bg-[#f4ebd9]/80 px-1.5 py-0.5 rounded border border-[#e0c9aa]/50 flex items-center gap-1 text-left shadow-sm animate-pulse"><Loader2 size={10} className="animate-spin" /> AI 湧泉產生中...</div>}
