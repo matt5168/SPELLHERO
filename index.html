@@ -512,11 +512,16 @@
           };
 
           const logScrollRef = useRef(null);
+          const dashLogRef = useRef(null); // 設定面板專用的捲動控制器
+          
           const addLog = msg => {
               setAiLogs(p => {
                   const newLogs = [...p, "[" + new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) + "] " + msg].slice(-50);
                   try { localStorage.setItem('sh_logs', JSON.stringify(newLogs)); } catch(e){}
-                  setTimeout(() => { if (logScrollRef.current) logScrollRef.current.scrollTop = logScrollRef.current.scrollHeight; }, 30);
+                  setTimeout(() => { 
+                      if (logScrollRef.current) logScrollRef.current.scrollTop = logScrollRef.current.scrollHeight; 
+                      if (dashLogRef.current) dashLogRef.current.scrollTop = dashLogRef.current.scrollHeight;
+                  }, 30);
                   return newLogs;
               });
           };
@@ -1000,7 +1005,6 @@
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2"><span className="text-[#c5bbae] text-sm md:text-base text-left">正在準備專屬例句... (第一題完成即解鎖)</span><div className="flex items-center gap-2 bg-[#1c1917] px-3 py-1.5 rounded-lg border border-[#57534e]"><BrainCircuit size={16} className="text-[#cca677]" /><span className="text-xs md:text-sm text-[#d9cfbb] font-mono tracking-wider">{displayModelName}</span></div></div>
                         <div ref={logScrollRef} className="bg-[#1c1917] p-4 rounded-xl text-[11px] md:text-xs text-[#9BAA97] font-mono text-left h-40 md:h-48 overflow-y-auto shadow-inner border border-[#3d3935] flex flex-col gap-1.5 terminal-scroll">
                             {aiLogs.map((log, idx) => ( <div key={idx} className="opacity-90 break-words leading-relaxed">{log.indexOf('[錯誤]') !== -1 || log.indexOf('[超時]') !== -1 || log.indexOf('[異常]') !== -1 || log.indexOf('[失敗]') !== -1 || log.indexOf('❌') !== -1 ? <span className="text-[#b5847e] font-bold">{log}</span> : log.indexOf('[成功]') !== -1 || log.indexOf('[完成]') !== -1 || log.indexOf('[快取]') !== -1 || log.indexOf('✅') !== -1 ? <span className="text-[#8b9586] font-bold">{log}</span> : <span className="text-[#c5bbae]">{log}</span>}</div> ))}
-                            <div ref={el => el && el.scrollIntoView({behavior: 'smooth'})} />
                         </div>
                         <div className="flex items-center gap-2 text-sm justify-center mt-2"><Activity size={16} className="text-[#8b9586] animate-pulse" /><span className="text-[#a69a8a] tracking-wider">目前狀態：<span className="text-[#9BAA97] font-bold">{aiStatus}</span></span></div>
                     </div>
@@ -1091,6 +1095,10 @@
                                     <input type="text" value={openRouterModel} onChange={e => setOpenRouterModel(e.target.value.toLowerCase().replace(/／/g, '/').replace(/\s+/g, '-'))} onBlur={e => setOpenRouterModel(openRouterModel.replace(/[^a-z0-9\-\.\/:]/g, ''))} placeholder={(openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free') ? "請先由左側下拉切換為自訂" : "輸入格式 例: google/gemma-3-12b"} disabled={openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free'} className={`flex-1 w-full rounded-lg px-3 py-2 text-sm outline-none font-mono tracking-widest ${ (openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free') ? 'bg-[#5a6356] text-[#a4b1a1] cursor-not-allowed opacity-50' : 'bg-[#6b7566] text-white placeholder-[#a4b1a1]' }`} />
                                 </div>
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-2 border-t border-[#7a8575] pt-3">
+                                    <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px] flex items-center gap-1"><Layout size={16}/> 畫面排版：</span>
+                                    <div className="flex gap-2 w-full sm:w-auto bg-[#6b7566] p-1 rounded-lg"><button onClick={() => handleUiLayoutChange('layout1')} className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout1' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>置中展開</button><button onClick={() => handleUiLayoutChange('layout2')} className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout2' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>左右分流</button><button onClick={() => handleUiLayoutChange('layout3')} className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout3' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>沉浸卡片</button></div>
+                                </div>
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-2 border-t border-[#7a8575] pt-3">
                                     <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px] flex items-center gap-1"><Volume2 size={16}/> 發音引擎：</span>
                                     <select value={ttsEngine} onChange={e => setTtsEngine(e.target.value)} className="w-full sm:w-auto bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono min-w-[200px]"><option value="native">瀏覽器原生 (免費)</option><option value="openai">OpenAI TTS (高擬真)</option></select>
                                     {ttsEngine === 'openai' && ( <select value={openAITtsVoice} onChange={e => setOpenAITtsVoice(e.target.value)} className="w-full sm:w-auto bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-[#cca677] font-mono min-w-[200px]"><option value="nova">Nova</option><option value="alloy">Alloy</option><option value="shimmer">Shimmer</option><option value="echo">Echo</option><option value="fable">Fable</option></select> )}
@@ -1114,29 +1122,23 @@
                                         <input type="password" value={openAITtsKey} onChange={e => setOpenAITtsKey(e.target.value)} placeholder="sk-proj-..." disabled={!enginesEnabled.openai} className="flex-1 w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white placeholder-[#6b655f] font-mono tracking-widest disabled:opacity-50"/>
                                     </div>
                                 </div>
-
                                 <button onClick={saveCustomKey} className="self-end w-full sm:w-auto bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-6 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-sm active:scale-95 mt-2">💾 儲存金鑰與設定</button>
-
+                                
                                 <div className="flex gap-2 mt-3 flex-wrap w-full">
-                                    <button onClick={handleExportData} className="flex-1 bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-4 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2 border border-[#d6cfc5]">
-                                        📤 匯出備份 JSON
-                                    </button>
-                                    <button onClick={() => importFileRef.current && importFileRef.current.click()} className="flex-1 bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-4 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2 border border-[#d6cfc5]">
-                                        📥 匯入備份 JSON
-                                    </button>
+                                    <button onClick={handleExportData} className="flex-1 bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-4 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2 border border-[#d6cfc5]">📤 匯出備份 JSON</button>
+                                    <button onClick={() => importFileRef.current && importFileRef.current.click()} className="flex-1 bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-4 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2 border border-[#d6cfc5]">📥 匯入備份 JSON</button>
                                     <input ref={importFileRef} type="file" accept=".json" onChange={handleImportData} className="hidden" />
                                 </div>
 
                                 <div className="mt-4 border-t border-[#7a8575] pt-4 w-full">
                                     <button onClick={() => setShowLogsPanel(!showLogsPanel)} className="w-full bg-[#6b7566] hover:bg-[#5a6356] text-[#e6e9e4] py-2 rounded-lg text-sm font-bold transition-colors shadow-inner flex items-center justify-center gap-2"><ScrollText size={16}/> {showLogsPanel ? '隱藏日誌面板' : '📜 檢視最近一次連線日誌'}</button>
                                     {showLogsPanel && (
-                                        <div className="bg-[#1c1917] p-4 rounded-xl text-[11px] md:text-xs text-[#9BAA97] font-mono text-left h-48 overflow-y-auto shadow-inner border border-[#3d3935] flex flex-col gap-1.5 terminal-scroll mt-3 w-full">
+                                        <div ref={dashLogRef} className="bg-[#1c1917] p-4 rounded-xl text-[11px] md:text-xs text-[#9BAA97] font-mono text-left h-48 overflow-y-auto shadow-inner border border-[#3d3935] flex flex-col gap-1.5 terminal-scroll mt-3 w-full">
                                             {aiLogs.length === 0 ? <div className="opacity-50 italic">尚無最近的連線紀錄。</div> : aiLogs.map((log, idx) => (
                                                 <div key={idx} className="opacity-90 break-words leading-relaxed">
                                                     {log.indexOf('[錯誤]') !== -1 || log.indexOf('[超時]') !== -1 || log.indexOf('[異常]') !== -1 || log.indexOf('[失敗]') !== -1 || log.indexOf('❌') !== -1 ? <span className="text-[#b5847e] font-bold">{log}</span> : log.indexOf('[成功]') !== -1 || log.indexOf('[完成]') !== -1 || log.indexOf('[快取]') !== -1 || log.indexOf('✅') !== -1 ? <span className="text-[#8b9586] font-bold">{log}</span> : log.indexOf('[遞補]') !== -1 || log.indexOf('[定額預載]') !== -1 || log.indexOf('[動態預載]') !== -1 || log.indexOf('[備援]') !== -1 || log.indexOf('[重試]') !== -1 || log.indexOf('⏳') !== -1 || log.indexOf('🟡') !== -1 || log.indexOf('🔴') !== -1 || log.indexOf('🟢') !== -1 ? <span className="text-[#cca677] font-bold">{log}</span> : <span className="text-[#c5bbae]">{log}</span>}
                                                 </div>
                                             ))}
-                                            <div ref={el => el && el.scrollIntoView({behavior: 'smooth'})} />
                                         </div>
                                     )}
                                 </div>
