@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (分離題庫極速版)</title>
+    <title>Spelling Hero - 互動家教版 (極速版 v3)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     
-    <script src="database.js?v=2"></script>
+    <script src="database.js?v=3"></script>
 
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: manipulation; }
@@ -1093,10 +1093,6 @@
                                     <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px]">🧠 OR 模型：</span>
                                     <select value={(openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free') ? openRouterModel : 'custom'} onChange={e => { if(e.target.value === 'custom') setOpenRouterModel(''); else setOpenRouterModel(e.target.value); }} className="w-full sm:w-auto bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono min-w-[200px]"><option value="openrouter/auto">/AUTO (官方智慧路由)</option><option value="openrouter/free">/FREE (官方免費路由)</option><option value="custom">✍️ 自訂模型...</option></select>
                                     <input type="text" value={openRouterModel} onChange={e => setOpenRouterModel(e.target.value.toLowerCase().replace(/／/g, '/').replace(/\s+/g, '-'))} onBlur={e => setOpenRouterModel(openRouterModel.replace(/[^a-z0-9\-\.\/:]/g, ''))} placeholder={(openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free') ? "請先由左側下拉切換為自訂" : "輸入格式 例: google/gemma-3-12b"} disabled={openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free'} className={`flex-1 w-full rounded-lg px-3 py-2 text-sm outline-none font-mono tracking-widest ${ (openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free') ? 'bg-[#5a6356] text-[#a4b1a1] cursor-not-allowed opacity-50' : 'bg-[#6b7566] text-white placeholder-[#a4b1a1]' }`} />
-                                </div>
-                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-2 border-t border-[#7a8575] pt-3">
-                                    <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px] flex items-center gap-1"><Layout size={16}/> 畫面排版：</span>
-                                    <div className="flex gap-2 w-full sm:w-auto bg-[#6b7566] p-1 rounded-lg"><button onClick={() => handleUiLayoutChange('layout1')} className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout1' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>置中展開</button><button onClick={() => handleUiLayoutChange('layout2')} className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout2' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>左右分流</button><button onClick={() => handleUiLayoutChange('layout3')} className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout3' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>沉浸卡片</button></div>
                                 </div>
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-2 border-t border-[#7a8575] pt-3">
                                     <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px] flex items-center gap-1"><Volume2 size={16}/> 發音引擎：</span>
