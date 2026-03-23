@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (極速版 v5)</title>
+    <title>Spelling Hero - 互動家教版 (分離題庫極速版 v6)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     
-    <script src="database.js?v=4"></script>
-    <script src="engine.js?v=1"></script>
+    <script src="database.js?v=5"></script>
+    <script src="engine.js?v=3"></script>
 
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: manipulation; }
@@ -28,7 +28,6 @@
     <div id="root"></div>
     <script type="text/babel">
         const { useState, useEffect, Component, useRef } = React;
-        const sharedAIClient = window.sharedAIClient;
 
         const IconMock = emoji => props => <span className={props.className||""} style={{fontSize: props.size||20, display:'inline-flex', alignItems:'center', justifyContent:'center', lineHeight: 1}}>{emoji}</span>;
         const CheckCircle=IconMock('✅'), XCircle=IconMock('❌'), RefreshCcw=IconMock('🔄'), Star=IconMock('⭐'), Trophy=IconMock('🏆'), Lightbulb=IconMock('💡'), Sparkles=IconMock('✨'), Shuffle=IconMock('🔀'), BookOpen=IconMock('📖'), AlertOctagon=IconMock('⚠️'), GraduationCap=IconMock('🎓'), Loader2=IconMock('⏳'), Volume2=IconMock('🔊'), Megaphone=IconMock('📢'), Settings=IconMock('⚙️'), Zap=IconMock('⚡'), Globe=IconMock('🌐'), History=IconMock('🕒'), Calendar=IconMock('📅'), BrainCircuit=IconMock('🧠'), Target=IconMock('🎯'), ChevronDown=IconMock('🔽'), ChevronUp=IconMock('🔼'), Send=IconMock('🚀'), Coins=IconMock('🪙'), BarChart2=IconMock('📊'), Activity=IconMock('📈'), Award=IconMock('🏅'), TrendingUp=IconMock('📈'), Flame=IconMock('🔥'), ShieldCheck=IconMock('🛡️'), Edit3=IconMock('📝'), MousePointerClick=IconMock('🖱️'), AlignLeft=IconMock('📑'), Database=IconMock('🗄️'), ScrollText=IconMock('📜'), ThumbsUp=IconMock('👍'), ThumbsDown=IconMock('👎'), Layout=IconMock('🗂️');
@@ -43,6 +42,7 @@
                 <div className="p-6 bg-[#b5847e]/20 text-[#524d46] min-h-screen font-mono text-center flex flex-col items-center justify-center">
                   <h1 className="text-2xl font-black mb-4">⚠️ 系統錯誤</h1>
                   <p className="bg-[#f4f1ea] border border-[#dcb5b0] p-4 rounded-xl mb-6 text-xs max-w-lg overflow-auto shadow-sm text-left">{this.state.errorInfo}</p>
+                  <p className="text-sm text-[#a3756f] mb-6">請確認 engine.js 與 database.js 是否正確載入且包含 window 綁定。</p>
                   <button onClick={() => window.location.reload()} className="bg-[#b5847e] text-white hover:bg-[#a3756f] px-6 py-2 rounded-full font-bold shadow transition-all">重新載入</button>
                 </div>
               );
@@ -73,12 +73,15 @@
           const [uiLayout, setUiLayout] = useState(localStorage.getItem('sh_ui_layout') || 'layout1');
           const [ttsEngine, setTtsEngine] = useState(localStorage.getItem('sh_tts_engine') || 'native');
           
-          const [openAITtsKey, setOpenAITtsKey] = useState(getOpenAITtsKey() || '');
+          // 安全存取 engine.js 提供的加密工具
+          const getVal = (funcName, fallback) => (window[funcName] ? window[funcName]() : fallback);
+          
+          const [openAITtsKey, setOpenAITtsKey] = useState(getVal('getOpenAITtsKey', ''));
           const [openAITtsVoice, setOpenAITtsVoice] = useState(localStorage.getItem('sh_openai_tts_voice') || 'nova');
-          const [inputKey, setInputKey] = useState(getGeminiKey() || '');
-          const [inputOrKey, setInputOrKey] = useState(getOpenRouterKey() || '');
+          const [inputKey, setInputKey] = useState(getVal('getGeminiKey', ''));
+          const [inputOrKey, setInputOrKey] = useState(getVal('getOpenRouterKey', ''));
           const [openRouterModel, setOpenRouterModel] = useState(localStorage.getItem('sh_or_model') || 'openrouter/auto');
-          const [inputGroqKey, setInputGroqKey] = useState(getGroqKey() || '');
+          const [inputGroqKey, setInputGroqKey] = useState(getVal('getGroqKey', ''));
           const [groqModel, setGroqModel] = useState(localStorage.getItem('sh_groq_model') || 'llama-3.3-70b-versatile');
           
           const [enginesEnabled, setEnginesEnabled] = useState({
@@ -118,13 +121,13 @@
           const readyRef = useRef(false);
 
           useEffect(() => {
-              if (!dash) return;
+              if (!dash || !window.sharedAIClient) return;
               const timer = setInterval(() => {
                   setEngineLights({
-                      groq: sharedAIClient.getEngineStatus('groq'),
-                      google: sharedAIClient.getEngineStatus('google'),
-                      openrouter: sharedAIClient.getEngineStatus('openrouter'),
-                      openai: sharedAIClient.getEngineStatus('openai')
+                      groq: window.sharedAIClient.getEngineStatus('groq'),
+                      google: window.sharedAIClient.getEngineStatus('google'),
+                      openrouter: window.sharedAIClient.getEngineStatus('openrouter'),
+                      openai: window.sharedAIClient.getEngineStatus('openai')
                   });
               }, 1000);
               return () => clearInterval(timer);
@@ -212,30 +215,33 @@
                 
                 const currentPool = JSON.parse(localStorage.getItem('sh_qpool_v33') || '{}'); let sz = 0; Object.values(currentPool).forEach(arr => sz += arr.length); setPoolStats(p => ({...p, size: sz}));
 
-                sharedAIClient.updateKeys(inputKey || getGeminiKey(), inputOrKey || getOpenRouterKey(), inputGroqKey || getGroqKey(), openAITtsKey || getOpenAITtsKey());
-                
-                const todayStr = new Date().toLocaleDateString();
-                if (localStorage.getItem('sh_gemini_model_cache') && localStorage.getItem('sh_gemini_model_cache_date') === todayStr) {
-                    setActiveGeminiModel(localStorage.getItem('sh_gemini_model_cache'));
-                } else {
-                    sharedAIClient.checkAvailableModels().then(res => { if (res && res.gemini) setActiveGeminiModel(res.gemini); });
+                if (window.sharedAIClient) {
+                    window.sharedAIClient.updateKeys(inputKey || window.getGeminiKey(), inputOrKey || window.getOpenRouterKey(), inputGroqKey || window.getGroqKey(), openAITtsKey || window.getOpenAITtsKey());
+                    const todayStr = new Date().toLocaleDateString();
+                    if (localStorage.getItem('sh_gemini_model_cache') && localStorage.getItem('sh_gemini_model_cache_date') === todayStr) {
+                        setActiveGeminiModel(localStorage.getItem('sh_gemini_model_cache'));
+                    } else {
+                        window.sharedAIClient.checkAvailableModels().then(res => { if (res && res.gemini) setActiveGeminiModel(res.gemini); });
+                    }
                 }
               } catch (e) { }
             }; load();
           }, []);
 
-          useEffect(() => { sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey, openAITtsKey); }, [inputKey, inputOrKey, inputGroqKey, openAITtsKey]);
+          useEffect(() => { if(window.sharedAIClient) window.sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey, openAITtsKey); }, [inputKey, inputOrKey, inputGroqKey, openAITtsKey]);
 
           const saveCustomKey = () => { 
               try { 
-                  localStorage.setItem('gemini_api_key', Obfuscator.encode(inputKey)); localStorage.setItem('openrouter_api_key', Obfuscator.encode(inputOrKey)); 
-                  localStorage.setItem('sh_or_model', openRouterModel); localStorage.setItem('groq_api_key', Obfuscator.encode(inputGroqKey)); 
+                  localStorage.setItem('gemini_api_key', window.Obfuscator.encode(inputKey)); localStorage.setItem('openrouter_api_key', window.Obfuscator.encode(inputOrKey)); 
+                  localStorage.setItem('sh_or_model', openRouterModel); localStorage.setItem('groq_api_key', window.Obfuscator.encode(inputGroqKey)); 
                   localStorage.setItem('sh_groq_model', groqModel); localStorage.setItem('sh_tts_engine', ttsEngine); 
-                  localStorage.setItem('sh_openai_tts_key', Obfuscator.encode(openAITtsKey)); localStorage.setItem('sh_openai_tts_voice', openAITtsVoice); 
+                  localStorage.setItem('sh_openai_tts_key', window.Obfuscator.encode(openAITtsKey)); localStorage.setItem('sh_openai_tts_voice', openAITtsVoice); 
                   
                   setDiagMsg("✅ 金鑰與設定已儲存！"); 
-                  sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey, openAITtsKey); 
-                  sharedAIClient.checkAvailableModels().then(res => { if (res && res.gemini) setActiveGeminiModel(res.gemini); });
+                  if(window.sharedAIClient) {
+                      window.sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey, openAITtsKey); 
+                      window.sharedAIClient.checkAvailableModels().then(res => { if (res && res.gemini) setActiveGeminiModel(res.gemini); });
+                  }
               } catch(e) { setDiagMsg("❌ 儲存失敗。"); } 
           };
           
@@ -262,24 +268,26 @@
           const handleModeChange = newMode => { setVocabMode(newMode); setQuestions([]); setReady(false); readyRef.current = false; overrideTriggeredRef.current = {}; };
 
           const runSingleDiag = async (provider) => {
+              if(!window.sharedAIClient) return;
               setDiagStatus('testing'); setDiagMsg(`測試 ${provider.toUpperCase()}...`); clearLogs();
               const testMsg = 'Reply exact JSON: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["a","b","c","d"]}]}';
               const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 20000);
               try {
                   let result = null;
-                  if (provider === 'groq') result = await sharedAIClient.callGroq("Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, groqModel, 'micro');
-                  else if (provider === 'google') result = await sharedAIClient.callGemini(activeGeminiModel, "Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, 'micro');
-                  else if (provider === 'openrouter') result = await sharedAIClient.callOpenRouter("Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, openRouterModel, 'micro');
-                  else if (provider === 'openai') result = await sharedAIClient.callOpenAI("Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, 'gpt-4o-mini', 'micro');
+                  if (provider === 'groq') result = await window.sharedAIClient.callGroq("Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, groqModel, 'micro');
+                  else if (provider === 'google') result = await window.sharedAIClient.callGemini(activeGeminiModel, "Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, 'micro');
+                  else if (provider === 'openrouter') result = await window.sharedAIClient.callOpenRouter("Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, openRouterModel, 'micro');
+                  else if (provider === 'openai') result = await window.sharedAIClient.callOpenAI("Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, 'gpt-4o-mini', 'micro');
                   
                   clearTimeout(timeoutId); setAiModel(result.modelName); setDiagStatus('success'); setDiagMsg(`✅ ${result.modelName} OK`); setShowLogsPanel(true);
               } catch(e) { clearTimeout(timeoutId); setDiagStatus('error'); setDiagMsg(`❌ 失敗：${e.message}`); setShowLogsPanel(true); }
           };
 
           const runDiagnostic = async () => {
+            if(!window.sharedAIClient) return;
             setDiagStatus('testing'); setDiagMsg(`測試已啟用之連線...`); clearLogs();
             try {
-                const modelsRes = await sharedAIClient.checkAvailableModels();
+                const modelsRes = await window.sharedAIClient.checkAvailableModels();
                 if (modelsRes && modelsRes.gemini) setActiveGeminiModel(modelsRes.gemini);
                 const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 60000); 
                 const testMsg = 'Reply exact JSON: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["a","b","c","d"]}]}';
@@ -292,10 +300,10 @@
                     const currentP = providersToTry[i];
                     try {
                         addLog(`測試 ${currentP.toUpperCase()}...`);
-                        if (currentP === 'groq') result = await sharedAIClient.callGroq("Diagnostic", testMsg, controller.signal, () => {}, addLog, groqModel, 'micro');
-                        else if (currentP === 'google') result = await sharedAIClient.callGemini(activeGeminiModel, "Diagnostic", testMsg, controller.signal, () => {}, addLog, 'micro');
-                        else if (currentP === 'openrouter') result = await sharedAIClient.callOpenRouter("Diagnostic", testMsg, controller.signal, () => {}, addLog, openRouterModel, 'micro');
-                        else if (currentP === 'openai') result = await sharedAIClient.callOpenAI("Diagnostic", testMsg, controller.signal, () => {}, addLog, 'gpt-4o-mini', 'micro');
+                        if (currentP === 'groq') result = await window.sharedAIClient.callGroq("Diagnostic", testMsg, controller.signal, () => {}, addLog, groqModel, 'micro');
+                        else if (currentP === 'google') result = await window.sharedAIClient.callGemini(activeGeminiModel, "Diagnostic", testMsg, controller.signal, () => {}, addLog, 'micro');
+                        else if (currentP === 'openrouter') result = await window.sharedAIClient.callOpenRouter("Diagnostic", testMsg, controller.signal, () => {}, addLog, openRouterModel, 'micro');
+                        else if (currentP === 'openai') result = await window.sharedAIClient.callOpenAI("Diagnostic", testMsg, controller.signal, () => {}, addLog, 'gpt-4o-mini', 'micro');
                         break;
                     } catch (e) { addLog(`[錯誤] ${currentP.toUpperCase()}: ${e.message}`); if (i === providersToTry.length - 1) throw e; }
                 }
@@ -304,7 +312,7 @@
           };
 
           const generateAIBatch = async (m, nbs, mode, targetMenu, forceGeminiModel, currentMistakes) => {
-            if (isGeneratingRef.current) return;
+            if (isGeneratingRef.current || !window.sharedAIClient) return;
             isGeneratingRef.current = true; setIsGenerating(true);
             
             m = m || storage.memory; nbs = nbs || selectedNotebooks; mode = mode || vocabMode; targetMenu = targetMenu || mainMenu;
@@ -317,8 +325,8 @@
             
             let activeDB = [];
             if (targetMenu === 'review') activeDB = (Array.isArray(currentMistakes) ? currentMistakes : []).map(w=>({answer:w, hint:""}));
-            else if (targetMenu === 'grammar') activeDB = getActiveGrammarDB(nbs);
-            else activeDB = getActiveDB(nbs, mode);
+            else if (targetMenu === 'grammar') activeDB = window.getActiveGrammarDB(nbs);
+            else activeDB = window.getActiveDB(nbs, mode);
             
             if (!Array.isArray(activeDB) || activeDB.length === 0) { setIsGenerating(false); isGeneratingRef.current = false; setReady(true); return; }
 
@@ -385,7 +393,6 @@
                         let systemPrompt = ""; let userQuery = "";
                         if (targetMenu === 'grammar') {
                             const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)}`);
-                            // 🔥 移除絕對不可有底線的危險字眼
                             systemPrompt = `ESL grammar fill-blank, 3rd grade. RULES:
     ① STRICT SUBJECT: Keep EXACT target answer & grammatical subject from pattern. Change ONLY the situation.
     ② PRONOUN CONTEXT: If answer is pronoun, write specific name BEFORE the blank.
@@ -395,7 +402,6 @@
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH. Patterns:\n${patterns.join('\n')}`;
                         } else {
                             const wordsToGenerate = chunkPending.map((s, idx) => `[IDX:${idx}] Target Word: "${s.answer}"`);
-                            // 🔥 移除絕對不可有底線的危險字眼
                             systemPrompt = `ESL vocab fill-blank, 3rd grade. RULES:
     ① Simple formal English. Blank=______(6 underscores).
     ② CONTEXT: Sentence MUST contain clues.
@@ -432,7 +438,6 @@
                                     if (distractors.length < 3) distractors = [...distractors, ...window.generateVocabOptions(ans, activeDB).filter(o=>o!==ans)];
                                     let safeOptions = window.shuffleArray([ans, ...distractors.slice(0, 3)]);
 
-                                    // 🔥 代名詞防呆：主動替換危險選項，不丟棄整筆 JSON
                                     const objPronouns = ['him', 'her', 'them', 'us', 'me', 'he', 'she', 'they', 'it', 'i', 'you'];
                                     if (objPronouns.includes(ans.toLowerCase())) {
                                         const safePool = window.generateVocabOptions(ans, activeDB).filter(o => !objPronouns.includes(String(o).toLowerCase()));
@@ -457,7 +462,6 @@
                                     
                                     let cleanTrans = (q.t || q.translation) || ""; 
                                     cleanTrans = cleanTrans.replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').trim();
-                                    // 🔥 底線防護：強制將任何殘缺底線替換為真正的中文
                                     const dictWord = (window.SH_DICTIONARY && window.SH_DICTIONARY[ans.toLowerCase()]) ? window.SH_DICTIONARY[ans.toLowerCase()].split(/[;；]/)[0] : ans;
                                     cleanTrans = cleanTrans.replace(/[_＿]{2,}/g, dictWord);
 
@@ -494,28 +498,28 @@
                                 const currentP = genProvidersToTry[i];
                                 try {
                                     if (i > 0 || logicFailedEngines.size > 0) addLog(`[備援] 嘗試順位: ${currentP.toUpperCase()}...`);
-                                    if (currentP === 'groq') result = await attemptCall('groq', () => sharedAIClient.callGroq(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, groqModel, 'batch'));
-                                    else if (currentP === 'google') result = await attemptCall('google', () => sharedAIClient.callGemini(targetGeminiModel, systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'batch'));
-                                    else if (currentP === 'openrouter') result = await attemptCall('openrouter', () => sharedAIClient.callOpenRouter(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, openRouterModel, 'batch'));
-                                    else if (currentP === 'openai') result = await attemptCall('openai', () => sharedAIClient.callOpenAI(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'gpt-4o-mini', 'batch'));
+                                    if (currentP === 'groq') result = await attemptCall('groq', () => window.sharedAIClient.callGroq(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, groqModel, 'batch'));
+                                    else if (currentP === 'google') result = await attemptCall('google', () => window.sharedAIClient.callGemini(targetGeminiModel, systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'batch'));
+                                    else if (currentP === 'openrouter') result = await attemptCall('openrouter', () => window.sharedAIClient.callOpenRouter(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, openRouterModel, 'batch'));
+                                    else if (currentP === 'openai') result = await attemptCall('openai', () => window.sharedAIClient.callOpenAI(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'gpt-4o-mini', 'batch'));
                                     break; 
                                 } catch (err) { lastError = err; if (batchController.signal.aborted) throw err; }
                             }
                         } else {
                             const tryDynamicRoute = async () => {
                                 if (batchController.signal.aborted) throw new Error('任務取消');
-                                const available = ['groq', 'google', 'openrouter', 'openai'].filter(p => enginesEnabled[p] && sharedAIClient.getEngineStatus(p) !== 'red' && !logicFailedEngines.has(p));
+                                const available = ['groq', 'google', 'openrouter', 'openai'].filter(p => enginesEnabled[p] && window.sharedAIClient.getEngineStatus(p) !== 'red' && !logicFailedEngines.has(p));
                                 if (available.length === 0) throw new Error("無可用引擎");
 
-                                const selectedP = available[0]; const status = sharedAIClient.getEngineStatus(selectedP);
-                                if (status === 'yellow') { const waitTime = sharedAIClient.cooldowns[selectedP] - (Date.now() - sharedAIClient.lastCallTime[selectedP]); await new Promise(r => setTimeout(r, waitTime)); }
+                                const selectedP = available[0]; const status = window.sharedAIClient.getEngineStatus(selectedP);
+                                if (status === 'yellow') { const waitTime = window.sharedAIClient.cooldowns[selectedP] - (Date.now() - window.sharedAIClient.lastCallTime[selectedP]); await new Promise(r => setTimeout(r, waitTime)); }
                                 
-                                addLog(`[動態] 🟢 ${selectedP.toUpperCase()}`); sharedAIClient.lastCallTime[selectedP] = Date.now();
+                                addLog(`[動態] 🟢 ${selectedP.toUpperCase()}`); window.sharedAIClient.lastCallTime[selectedP] = Date.now();
                                 try {
-                                    if (selectedP === 'groq') return await attemptCall('groq', () => sharedAIClient.callGroq(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, groqModel, 'batch'));
-                                    if (selectedP === 'google') return await attemptCall('google', () => sharedAIClient.callGemini(targetGeminiModel, systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'batch'));
-                                    if (selectedP === 'openrouter') return await attemptCall('openrouter', () => sharedAIClient.callOpenRouter(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, openRouterModel, 'batch'));
-                                    if (selectedP === 'openai') return await attemptCall('openai', () => sharedAIClient.callOpenAI(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'gpt-4o-mini', 'batch'));
+                                    if (selectedP === 'groq') return await attemptCall('groq', () => window.sharedAIClient.callGroq(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, groqModel, 'batch'));
+                                    if (selectedP === 'google') return await attemptCall('google', () => window.sharedAIClient.callGemini(targetGeminiModel, systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'batch'));
+                                    if (selectedP === 'openrouter') return await attemptCall('openrouter', () => window.sharedAIClient.callOpenRouter(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, openRouterModel, 'batch'));
+                                    if (selectedP === 'openai') return await attemptCall('openai', () => window.sharedAIClient.callOpenAI(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'gpt-4o-mini', 'batch'));
                                 } catch (err) { logicFailedEngines.add(selectedP); return await tryDynamicRoute(); }
                             };
                             try { result = await tryDynamicRoute(); } catch (err) { lastError = err; }
@@ -538,6 +542,7 @@
               setVoteStatus(prev => ({...prev, [provider]: delta > 0 ? '👍 已感謝老師' : '👎 已降低權重'})); setTimeout(() => setVoteStatus(prev => ({...prev, [provider]: null})), 2000);
           };
 
+          // 🔥 解題功能與引擎限定
           const handleOnDemand = async (index, type, isRetry = false, retryCount = 0) => {
               const key = `${type}_${index}`; if (loadingStates[key] && !isRetry) return;
               setLoadingStates(prev => ({...prev, [key]: true})); if (!isRetry) setDynamicContent(prev => ({...prev, [key]: ""}));
@@ -566,7 +571,13 @@
                   };
                   
                   let providersToTry = ['groq', 'google', 'openrouter', 'openai'].sort((a,b) => (storage.modelVotes[b]||0) - (storage.modelVotes[a]||0)).filter(p => enginesEnabled[p]);
-                  if (routingMode === 'dynamic') providersToTry = providersToTry.filter(p => sharedAIClient.getEngineStatus(p) !== 'red');
+                  
+                  // 🔥 強制限定解題模型：若為文法解題 (type==='exp')，僅能使用 openrouter 或 groq
+                  if (type === 'exp') {
+                      providersToTry = ['openrouter', 'groq'].filter(p => enginesEnabled[p]);
+                  }
+
+                  if (routingMode === 'dynamic') providersToTry = providersToTry.filter(p => window.sharedAIClient.getEngineStatus(p) !== 'red');
                   if (isRetry && dynamicProviders[key]) { handleVote(dynamicProviders[key], -1); providersToTry = providersToTry.filter(p => p !== dynamicProviders[key]); }
                   if (providersToTry.length === 0) throw new Error("無可用引擎");
 
@@ -574,13 +585,15 @@
                   for (let currentP of providersToTry) {
                       try {
                           setDynamicProviders(prev => ({...prev, [key]: currentP})); addLog(`[解說] 🟢 -> ${currentP.toUpperCase()}`);
-                          if (routingMode === 'dynamic') { if (sharedAIClient.getEngineStatus(currentP) === 'yellow') await new Promise(r => setTimeout(r, sharedAIClient.cooldowns[currentP] - (Date.now() - sharedAIClient.lastCallTime[currentP]))); sharedAIClient.lastCallTime[currentP] = Date.now(); }
+                          if (routingMode === 'dynamic') { if (window.sharedAIClient.getEngineStatus(currentP) === 'yellow') await new Promise(r => setTimeout(r, window.sharedAIClient.cooldowns[currentP] - (Date.now() - window.sharedAIClient.lastCallTime[currentP]))); window.sharedAIClient.lastCallTime[currentP] = Date.now(); }
                           const demandController = new AbortController(); firstChunk = false;
                           const ttftTimer = setTimeout(() => { if (!firstChunk) demandController.abort(new Error("TTFT_3S_TIMEOUT")); }, 3000);
-                          if (currentP === 'groq') await sharedAIClient.callGroq("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, groqModel, 'micro');
-                          else if (currentP === 'google') await sharedAIClient.callGemini('gemini-2.5-flash', "You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, 'micro');
-                          else if (currentP === 'openrouter') await sharedAIClient.callOpenRouter("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, openRouterModel, 'micro');
-                          else if (currentP === 'openai') await sharedAIClient.callOpenAI("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, 'gpt-4o-mini', 'micro');
+                          
+                          if (currentP === 'groq') await window.sharedAIClient.callGroq("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, groqModel, 'micro');
+                          else if (currentP === 'google') await window.sharedAIClient.callGemini('gemini-2.5-flash', "You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, 'micro');
+                          else if (currentP === 'openrouter') await window.sharedAIClient.callOpenRouter("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, type === 'exp' ? 'openrouter/auto' : openRouterModel, 'micro');
+                          else if (currentP === 'openai') await window.sharedAIClient.callOpenAI("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, 'gpt-4o-mini', 'micro');
+                          
                           clearTimeout(ttftTimer); success = true; break;
                       } catch (e) { lastErr = e.message; } 
                   }
@@ -608,17 +621,34 @@
             setMistakePool(prev => { let updated = [...prev]; if (isCorr) updated = updated.filter(w => w.toLowerCase() !== k); else if (!updated.some(w => w.toLowerCase() === k)) updated.push(q.answer); try { localStorage.setItem('sh_mistakes_v29', JSON.stringify(updated)); } catch(e){} return updated; });
           };
 
+          // 🔥 單題作答：錯題自動觸發解題
           const handleCheckSingle = (index, forcedAnswer) => {
             if (qStatus[index] !== null || submitted) return; let finalAnswer = answers[index];
             if (forcedAnswer !== undefined && forcedAnswer !== null) { finalAnswer = forcedAnswer; const newAns = [...answers]; newAns[index] = forcedAnswer; setAnswers(newAns); }
             if (!finalAnswer) return; 
             const isCorr = window.SYSTEM_ENGINE.isCorrect(finalAnswer, questions[index].answer);
-            if (isCorr) { const nc = combo + 1; setCombo(nc); if (nc > maxCombo) setMaxCombo(nc); if (nc >= 3) { window.SOUND_ENGINE.playCombo(); setShowComboAnim(true); setTimeout(() => setShowComboAnim(false), 1000); } else window.SOUND_ENGINE.playCorrect(); } else { setCombo(0); window.SOUND_ENGINE.playWrong(); }
+            if (isCorr) { 
+                const nc = combo + 1; setCombo(nc); if (nc > maxCombo) setMaxCombo(nc); 
+                if (nc >= 3) { window.SOUND_ENGINE.playCombo(); setShowComboAnim(true); setTimeout(() => setShowComboAnim(false), 1000); } else window.SOUND_ENGINE.playCorrect(); 
+            } else { 
+                setCombo(0); window.SOUND_ENGINE.playWrong(); 
+                if (mainMenu === 'grammar') { setTimeout(() => handleOnDemand(index, 'exp'), 100); } // 自動解題
+            }
             const nqs = [...qStatus]; nqs[index] = isCorr; setQStatus(nqs); syncMistakesAndStats(index, isCorr);
           };
 
+          // 🔥 批次交卷：錯題自動觸發解題
           const handleGradeAll = () => {
-            setSubmitted(true); window.SOUND_ENGINE.playVictory(); let score = 0; questions.forEach((q, i) => { let isCorr = qStatus[i]; if (isCorr === null) { isCorr = window.SYSTEM_ENGINE.isCorrect(answers[i], q.answer); syncMistakesAndStats(i, isCorr); } if (isCorr) score++; });
+            setSubmitted(true); window.SOUND_ENGINE.playVictory(); let score = 0; 
+            questions.forEach((q, i) => { 
+                let isCorr = qStatus[i]; 
+                if (isCorr === null) { 
+                    isCorr = window.SYSTEM_ENGINE.isCorrect(answers[i], q.answer); 
+                    syncMistakesAndStats(i, isCorr); 
+                    if (!isCorr && mainMenu === 'grammar') { setTimeout(() => handleOnDemand(i, 'exp'), 100 * i); } // 自動解題 (加點延遲避免 API 被限流)
+                } 
+                if (isCorr) score++; 
+            });
             const percent = Math.round((score / questions.length) * 100); let coins = percent >= 91 ? 20 : percent >= 81 ? 10 : percent >= 70 ? 5 : 0; if (maxCombo >= 3 && coins > 0) coins *= 2; const exp = (score * 10) + (percent === 100 ? 50 : 0);
             setEarnedCoins(coins); setEarnedExp(exp); if (coins > 0) setTimeout(() => window.SOUND_ENGINE.playCoin(), 800);
             setStorage(prev => {
@@ -803,7 +833,6 @@
                                     </div>
                                 </div>
 
-                                {/* 緊湊型控制工具列 (Grid 排版) */}
                                 <div className="mt-4 pt-4 border-t border-[#7a8575] grid grid-cols-2 md:grid-cols-4 gap-2 w-full">
                                     <button onClick={handleExportData} className="bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-2 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-1 border border-[#d6cfc5] truncate">📤 匯出</button>
                                     <button onClick={() => importFileRef.current && importFileRef.current.click()} className="bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-2 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-1 border border-[#d6cfc5] truncate">📥 匯入</button>
