@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (極速版 v3)</title>
+    <title>Spelling Hero - 互動家教版 (極速版 v4)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     
-    <script src="database.js?v=3"></script>
+    <script src="database.js?v=4"></script>
 
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: manipulation; }
@@ -512,7 +512,7 @@
           };
 
           const logScrollRef = useRef(null);
-          const dashLogRef = useRef(null); // 設定面板專用的捲動控制器
+          const dashLogRef = useRef(null); 
           
           const addLog = msg => {
               setAiLogs(p => {
@@ -1095,6 +1095,10 @@
                                     <input type="text" value={openRouterModel} onChange={e => setOpenRouterModel(e.target.value.toLowerCase().replace(/／/g, '/').replace(/\s+/g, '-'))} onBlur={e => setOpenRouterModel(openRouterModel.replace(/[^a-z0-9\-\.\/:]/g, ''))} placeholder={(openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free') ? "請先由左側下拉切換為自訂" : "輸入格式 例: google/gemma-3-12b"} disabled={openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free'} className={`flex-1 w-full rounded-lg px-3 py-2 text-sm outline-none font-mono tracking-widest ${ (openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free') ? 'bg-[#5a6356] text-[#a4b1a1] cursor-not-allowed opacity-50' : 'bg-[#6b7566] text-white placeholder-[#a4b1a1]' }`} />
                                 </div>
                                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-2 border-t border-[#7a8575] pt-3">
+                                    <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px] flex items-center gap-1"><Layout size={16}/> 畫面排版：</span>
+                                    <div className="flex gap-2 w-full sm:w-auto bg-[#6b7566] p-1 rounded-lg"><button onClick={() => handleUiLayoutChange('layout1')} className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout1' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>置中展開</button><button onClick={() => handleUiLayoutChange('layout2')} className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout2' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>左右分流</button><button onClick={() => handleUiLayoutChange('layout3')} className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout3' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>沉浸卡片</button></div>
+                                </div>
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-2 border-t border-[#7a8575] pt-3">
                                     <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px] flex items-center gap-1"><Volume2 size={16}/> 發音引擎：</span>
                                     <select value={ttsEngine} onChange={e => setTtsEngine(e.target.value)} className="w-full sm:w-auto bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono min-w-[200px]"><option value="native">瀏覽器原生 (免費)</option><option value="openai">OpenAI TTS (高擬真)</option></select>
                                     {ttsEngine === 'openai' && ( <select value={openAITtsVoice} onChange={e => setOpenAITtsVoice(e.target.value)} className="w-full sm:w-auto bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-[#cca677] font-mono min-w-[200px]"><option value="nova">Nova</option><option value="alloy">Alloy</option><option value="shimmer">Shimmer</option><option value="echo">Echo</option><option value="fable">Fable</option></select> )}
@@ -1118,8 +1122,9 @@
                                         <input type="password" value={openAITtsKey} onChange={e => setOpenAITtsKey(e.target.value)} placeholder="sk-proj-..." disabled={!enginesEnabled.openai} className="flex-1 w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white placeholder-[#6b655f] font-mono tracking-widest disabled:opacity-50"/>
                                     </div>
                                 </div>
+
                                 <button onClick={saveCustomKey} className="self-end w-full sm:w-auto bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-6 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-sm active:scale-95 mt-2">💾 儲存金鑰與設定</button>
-                                
+
                                 <div className="flex gap-2 mt-3 flex-wrap w-full">
                                     <button onClick={handleExportData} className="flex-1 bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-4 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2 border border-[#d6cfc5]">📤 匯出備份 JSON</button>
                                     <button onClick={() => importFileRef.current && importFileRef.current.click()} className="flex-1 bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-4 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-2 border border-[#d6cfc5]">📥 匯入備份 JSON</button>
