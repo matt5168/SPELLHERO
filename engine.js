@@ -1,11 +1,12 @@
-// 綁定外部引入的資料庫
-var GRAMMAR_NOTEBOOKS = window.GRAMMAR_NOTEBOOKS || {};
-var RAW_NOTEBOOKS = window.RAW_NOTEBOOKS || {};
+// engine.js - 核心邏輯與 API 引擎
 
-var LEVEL_DATA = [{level:1,reqExp:0,title:"新手學徒",icon:"🌱",color:"text-[#8b9586]",bg:"bg-[#e6e9e4]",border:"border-[#c4cec1]"},{level:2,reqExp:150,title:"拼字新手",icon:"🥉",color:"text-[#cca677]",bg:"bg-[#f4ebd9]",border:"border-[#e0c9aa]"},{level:3,reqExp:400,title:"熟練拼手",icon:"🥈",color:"text-[#8a847c]",bg:"bg-[#dedad4]",border:"border-[#b8b3aa]"},{level:4,reqExp:800,title:"單字達人",icon:"🥇",color:"text-[#c2b49a]",bg:"bg-[#f2efe6]",border:"border-[#d9cfbb]"},{level:5,reqExp:1500,title:"英語小將",icon:"🏅",color:"text-[#768e8b]",bg:"bg-[#e2eae8]",border:"border-[#b2cbc7]"},{level:6,reqExp:2500,title:"智慧神童",icon:"💡",color:"text-[#8b9586]",bg:"bg-[#e6e9e4]",border:"border-[#c4cec1]"},{level:7,reqExp:4000,title:"拼字菁英",icon:"💎",color:"text-[#6b8b9c]",bg:"bg-[#dfe8ef]",border:"border-[#abc8d9]"},{level:8,reqExp:6000,title:"詞彙大師",icon:"👑",color:"text-[#968b95]",bg:"bg-[#e9e6e8]",border:"border-[#cfc6ce]"},{level:9,reqExp:8500,title:"傳奇英雄",icon:"🐉",color:"text-[#b5847e]",bg:"bg-[#f2e7e6]",border:"border-[#dcb5b0]"},{level:10,reqExp:12000,title:"終極神人",icon:"🌌",color:"text-[#a67c52]",bg:"bg-[#f0e6d8]",border:"border-[#c9a785]"}];
-var getCurrentLevelInfo = exp => { let c = LEVEL_DATA[0]; for(let i=0;i<LEVEL_DATA.length;i++) { if(exp>=LEVEL_DATA[i].reqExp) c=LEVEL_DATA[i]; else break; } return { current: c, nextLevel: LEVEL_DATA.find(l=>l.level===c.level+1)||null }; };
+const LEVEL_DATA = [{level:1,reqExp:0,title:"新手學徒",icon:"🌱",color:"text-[#8b9586]",bg:"bg-[#e6e9e4]",border:"border-[#c4cec1]"},{level:2,reqExp:150,title:"拼字新手",icon:"🥉",color:"text-[#cca677]",bg:"bg-[#f4ebd9]",border:"border-[#e0c9aa]"},{level:3,reqExp:400,title:"熟練拼手",icon:"🥈",color:"text-[#8a847c]",bg:"bg-[#dedad4]",border:"border-[#b8b3aa]"},{level:4,reqExp:800,title:"單字達人",icon:"🥇",color:"text-[#c2b49a]",bg:"bg-[#f2efe6]",border:"border-[#d9cfbb]"},{level:5,reqExp:1500,title:"英語小將",icon:"🏅",color:"text-[#768e8b]",bg:"bg-[#e2eae8]",border:"border-[#b2cbc7]"},{level:6,reqExp:2500,title:"智慧神童",icon:"💡",color:"text-[#8b9586]",bg:"bg-[#e6e9e4]",border:"border-[#c4cec1]"},{level:7,reqExp:4000,title:"拼字菁英",icon:"💎",color:"text-[#6b8b9c]",bg:"bg-[#dfe8ef]",border:"border-[#abc8d9]"},{level:8,reqExp:6000,title:"詞彙大師",icon:"👑",color:"text-[#968b95]",bg:"bg-[#e9e6e8]",border:"border-[#cfc6ce]"},{level:9,reqExp:8500,title:"傳奇英雄",icon:"🐉",color:"text-[#b5847e]",bg:"bg-[#f2e7e6]",border:"border-[#dcb5b0]"},{level:10,reqExp:12000,title:"終極神人",icon:"🌌",color:"text-[#a67c52]",bg:"bg-[#f0e6d8]",border:"border-[#c9a785]"}];
+const getCurrentLevelInfo = exp => { let c = LEVEL_DATA[0]; for(let i=0;i<LEVEL_DATA.length;i++) { if(exp>=LEVEL_DATA[i].reqExp) c=LEVEL_DATA[i]; else break; } return { current: c, nextLevel: LEVEL_DATA.find(l=>l.level===c.level+1)||null }; };
 
-var getActiveGrammarDB = function(notebooks) {
+const GRAMMAR_NOTEBOOKS = window.GRAMMAR_NOTEBOOKS || {};
+const RAW_NOTEBOOKS = window.RAW_NOTEBOOKS || {};
+
+const getActiveGrammarDB = function(notebooks) {
     let target = [];
     const nbArray = Array.isArray(notebooks) ? notebooks : ['All'];
     if (nbArray.includes('All')) { Object.keys(GRAMMAR_NOTEBOOKS).forEach(k => { if (Array.isArray(GRAMMAR_NOTEBOOKS[k])) { target = target.concat(GRAMMAR_NOTEBOOKS[k]); } }); } 
@@ -13,8 +14,8 @@ var getActiveGrammarDB = function(notebooks) {
     return target;
 };
 
-var DB_BY_NOTEBOOK = {}; var ALL_WORDS = []; var ALL_PHRASES = [];
-var GLOBAL_DICT = new Map();
+const DB_BY_NOTEBOOK = {}; const ALL_WORDS = []; const ALL_PHRASES = [];
+const GLOBAL_DICT = new Map();
 
 Object.keys(RAW_NOTEBOOKS).forEach(notebook => {
     DB_BY_NOTEBOOK[notebook] = { words: [], phrases: [] };
@@ -31,7 +32,7 @@ Object.keys(RAW_NOTEBOOKS).forEach(notebook => {
     }
 });
 
-var getActiveDB = function(notebooks, mode) {
+const getActiveDB = function(notebooks, mode) {
     let targetWords = []; let targetPhrases = [];
     const nbArray = Array.isArray(notebooks) ? notebooks : ['All'];
     if (nbArray.includes('All')) { targetWords = ALL_WORDS; targetPhrases = ALL_PHRASES; } 
@@ -39,7 +40,7 @@ var getActiveDB = function(notebooks, mode) {
     if (mode === 'word') return targetWords; if (mode === 'phrase') return targetPhrases; return [...targetWords, ...targetPhrases];
 };
 
-var SOUND_ENGINE = {
+const SOUND_ENGINE = {
   ctx: null, init: function() { if (!this.ctx) { const AudioContext = window.AudioContext || window.webkitAudioContext; if (AudioContext) this.ctx = new AudioContext(); } if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); return this.ctx; },
   playCorrect: function() { try { const ctx = this.init(); if (!ctx) return; const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine'; const now = ctx.currentTime; osc.frequency.setValueAtTime(523.25, now); osc.frequency.setValueAtTime(659.25, now + 0.1); osc.frequency.setValueAtTime(783.99, now + 0.2); osc.frequency.setValueAtTime(1046.50, now + 0.3); gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(0.3, now + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5); osc.start(now); osc.stop(now + 0.5); } catch (e) {} },
   playWrong: function() { try { const ctx = this.init(); if (!ctx) return; const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sawtooth'; const now = ctx.currentTime; osc.frequency.setValueAtTime(150, now); osc.frequency.exponentialRampToValueAtTime(80, now + 0.3); gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(0.3, now + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3); osc.start(now); osc.stop(now + 0.3); } catch (e) {} },
@@ -49,7 +50,7 @@ var SOUND_ENGINE = {
   playCombo: function() { try { const ctx = this.init(); if (!ctx) return; const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.type = 'triangle'; const now = ctx.currentTime; osc.frequency.setValueAtTime(800, now); osc.frequency.linearRampToValueAtTime(1200, now + 0.1); gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(0.2, now + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3); osc.start(now); osc.stop(now + 0.3); } catch (e) {} }
 };
 
-var SYSTEM_ENGINE = {
+const SYSTEM_ENGINE = {
   isCorrect: (ui, ca) => String(ui||'').trim().toLowerCase().replace(/\s+/g, ' ') === String(ca||'').trim().toLowerCase().replace(/\s+/g, ' '),
   capitalize: s => { const str = String(s||""); const fc = str.search(/[a-zA-Z]/); return fc === -1 ? str : str.substring(0, fc) + str.charAt(fc).toUpperCase() + str.substring(fc + 1); },
   createHintMask: w => String(w||"").split(' ').map(wd => { const ch = wd.split(''); const ls = ch.filter(c => /[a-zA-Z]/.test(c)); if (ls.length <= 2) return ch.map(c => /[a-zA-Z]/.test(c) ? '_' : c).join(''); let r = []; let lI = 0; for (let i = 0; i < ch.length; i++) { if (/[a-zA-Z]/.test(ch[i])) { lI++; r.push((lI === 1 || lI === ls.length) ? ch[i] : '_'); } else { r.push(ch[i]); } } return r.join(''); }).join(' '),
@@ -63,20 +64,20 @@ var SYSTEM_ENGINE = {
   }
 };
 
-var shuffleArray = arr => { const n = [...arr]; for (let i = n.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); let t = n[i]; n[i] = n[j]; n[j] = t; } return n; };
-var generateVocabOptions = (ca, fDB) => { const s = String(ca||""); const opts = new Set([s]); const safeDB = Array.isArray(fDB) ? fDB : []; const pool = safeDB.filter(i => String(i.answer||"").toLowerCase() !== s.toLowerCase()); const sp = shuffleArray([...pool]); for (let i = 0; i < sp.length; i++) { if (opts.size >= 4) break; opts.add(String(sp[i].answer||"")); } return shuffleArray(Array.from(opts)); };
-var escapeRegExp = str => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const shuffleArray = arr => { const n = [...arr]; for (let i = n.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); let t = n[i]; n[i] = n[j]; n[j] = t; } return n; };
+const generateVocabOptions = (ca, fDB) => { const s = String(ca||""); const opts = new Set([s]); const safeDB = Array.isArray(fDB) ? fDB : []; const pool = safeDB.filter(i => String(i.answer||"").toLowerCase() !== s.toLowerCase()); const sp = shuffleArray([...pool]); for (let i = 0; i < sp.length; i++) { if (opts.size >= 4) break; opts.add(String(sp[i].answer||"")); } return shuffleArray(Array.from(opts)); };
+const escapeRegExp = str => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-var Obfuscator = {
+const Obfuscator = {
     prefix: "SH_ENC:", salt: "SpellingHero2026",
     encode: function(str) { if (!str) return ""; if (str.startsWith(this.prefix)) return str; let xorStr = ""; for (let i = 0; i < str.length; i++) { xorStr += String.fromCharCode(str.charCodeAt(i) ^ this.salt.charCodeAt(i % this.salt.length)); } return this.prefix + btoa(xorStr); },
     decode: function(str) { if (!str) return ""; if (!str.startsWith(this.prefix)) return str; try { let b64 = str.substring(this.prefix.length); let xorStr = atob(b64); let result = ""; for (let i = 0; i < xorStr.length; i++) { result += String.fromCharCode(xorStr.charCodeAt(i) ^ this.salt.charCodeAt(i % this.salt.length)); } return result; } catch(e) { return str; } }
 };
 
-var getGeminiKey = () => Obfuscator.decode(localStorage.getItem('gemini_api_key')) || "";
-var getOpenRouterKey = () => Obfuscator.decode(localStorage.getItem('openrouter_api_key')) || "";
-var getGroqKey = () => Obfuscator.decode(localStorage.getItem('groq_api_key')) || "";
-var getOpenAITtsKey = () => Obfuscator.decode(localStorage.getItem('sh_openai_tts_key')) || "";
+const getGeminiKey = () => Obfuscator.decode(localStorage.getItem('gemini_api_key')) || "";
+const getOpenRouterKey = () => Obfuscator.decode(localStorage.getItem('openrouter_api_key')) || "";
+const getGroqKey = () => Obfuscator.decode(localStorage.getItem('groq_api_key')) || "";
+const getOpenAITtsKey = () => Obfuscator.decode(localStorage.getItem('sh_openai_tts_key')) || "";
 
 class Mutex {
     constructor() { this.queue = Promise.resolve(); }
@@ -91,7 +92,7 @@ class PersistentAIClient {
         this.mutex = new Mutex();
         this.circuitBreakers = { groq: { failures: 0, lockUntil: 0 }, google: { failures: 0, lockUntil: 0 }, openrouter: { failures: 0, lockUntil: 0 }, openai: { failures: 0, lockUntil: 0 } };
     }
-    checkCircuitBreaker(engine) { if (Date.now() < this.circuitBreakers[engine].lockUntil) { const remain = Math.ceil((this.circuitBreakers[engine].lockUntil - Date.now()) / 1000); throw new Error(`[Circuit Breaker] ${engine.toUpperCase()} 冷卻中`); } }
+    checkCircuitBreaker(engine) { if (Date.now() < this.circuitBreakers[engine].lockUntil) { const remain = Math.ceil((this.circuitBreakers[engine].lockUntil - Date.now()) / 1000); throw new Error(`[Circuit Breaker] ${engine.toUpperCase()} 引擎處於冷卻中 (剩餘 ${remain}s)`); } }
     recordFailure(engine, retryAfterMs = 0) { const cb = this.circuitBreakers[engine]; cb.failures += 1; if (retryAfterMs > 0) { cb.lockUntil = Date.now() + retryAfterMs; cb.failures = 0; return; } if (cb.failures >= 3) { cb.lockUntil = Date.now() + (5 * 60 * 1000); cb.failures = 0; } }
     recordSuccess(engine) { this.circuitBreakers[engine].failures = 0; }
     getEngineStatus(provider) { const now = Date.now(); if (now < this.circuitBreakers[provider].lockUntil) return 'red'; if (now - this.lastCallTime[provider] < this.cooldowns[provider]) return 'yellow'; return 'green'; }
@@ -119,9 +120,12 @@ class PersistentAIClient {
             let firstChunk = false; const baseTTFT = 12000; const ttftLimit = taskType === 'micro' ? 8000 : baseTTFT;
             const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
             const url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":streamGenerateContent?alt=sse&key=" + this.geminiKey;
+            
             const payload = { contents: [{ role: "user", parts: [{ text: userQuery }] }], systemInstruction: { role: "system", parts: [{ text: systemPrompt }] }, generationConfig: { responseMimeType: taskType === 'micro' ? "text/plain" : "application/json", temperature: 0.1, maxOutputTokens: 1500 } };
+            
             const startTime = Date.now(); onLog && onLog(`📡 [Gemini] 發送請求 (${modelName})...`);
             const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
+            
             if (!res.ok) {
                 clearTimeout(ttftTimeout); let errBody = ""; try { errBody = await res.text(); } catch(e){} const errMsg = `HTTP ${res.status} ${errBody.substring(0, 100).replace(/\n/g, ' ')}`;
                 onLog && onLog(`📥 [Gemini] 異常: ${errMsg}`);
@@ -131,11 +135,12 @@ class PersistentAIClient {
                 } else if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 404) { this.recordFailure('google', 60000); throw new Error('FATAL: ' + errMsg); }
                 this.recordFailure('google'); throw new Error(errMsg);
             }
+
             this.recordSuccess('google');
             const reader = res.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = "";
             while (true) {
                 const { done, value } = await reader.read(); if (done) break;
-                if (!firstChunk) { firstChunk = true; clearTimeout(ttftTimeout); onLog && onLog(`⚡ [Gemini] 收到首批串流封包！`); }
+                if (!firstChunk) { firstChunk = true; clearTimeout(ttftTimeout); onLog && onLog(`⚡ [Gemini] 收到首批串流封包！(TTFT: ${Date.now() - startTime}ms)`); }
                 buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop(); 
                 for (let i=0; i<lines.length; i++) { 
                     let line = lines[i].trim(); 
@@ -144,7 +149,10 @@ class PersistentAIClient {
             } 
             if (signal) signal.removeEventListener('abort', onAbort); unlock(); return { rawText: fullText, modelName: modelName.toUpperCase(), provider: "google" };
         } catch (e) {
-            unlock(); if (retryCount < 3 && !e.message.includes('Circuit Breaker') && !e.message.includes('FATAL') && e.name !== 'AbortError') { const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000); onLog && onLog(`[重試] Gemini 等待 ${Math.round(backoffMs/1000)}s...`); await new Promise(r => setTimeout(r, backoffMs)); return this.callGemini(modelName, systemPrompt, userQuery, signal, onChunk, onLog, taskType, retryCount + 1); } throw e;
+            unlock(); if (retryCount < 3 && !e.message.includes('Circuit Breaker') && !e.message.includes('FATAL') && e.name !== 'AbortError') {
+                const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000); onLog && onLog(`[重試] Gemini 等待 ${Math.round(backoffMs/1000)}s...`); await new Promise(r => setTimeout(r, backoffMs));
+                return this.callGemini(modelName, systemPrompt, userQuery, signal, onChunk, onLog, taskType, retryCount + 1);
+            } throw e;
         }
     }
 
@@ -155,10 +163,13 @@ class PersistentAIClient {
             let firstChunk = false; const baseTTFT = 15000; const ttftLimit = taskType === 'micro' ? 10000 : baseTTFT;
             const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
             const url = 'https://openrouter.ai/api/v1/chat/completions';
+            
             const combinedContent = "System Instructions:\n" + systemPrompt + "\n\nUser Request:\n" + userQuery;
             const payload = { model: specificModel, messages: [ { role: "user", content: combinedContent } ], stream: true, temperature: 0.1, max_tokens: 1500 };
+
             const startTime = Date.now(); onLog && onLog(`📡 [OR] 發送請求 (${specificModel})...`);
             const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + this.openRouterKey, 'Content-Type': 'application/json', 'HTTP-Referer': window.location.href, 'X-Title': 'Spelling Hero' }, body: JSON.stringify(payload), signal: localController.signal });
+            
             if (!res.ok) {
                 clearTimeout(ttftTimeout); let errBody = ""; try { errBody = await res.text(); } catch(e){} const errMsg = `HTTP ${res.status} ${errBody.substring(0, 100).replace(/\n/g, ' ')}`;
                 onLog && onLog(`📥 [OR] 異常: ${errMsg}`);
@@ -168,6 +179,7 @@ class PersistentAIClient {
                 } else if (res.status === 400 || res.status === 401 || res.status === 402 || res.status === 403) { this.recordFailure('openrouter', 60000); throw new Error('FATAL: ' + errMsg); }
                 this.recordFailure('openrouter'); throw new Error(errMsg);
             }
+
             this.recordSuccess('openrouter');
             const reader = res.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = ""; let actualModel = specificModel;
             while (true) {
@@ -183,7 +195,10 @@ class PersistentAIClient {
             } 
             if (signal) signal.removeEventListener('abort', onAbort); unlock(); return { rawText: fullText, modelName: actualModel.toUpperCase(), provider: "openrouter" };
         } catch (e) {
-            unlock(); if (retryCount < 3 && !e.message.includes('Circuit Breaker') && !e.message.includes('FATAL') && e.name !== 'AbortError') { const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000); onLog && onLog(`[重試] OR 等待 ${Math.round(backoffMs/1000)}s...`); await new Promise(r => setTimeout(r, backoffMs)); return this.callOpenRouter(systemPrompt, userQuery, signal, onChunk, onLog, specificModel, taskType, retryCount + 1); } throw e;
+            unlock(); if (retryCount < 3 && !e.message.includes('Circuit Breaker') && !e.message.includes('FATAL') && e.name !== 'AbortError') {
+                const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000); onLog && onLog(`[重試] OR 等待 ${Math.round(backoffMs/1000)}s...`); await new Promise(r => setTimeout(r, backoffMs));
+                return this.callOpenRouter(systemPrompt, userQuery, signal, onChunk, onLog, specificModel, taskType, retryCount + 1);
+            } throw e;
         }
     }
 
@@ -195,8 +210,10 @@ class PersistentAIClient {
             const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
             const url = 'https://api.groq.com/openai/v1/chat/completions';
             const payload = { model: specificModel, messages: [ { role: "system", content: systemPrompt }, { role: "user", content: userQuery } ], stream: true, temperature: 0.1, max_tokens: 1500 };
+
             const startTime = Date.now(); onLog && onLog(`📡 [Groq] 發送請求 (${specificModel})...`);
             const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + this.groqKey, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
+            
             if (!res.ok) {
                 clearTimeout(ttftTimeout); let errBody = ""; try { errBody = await res.text(); } catch(e){} const errMsg = `HTTP ${res.status} ${errBody.substring(0, 100).replace(/\n/g, ' ')}`;
                 onLog && onLog(`📥 [Groq] 異常: ${errMsg}`);
@@ -206,11 +223,12 @@ class PersistentAIClient {
                 } else if (res.status === 400 || res.status === 401 || res.status === 403) { this.recordFailure('groq', 60000); throw new Error('FATAL: ' + errMsg); }
                 this.recordFailure('groq'); throw new Error(errMsg);
             }
+
             this.recordSuccess('groq');
             const reader = res.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = ""; let actualModel = specificModel;
             while (true) {
                 const { done, value } = await reader.read(); if (done) break;
-                if (!firstChunk) { firstChunk = true; clearTimeout(ttftTimeout); onLog && onLog(`⚡ [Groq] 收到首批串流封包！`); }
+                if (!firstChunk) { firstChunk = true; clearTimeout(ttftTimeout); onLog && onLog(`⚡ [Groq] 收到首批串流封包！(極速 LPU TTFT: ${Date.now() - startTime}ms)`); }
                 buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop();
                 for (let i=0; i<lines.length; i++) {
                     let line = lines[i].trim();
@@ -221,7 +239,10 @@ class PersistentAIClient {
             } 
             if (signal) signal.removeEventListener('abort', onAbort); unlock(); return { rawText: fullText, modelName: actualModel.toUpperCase(), provider: "groq" };
         } catch (e) {
-            unlock(); if (retryCount < 3 && !e.message.includes('Circuit Breaker') && !e.message.includes('FATAL') && e.name !== 'AbortError') { const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000); onLog && onLog(`[重試] Groq 等待 ${Math.round(backoffMs/1000)}s...`); await new Promise(r => setTimeout(r, backoffMs)); return this.callGroq(systemPrompt, userQuery, signal, onChunk, onLog, specificModel, taskType, retryCount + 1); } throw e;
+            unlock(); if (retryCount < 3 && !e.message.includes('Circuit Breaker') && !e.message.includes('FATAL') && e.name !== 'AbortError') {
+                const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000); onLog && onLog(`[重試] Groq 等待 ${Math.round(backoffMs/1000)}s...`); await new Promise(r => setTimeout(r, backoffMs));
+                return this.callGroq(systemPrompt, userQuery, signal, onChunk, onLog, specificModel, taskType, retryCount + 1);
+            } throw e;
         }
     }
     
@@ -233,8 +254,10 @@ class PersistentAIClient {
             const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
             const url = 'https://api.openai.com/v1/chat/completions';
             const payload = { model: specificModel, messages: [ { role: "system", content: systemPrompt }, { role: "user", content: userQuery } ], stream: true, temperature: 0.1, max_tokens: 1500 };
+
             const startTime = Date.now(); onLog && onLog(`📡 [OpenAI] 發送請求 (${specificModel})...`);
             const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${this.openAITtsKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
+            
             if (!res.ok) {
                 clearTimeout(ttftTimeout); let errBody = ""; try { errBody = await res.text(); } catch(e){} const errMsg = `HTTP ${res.status} ${errBody.substring(0, 100).replace(/\n/g, ' ')}`;
                 onLog && onLog(`📥 [OpenAI] 異常: ${errMsg}`);
@@ -244,6 +267,7 @@ class PersistentAIClient {
                 } else if (res.status === 400 || res.status === 401 || res.status === 403) { this.recordFailure('openai', 60000); throw new Error('FATAL: ' + errMsg); }
                 this.recordFailure('openai'); throw new Error(errMsg);
             }
+
             this.recordSuccess('openai');
             const reader = res.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = ""; let actualModel = specificModel;
             while (true) {
@@ -259,8 +283,11 @@ class PersistentAIClient {
             } 
             if (signal) signal.removeEventListener('abort', onAbort); unlock(); return { rawText: fullText, modelName: actualModel.toUpperCase(), provider: "openai" };
         } catch (e) {
-            unlock(); if (retryCount < 3 && !e.message.includes('Circuit Breaker') && !e.message.includes('FATAL') && e.name !== 'AbortError') { const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000); onLog && onLog(`[重試] OpenAI 等待 ${Math.round(backoffMs/1000)}s...`); await new Promise(r => setTimeout(r, backoffMs)); return this.callOpenAI(systemPrompt, userQuery, signal, onChunk, onLog, specificModel, taskType, retryCount + 1); } throw e;
+            unlock(); if (retryCount < 3 && !e.message.includes('Circuit Breaker') && !e.message.includes('FATAL') && e.name !== 'AbortError') {
+                const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000); onLog && onLog(`[重試] OpenAI 等待 ${Math.round(backoffMs/1000)}s...`); await new Promise(r => setTimeout(r, backoffMs));
+                return this.callOpenAI(systemPrompt, userQuery, signal, onChunk, onLog, specificModel, taskType, retryCount + 1);
+            } throw e;
         }
     }
 }
-var sharedAIClient = new PersistentAIClient();
+window.sharedAIClient = new PersistentAIClient();
