@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (獨立切換版 v10)</title>
+    <title>Spelling Hero - 互動家教版 (無敵對照版 v11)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -409,13 +409,14 @@ TASK:
                         if (loopGuard > 1) { const delay = Math.pow(2, loopGuard - 1) * 1000 + Math.floor(Math.random() * 1000); addLog(`[防護] 冷卻 ${(delay/1000).toFixed(1)}s...`); await new Promise(r => setTimeout(r, delay)); }
                         
                         let systemPrompt = ""; let userQuery = "";
+                        // 🔥 升級：強制 AI 輸出完整翻譯，嚴禁挖洞
                         if (targetMenu === 'grammar') {
                             const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)}`);
                             systemPrompt = `ESL grammar fill-blank, 3rd grade. RULES:
     ① STRICT SUBJECT: Keep EXACT target answer & grammatical subject from pattern. Change ONLY the situation.
     ② PRONOUN CONTEXT: If answer is pronoun, write specific name BEFORE the blank.
     ③ OPTIONS: 'o' MUST have 4 items.
-    ④ JSON only: [{"idx":0,"a":"answer","s":"sent______","t":"中文翻譯","o":["opt1","opt2","opt3","opt4"]}]
+    ④ JSON only: [{"idx":0,"a":"answer","s":"English sentence with ______","t":"Full Chinese translation (MUST include the meaning of the answer word. NO blanks.)","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH. Patterns:\n${patterns.join('\n')}`;
                         } else {
@@ -424,7 +425,7 @@ TASK:
     ① Simple formal English. Blank=______(6 underscores).
     ② CONTEXT: Sentence MUST contain clues.
     ③ OPTIONS: 'o' MUST have 4 items.
-    ④ JSON only: [{"idx":0,"a":"answer","s":"sent______","t":"中文翻譯","h":"","o":["opt1","opt2","opt3","opt4"]}]
+    ④ JSON only: [{"idx":0,"a":"answer","s":"English sentence with ______","t":"Full Chinese translation (MUST include the meaning of the answer word. NO blanks.)","h":"","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH. Words:\n${wordsToGenerate.join('\n')}`;
                         }
@@ -446,11 +447,15 @@ TASK:
                                     if (!expectedItem) {
                                         let ansStr = String(q.a || q.answer || "").trim().toLowerCase();
                                         expectedItem = chunkPending.find(item => String(item.answer||"").trim().toLowerCase() === ansStr);
-                                        if(!expectedItem) return;
                                     }
+                                    
+                                    // 防護：確保答案永遠不會變成空字串
+                                    let ans = String(q.a || q.answer || (expectedItem ? expectedItem.answer : "")).trim();
+                                    if (!ans) ans = "UNKNOWN";
 
-                                    let reqUid = expectedItem.reqUid; let refKey = expectedItem.poolKey;
-                                    let ans = String(q.a || q.answer || expectedItem.answer).trim();
+                                    let reqUid = expectedItem ? expectedItem.reqUid : `req_${Math.random()}`; 
+                                    let refKey = expectedItem ? expectedItem.poolKey : `word_${ans}`;
+                                    
                                     let rawOptions = Array.isArray(q.o) ? q.o : (Array.isArray(q.options) ? q.options : []);
                                     let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ans.toLowerCase());
                                     if (distractors.length < 3) distractors = [...distractors, ...window.generateVocabOptions(ans, activeDB).filter(o=>o!==ans)];
@@ -470,8 +475,10 @@ TASK:
 
                                     let sentence = (q.s || q.sentence) ? String(q.s || q.sentence) : "";
                                     sentence = sentence.replace(/[a-zA-Z]*_{2,}[a-zA-Z]*/g, '______');
+                                    // 防護：如果 AI 忘記加底線，強制將答案替換為底線
                                     if (sentence.indexOf('______') === -1) { 
-                                        const reg = new RegExp('\\b' + window.escapeRegExp(ans) + '\\b', 'gi'); sentence = sentence.replace(reg, '______'); 
+                                        const reg = new RegExp('\\b' + window.escapeRegExp(ans) + '\\b', 'gi'); 
+                                        sentence = sentence.replace(reg, '______'); 
                                         if (sentence.indexOf('______') === -1) sentence += ' ______'; 
                                     }
                                     
@@ -570,7 +577,6 @@ TASK:
               }
           };
 
-          // 🔥 加入 targetProvider 作為參數，實現分離切換
           const handleOnDemand = async (index, type, isRetry = false, retryCount = 0, targetPromptMode = null, isManual = false, targetProvider = null) => {
               const key = `${type}_${index}`; if (loadingStates[key] && !isRetry) return;
               setLoadingStates(prev => ({...prev, [key]: true})); if (!isRetry) setDynamicContent(prev => ({...prev, [key]: ""}));
@@ -605,7 +611,6 @@ TASK:
                   let providersToTry = ['groq', 'google', 'openrouter', 'openai'].filter(p => enginesEnabled[p]);
                   if (type === 'exp') { providersToTry = ['groq', 'google', 'openrouter'].filter(p => enginesEnabled[p]); }
 
-                  // 🔥 根據是否傳入特定提供者來決定路由策略
                   if (targetProvider) {
                       providersToTry = [targetProvider].filter(p => enginesEnabled[p]);
                   } else {
@@ -1057,17 +1062,36 @@ TASK:
                           <div className="flex flex-col items-center text-center relative w-full">
                               <div className="absolute -top-10 bg-[#b5847e] text-white px-4 py-1.5 rounded-full font-black shadow-md border-2 border-white flex items-center gap-2"><XCircle size={16}/> 拼字錯誤</div>
                               <span className="text-sm font-bold text-[#a6a198] mt-2 mb-1">正確答案</span>
-                              <div className="text-4xl md:text-5xl font-black text-[#524d46] tracking-[0.1em] my-2" onClick={() => playTTS(safeAnswerStr, false)}>{safeAnswerStr}</div>
+                              <div className="text-4xl md:text-5xl font-black text-[#524d46] tracking-[0.1em] my-2" onClick={() => playTTS(safeAnswerStr, false)}>
+                                  {safeAnswerStr || <span className="text-red-500">系統缺漏</span>}
+                              </div>
                               {mainMenu !== 'grammar' && ( <button onClick={() => playTTS(safeAnswerStr, false)} className="mt-4 bg-white text-[#8c6b44] px-5 py-2.5 rounded-full font-black shadow-sm border border-[#e0c9aa] active:scale-95 flex items-center gap-2"><Megaphone size={18}/> 聆聽發音</button> )}
                           </div>
                       )}
                       
-                      <div className="mt-5 w-full bg-white/60 p-4 rounded-xl border border-[#c4cec1] shadow-sm text-left">
-                          <div className="text-xs font-black text-[#7a8575] mb-1 flex items-center gap-1 uppercase tracking-widest"><BookOpen size={14}/> 完整中英對照</div>
-                          <div className="text-lg font-black text-[#524d46] mb-1 leading-relaxed">{String(q.sentence||"").replace(/_{2,}/g, safeAnswerStr)}</div>
-                          <div className="text-base font-bold text-[#8b9586] leading-relaxed">{String(q.translation || "目前尚無翻譯").replace(/[_＿]{2,}/g, (window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) ? window.SH_DICTIONARY[safeAnswerStr.toLowerCase()].split(/[;；]/)[0] : safeAnswerStr)}</div>
+                      <div className="mt-5 w-full bg-white/60 p-4 md:p-5 rounded-2xl border border-[#c4cec1] shadow-sm text-left">
+                          <div className="text-xs font-black text-[#7a8575] mb-2 flex items-center gap-1 uppercase tracking-widest"><BookOpen size={14}/> 完整中英對照</div>
+                          
+                          <div className="text-lg md:text-xl font-black text-[#524d46] mb-2 leading-relaxed">
+                              {String(q.sentence||"").split(/_{2,}/).map((part, idx, arr) => (
+                                  <span key={idx}>
+                                      {part}
+                                      {idx < arr.length - 1 && <span className="text-[#cca677] border-b-[3px] border-[#cca677] mx-1 px-1 pb-0.5">{safeAnswerStr || "???"}</span>}
+                                  </span>
+                              ))}
+                          </div>
+                          
+                          <div className="text-base font-bold text-[#8b9586] leading-relaxed">
+                              {String(q.translation || "目前尚無翻譯").split(/[_＿]{2,}/).map((part, idx, arr) => (
+                                  <span key={idx}>
+                                      {part}
+                                      {idx < arr.length - 1 && <span className="text-[#cca677] mx-1">{ (window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) ? window.SH_DICTIONARY[safeAnswerStr.toLowerCase()].split(/[;；]/)[0] : safeAnswerStr }</span>}
+                                  </span>
+                              ))}
+                          </div>
+                          
                           {mainMenu !== 'grammar' && (
-                              <div className="mt-3 pt-3 border-t border-[#d6cfc5] flex items-start gap-2">
+                              <div className="mt-4 pt-3 border-t border-[#d6cfc5] flex items-start gap-2">
                                   <span className="text-[10px] font-black text-[#a68258] bg-[#f4ebd9] px-2 py-0.5 rounded border border-[#e0c9aa] whitespace-nowrap mt-0.5">單字</span>
                                   <span className="text-base font-black text-[#8c6b44]">{(window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) || dynamicContent[`hint_${i}`] || q.hint || "無翻譯"}</span>
                               </div>
