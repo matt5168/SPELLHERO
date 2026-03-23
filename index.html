@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (指定老師版 v10)</title>
+    <title>Spelling Hero - 互動家教版 (獨立切換版 v10)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -30,7 +30,7 @@
         const { useState, useEffect, Component, useRef } = React;
 
         const IconMock = emoji => props => <span className={props.className||""} style={{fontSize: props.size||20, display:'inline-flex', alignItems:'center', justifyContent:'center', lineHeight: 1}}>{emoji}</span>;
-        const CheckCircle=IconMock('✅'), XCircle=IconMock('❌'), RefreshCcw=IconMock('🔄'), Star=IconMock('⭐'), Trophy=IconMock('🏆'), Lightbulb=IconMock('💡'), Sparkles=IconMock('✨'), Shuffle=IconMock('🔀'), BookOpen=IconMock('📖'), AlertOctagon=IconMock('⚠️'), GraduationCap=IconMock('🎓'), Loader2=IconMock('⏳'), Volume2=IconMock('🔊'), Megaphone=IconMock('📢'), Settings=IconMock('⚙️'), Zap=IconMock('⚡'), Globe=IconMock('🌐'), History=IconMock('🕒'), Calendar=IconMock('📅'), BrainCircuit=IconMock('🧠'), Target=IconMock('🎯'), ChevronDown=IconMock('🔽'), ChevronUp=IconMock('🔼'), Send=IconMock('🚀'), Coins=IconMock('🪙'), BarChart2=IconMock('📊'), Activity=IconMock('📈'), Award=IconMock('🏅'), TrendingUp=IconMock('📈'), Flame=IconMock('🔥'), ShieldCheck=IconMock('🛡️'), Edit3=IconMock('📝'), MousePointerClick=IconMock('🖱️'), AlignLeft=IconMock('📑'), Database=IconMock('🗄️'), ScrollText=IconMock('📜'), ThumbsUp=IconMock('👍'), ThumbsDown=IconMock('👎'), Layout=IconMock('🗂️');
+        const CheckCircle=IconMock('✅'), XCircle=IconMock('❌'), RefreshCcw=IconMock('🔄'), Star=IconMock('⭐'), Trophy=IconMock('🏆'), Lightbulb=IconMock('💡'), Sparkles=IconMock('✨'), Shuffle=IconMock('🔀'), BookOpen=IconMock('📖'), AlertOctagon=IconMock('⚠️'), GraduationCap=IconMock('🎓'), Loader2=IconMock('⏳'), Volume2=IconMock('🔊'), Megaphone=IconMock('📢'), Settings=IconMock('⚙️'), Zap=IconMock('⚡'), Globe=IconMock('🌐'), History=IconMock('🕒'), Calendar=IconMock('📅'), BrainCircuit=IconMock('🧠'), Target=IconMock('🎯'), ChevronDown=IconMock('🔽'), ChevronUp=IconMock('🔼'), Send=IconMock('🚀'), Coins=IconMock('🪙'), BarChart2=IconMock('📊'), Activity=IconMock('📈'), Award=IconMock('🏅'), TrendingUp=IconMock('📈'), Flame=IconMock('🔥'), ShieldCheck=IconMock('🛡️'), Edit3=IconMock('📝'), MousePointerClick=IconMock('🖱️'), AlignLeft=IconMock('📑'), Database=IconMock('🗄️'), ScrollText=IconMock('📜'), Layout=IconMock('🗂️');
 
         class ErrorBoundary extends Component {
           constructor(props) { super(props); this.state = { hasError: false, errorInfo: "" }; }
@@ -60,7 +60,7 @@
           const [selectedNotebooks, setSelectedNotebooks] = useState(['All']); 
           const [vocabMode, setVocabMode] = useState('mixed'); 
           const [mainMenu, setMainMenu] = useState('vocab'); 
-          const [storage, setStorage] = useState({ history: [], memory: {}, stats: {}, coins: 0, exp: 0, level: 1, modelVotes: {} });
+          const [storage, setStorage] = useState({ history: [], memory: {}, stats: {}, coins: 0, exp: 0, level: 1 });
           const [dash, setDash] = useState(false); const [earnedCoins, setEarnedCoins] = useState(0); 
           const [earnedExp, setEarnedExp] = useState(0); const [levelUpData, setLevelUpData] = useState(null);
           const [redeemAmount, setRedeemAmount] = useState(100); const [redeemMessage, setRedeemMessage] = useState("");
@@ -155,7 +155,7 @@ TASK:
                   version: "SH_v2", exportedAt: new Date().toISOString(),
                   history: JSON.parse(localStorage.getItem('sh_h_v28')||'[]'), memory: JSON.parse(localStorage.getItem('sh_m_v28')||'{}'), stats: JSON.parse(localStorage.getItem('sh_s_v28')||'{}'),
                   coins: parseInt(localStorage.getItem('sh_coins_v28')||'0'), exp: parseInt(localStorage.getItem('sh_exp_v28')||'0'), level: parseInt(localStorage.getItem('sh_level_v28')||'1'),
-                  mistakes: JSON.parse(localStorage.getItem('sh_mistakes_v29')||'[]'), modelVotes: JSON.parse(localStorage.getItem('sh_model_votes_v1')||'{}'), apiUsage: JSON.parse(localStorage.getItem('sh_api_usage_v29')||'{}'),
+                  mistakes: JSON.parse(localStorage.getItem('sh_mistakes_v29')||'[]'), apiUsage: JSON.parse(localStorage.getItem('sh_api_usage_v29')||'{}'),
                   settings: {
                       uiLayout: localStorage.getItem('sh_ui_layout')||'layout1', ttsEngine: localStorage.getItem('sh_tts_engine')||'native', ttsVoice: localStorage.getItem('sh_openai_tts_voice')||'nova',
                       orModel: localStorage.getItem('sh_or_model')||'openrouter/auto', groqModel: localStorage.getItem('sh_groq_model')||'llama-3.3-70b-versatile',
@@ -176,7 +176,7 @@ TASK:
                       const d = JSON.parse(ev.target.result); if (!d.version || !d.version.startsWith('SH_')) { showAlert('❌ 檔案格式錯誤'); return; }
                       if (d.history) localStorage.setItem('sh_h_v28', JSON.stringify(d.history)); if (d.memory) localStorage.setItem('sh_m_v28', JSON.stringify(d.memory)); if (d.stats) localStorage.setItem('sh_s_v28', JSON.stringify(d.stats));
                       if (d.coins !== undefined) localStorage.setItem('sh_coins_v28', String(d.coins)); if (d.exp !== undefined) localStorage.setItem('sh_exp_v28', String(d.exp)); if (d.level !== undefined) localStorage.setItem('sh_level_v28', String(d.level));
-                      if (d.mistakes) localStorage.setItem('sh_mistakes_v29', JSON.stringify(d.mistakes)); if (d.modelVotes) localStorage.setItem('sh_model_votes_v1', JSON.stringify(d.modelVotes)); if (d.apiUsage) localStorage.setItem('sh_api_usage_v29', JSON.stringify(d.apiUsage));
+                      if (d.mistakes) localStorage.setItem('sh_mistakes_v29', JSON.stringify(d.mistakes)); if (d.apiUsage) localStorage.setItem('sh_api_usage_v29', JSON.stringify(d.apiUsage));
                       if (d.settings) {
                           const s = d.settings;
                           if (s.uiLayout) localStorage.setItem('sh_ui_layout', s.uiLayout); if (s.ttsEngine) localStorage.setItem('sh_tts_engine', s.ttsEngine); if (s.ttsVoice) localStorage.setItem('sh_openai_tts_voice', s.ttsVoice);
@@ -225,9 +225,8 @@ TASK:
                 let mist = JSON.parse(localStorage.getItem('sh_mistakes_v29') || '[]');
                 let apiU = JSON.parse(localStorage.getItem('sh_api_usage_v29') || 'null'); if (!apiU || apiU.date !== today) apiU = { date: today, openRouter: 0, gemini: 0, groq: 0, openai: 0 };
                 if (apiU.openai === undefined) apiU.openai = 0;
-                let mVotes = JSON.parse(localStorage.getItem('sh_model_votes_v1') || '{}');
                 
-                setStorage({ history: h, memory: m, stats: s, coins: c, exp: exp, level: lvl, modelVotes: mVotes }); setMistakePool(mist); setApiUsage(apiU); 
+                setStorage({ history: h, memory: m, stats: s, coins: c, exp: exp, level: lvl }); setMistakePool(mist); setApiUsage(apiU); 
                 
                 const currentPool = JSON.parse(localStorage.getItem('sh_qpool_v33') || '{}'); let sz = 0; Object.values(currentPool).forEach(arr => sz += arr.length); setPoolStats(p => ({...p, size: sz}));
 
@@ -571,8 +570,8 @@ TASK:
               }
           };
 
-          // 🔥 雙軌切換邏輯核心：新增 forceEngine 參數
-          const handleOnDemand = async (index, type, isRetry = false, retryCount = 0, targetPromptMode = null, isManual = false, forceEngine = null) => {
+          // 🔥 加入 targetProvider 作為參數，實現分離切換
+          const handleOnDemand = async (index, type, isRetry = false, retryCount = 0, targetPromptMode = null, isManual = false, targetProvider = null) => {
               const key = `${type}_${index}`; if (loadingStates[key] && !isRetry) return;
               setLoadingStates(prev => ({...prev, [key]: true})); if (!isRetry) setDynamicContent(prev => ({...prev, [key]: ""}));
 
@@ -603,17 +602,15 @@ TASK:
                       setDynamicContent(prev => ({...prev, [key]: clean})); if (chunkModelName) setDynamicModels(prev => ({...prev, [key]: chunkModelName.split('/').pop().toUpperCase()}));
                   };
                   
-                  let providersToTry = [];
-                  
-                  // 🔥 如果使用者強制指定老師或保留原老師 (forceEngine)
-                  if (forceEngine) {
-                      providersToTry = [forceEngine];
+                  let providersToTry = ['groq', 'google', 'openrouter', 'openai'].filter(p => enginesEnabled[p]);
+                  if (type === 'exp') { providersToTry = ['groq', 'google', 'openrouter'].filter(p => enginesEnabled[p]); }
+
+                  // 🔥 根據是否傳入特定提供者來決定路由策略
+                  if (targetProvider) {
+                      providersToTry = [targetProvider].filter(p => enginesEnabled[p]);
                   } else {
-                      providersToTry = ['groq', 'google', 'openrouter', 'openai'].sort((a,b) => (storage.modelVotes[b]||0) - (storage.modelVotes[a]||0)).filter(p => enginesEnabled[p]);
-                      if (type === 'exp') { providersToTry = ['openrouter', 'groq'].filter(p => enginesEnabled[p]); }
                       if (routingMode === 'dynamic') providersToTry = providersToTry.filter(p => window.sharedAIClient.getEngineStatus(p) !== 'red');
-                      // 如果是自動重試或純粹的「換引擎」，才排除目前的引擎
-                      if (isRetry && dynamicProviders[key]) { providersToTry = providersToTry.filter(p => p !== dynamicProviders[key]); }
+                      if (isRetry && dynamicProviders[key] && !isManual) { providersToTry = providersToTry.filter(p => p !== dynamicProviders[key]); }
                   }
 
                   if (providersToTry.length === 0) throw new Error("無可用引擎");
@@ -622,14 +619,13 @@ TASK:
                   for (let currentP of providersToTry) {
                       try {
                           setDynamicProviders(prev => ({...prev, [key]: currentP})); addLog(`[解說] 🟢 -> ${currentP.toUpperCase()}`);
-                          if (routingMode === 'dynamic' && !forceEngine) { if (window.sharedAIClient.getEngineStatus(currentP) === 'yellow') await new Promise(r => setTimeout(r, window.sharedAIClient.cooldowns[currentP] - (Date.now() - window.sharedAIClient.lastCallTime[currentP]))); }
-                          window.sharedAIClient.lastCallTime[currentP] = Date.now();
+                          if (routingMode === 'dynamic') { if (window.sharedAIClient.getEngineStatus(currentP) === 'yellow') await new Promise(r => setTimeout(r, window.sharedAIClient.cooldowns[currentP] - (Date.now() - window.sharedAIClient.lastCallTime[currentP]))); window.sharedAIClient.lastCallTime[currentP] = Date.now(); }
                           const demandController = new AbortController(); firstChunk = false;
                           const ttftTimer = setTimeout(() => { if (!firstChunk) demandController.abort(new Error("TTFT_3S_TIMEOUT")); }, 3000);
                           
                           if (currentP === 'groq') await window.sharedAIClient.callGroq("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, groqModel, 'micro');
                           else if (currentP === 'google') await window.sharedAIClient.callGemini('gemini-2.5-flash', "You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, 'micro');
-                          else if (currentP === 'openrouter') await window.sharedAIClient.callOpenRouter("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, type === 'exp' && !forceEngine ? 'openrouter/auto' : openRouterModel, 'micro');
+                          else if (currentP === 'openrouter') await window.sharedAIClient.callOpenRouter("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, type === 'exp' ? 'openrouter/auto' : openRouterModel, 'micro');
                           else if (currentP === 'openai') await window.sharedAIClient.callOpenAI("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, 'gpt-4o-mini', 'micro');
                           
                           clearTimeout(ttftTimer); success = true; break;
@@ -639,7 +635,7 @@ TASK:
                   setLoadingStates(prev => ({...prev, [key]: false}));
               } catch (e) {
                   if (retryCount < 2 && e.message !== "無可用引擎") {
-                      setDynamicContent(prev => ({...prev, [key]: `⏳ 重試中 (${retryCount + 1}/3)...`})); setTimeout(() => handleOnDemand(index, type, true, retryCount + 1, currentPMode, isManual, forceEngine), 3000);
+                      setDynamicContent(prev => ({...prev, [key]: `⏳ 重試中 (${retryCount + 1}/3)...`})); setTimeout(() => handleOnDemand(index, type, true, retryCount + 1, currentPMode, isManual, targetProvider), 3000);
                   } else {
                       setDynamicContent(prev => ({...prev, [key]: `⚠️ ${e.message}`})); setLoadingStates(prev => ({...prev, [key]: false}));
                   }
@@ -830,7 +826,6 @@ TASK:
                                     </div>
                                 </div>
 
-                                {/* 🔥 解說風格與自訂 Prompt 區塊 */}
                                 <div className="grid grid-cols-1 gap-4 border-t border-[#7a8575] pt-4">
                                     <div className="flex flex-col gap-2">
                                         <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><Edit3 size={16}/> AI 老師解說風格：</span>
@@ -1081,36 +1076,35 @@ TASK:
 
                       {mainMenu === 'grammar' && !isFinallyCorrect && (
                           <div className={`mt-6 border-t-2 pt-4 w-full text-left ${isLayout3 ? 'border-[#e0c9aa]' : 'border-[#c4cec1]'}`}>
-                              <div className="font-black text-[#7a8575] mb-3 flex items-center gap-1.5 flex-wrap">
-                                  <GraduationCap size={18}/> AI 老師文法解題 
-                                  {dynamicModels[`exp_${i}`] && <span className="text-[10px] font-black text-[#a68258] bg-[#f4ebd9] px-2 py-0.5 rounded-lg border border-[#e0c9aa] shadow-sm ml-2 flex items-center gap-1"><Sparkles size={12}/> {dynamicModels[`exp_${i}`]}</span>}
+                              <div className="font-black text-[#7a8575] mb-3 flex items-center justify-between gap-1.5 flex-wrap">
+                                  <div className="flex items-center gap-1.5">
+                                      <GraduationCap size={18}/> AI 老師文法解題 
+                                      {dynamicModels[`exp_${i}`] && <span className="text-[10px] font-black text-[#a68258] bg-[#f4ebd9] px-2 py-0.5 rounded-lg border border-[#e0c9aa] shadow-sm ml-2 flex items-center gap-1"><Sparkles size={12}/> {dynamicModels[`exp_${i}`]}</span>}
+                                  </div>
                                   
-                                  {/* 🔥 新增的「更換老師」下拉選單 */}
-                                  <div className="ml-auto flex items-center gap-1">
+                                  {dynamicContent[`exp_${i}`] && !dynamicContent[`exp_${i}`].includes('重試') && (
                                       <select 
-                                          className="text-xs font-bold text-[#6b7566] bg-[#e6e9e4] px-2 py-1 rounded-lg border border-[#c4cec1] shadow-sm outline-none cursor-pointer hover:bg-[#d5dcd3] transition-colors"
+                                          className="text-xs font-bold text-[#6b7566] bg-[#e6e9e4] px-2 py-1 rounded border border-[#c4cec1] outline-none cursor-pointer hover:bg-[#d5dcd3] transition-colors shadow-sm"
                                           value=""
                                           onChange={(e) => {
-                                              if (e.target.value) {
-                                                  handleOnDemand(i, 'exp', true, 0, qPromptModes[i] || promptMode, true, e.target.value);
-                                              }
+                                              if (e.target.value) { handleOnDemand(i, 'exp', true, 0, null, true, e.target.value); }
                                           }}
                                       >
                                           <option value="" disabled>🔄 更換老師</option>
-                                          {['groq', 'google', 'openrouter'].filter(eng => enginesEnabled[eng] && window.sharedAIClient && window.sharedAIClient.getEngineStatus(eng) === 'green').map(eng => (
-                                              <option key={eng} value={eng}>{eng === 'google' ? 'GEMINI' : eng.toUpperCase()}</option>
+                                          {['groq', 'google', 'openrouter'].filter(p => enginesEnabled[p] && window.sharedAIClient && window.sharedAIClient.getEngineStatus(p) !== 'red' && p !== dynamicProviders[`exp_${i}`]).map(p => (
+                                              <option key={p} value={p}>{p === 'google' ? 'GEMINI' : p.toUpperCase()}</option>
                                           ))}
                                       </select>
-                                  </div>
+                                  )}
                               </div>
+                              
                               {q.isAI ? (
                                   dynamicContent[`exp_${i}`] ? (
                                       <div className="animate-in fade-in bg-white p-4 rounded-xl border border-[#d6cfc5] shadow-sm">
                                           <div className={`text-[#524d46] text-sm md:text-base mb-3 leading-relaxed ${dynamicContent[`exp_${i}`].includes('重試') ? 'font-bold text-[#cca677] animate-pulse' : ''}`}>{renderFormattedText(dynamicContent[`exp_${i}`])}</div>
                                           {!dynamicContent[`exp_${i}`].includes('重試') && (
                                           <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#d6cfc5] pt-3 mt-1">
-                                              {/* 🔥 更新的「查看新解釋」按鈕，強制綁定當前引擎 */}
-                                              <button onClick={() => { const nextM = cyclePromptMode(i); handleOnDemand(i, 'exp', true, 0, nextM, true, dynamicProviders['exp_' + i]); }} className="text-sm font-bold text-[#b5847e] bg-[#f2e7e6] px-3 py-1.5 rounded-lg border border-[#dcb5b0] flex items-center gap-1.5 shadow-sm active:scale-95 hover:bg-[#e8d5d3] transition-colors"><RefreshCcw size={16}/> 查看新解釋 ({qPromptModes[i] === 'v1' ? '極簡' : qPromptModes[i] === 'v2' ? '比喻' : qPromptModes[i] === 'v3' ? '條列' : qPromptModes[i] === 'custom' ? '自訂' : '切換'})</button>
+                                              <button onClick={() => { const nextM = cyclePromptMode(i); handleOnDemand(i, 'exp', true, 0, nextM, true, dynamicProviders[`exp_${i}`]); }} className="text-sm font-bold text-[#b5847e] bg-[#f2e7e6] px-3 py-1.5 rounded-lg border border-[#dcb5b0] flex items-center gap-1.5 shadow-sm active:scale-95 hover:bg-[#e8d5d3] transition-colors"><RefreshCcw size={16}/> 查看新解釋 ({qPromptModes[i] === 'v1' ? '極簡' : qPromptModes[i] === 'v2' ? '比喻' : qPromptModes[i] === 'v3' ? '條列' : qPromptModes[i] === 'custom' ? '自訂' : '切換'})</button>
                                           </div>
                                           )}
                                       </div>
