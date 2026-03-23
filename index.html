@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (極速版 v4)</title>
+    <title>Spelling Hero - 互動家教版 (極速版 v5)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -385,20 +385,22 @@
                         let systemPrompt = ""; let userQuery = "";
                         if (targetMenu === 'grammar') {
                             const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)}`);
+                            // 🔥 移除絕對不可有底線的危險字眼
                             systemPrompt = `ESL grammar fill-blank, 3rd grade. RULES:
     ① STRICT SUBJECT: Keep EXACT target answer & grammatical subject from pattern. Change ONLY the situation.
     ② PRONOUN CONTEXT: If answer is pronoun, write specific name BEFORE the blank.
     ③ OPTIONS: 'o' MUST have 4 items.
-    ④ JSON only: [{"idx":0,"a":"answer","s":"sent______","t":"完整中文翻譯(絕對不可有底線)","o":["opt1","opt2","opt3","opt4"]}]
+    ④ JSON only: [{"idx":0,"a":"answer","s":"sent______","t":"中文翻譯","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH. Patterns:\n${patterns.join('\n')}`;
                         } else {
                             const wordsToGenerate = chunkPending.map((s, idx) => `[IDX:${idx}] Target Word: "${s.answer}"`);
+                            // 🔥 移除絕對不可有底線的危險字眼
                             systemPrompt = `ESL vocab fill-blank, 3rd grade. RULES:
     ① Simple formal English. Blank=______(6 underscores).
     ② CONTEXT: Sentence MUST contain clues.
     ③ OPTIONS: 'o' MUST have 4 items.
-    ④ JSON only: [{"idx":0,"a":"answer","s":"sent______","t":"完整中文翻譯(絕對不可有底線)","h":"","o":["opt1","opt2","opt3","opt4"]}]
+    ④ JSON only: [{"idx":0,"a":"answer","s":"sent______","t":"中文翻譯","h":"","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH. Words:\n${wordsToGenerate.join('\n')}`;
                         }
@@ -408,7 +410,7 @@
                         
                         const onStreamChunk = (currentFullText, chunkModelName) => {
                             if (chunkModelName) cardModelName = chunkModelName.split('/').pop().toUpperCase();
-                            const parsedObjects = SYSTEM_ENGINE.extractJSONObjects(currentFullText);
+                            const parsedObjects = window.SYSTEM_ENGINE.extractJSONObjects(currentFullText);
                             if (parsedObjects.length > lastParsedCount) {
                                 const newObjs = parsedObjects.slice(lastParsedCount); lastParsedCount = parsedObjects.length;
                                 let addedToUI = false; let latestPool = JSON.parse(localStorage.getItem('sh_qpool_v33') || '{}'); let hasUpdates = false;
@@ -427,23 +429,26 @@
                                     let ans = String(q.a || q.answer || expectedItem.answer).trim();
                                     let rawOptions = Array.isArray(q.o) ? q.o : (Array.isArray(q.options) ? q.options : []);
                                     let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ans.toLowerCase());
-                                    if (distractors.length < 3) distractors = [...distractors, ...generateVocabOptions(ans, activeDB).filter(o=>o!==ans)];
-                                    let safeOptions = shuffleArray([ans, ...distractors.slice(0, 3)]);
+                                    if (distractors.length < 3) distractors = [...distractors, ...window.generateVocabOptions(ans, activeDB).filter(o=>o!==ans)];
+                                    let safeOptions = window.shuffleArray([ans, ...distractors.slice(0, 3)]);
 
-                                    const objPronouns = ['him', 'her', 'them', 'us', 'me'];
-                                    const isPronounAmbiguous = (answerStr, optsArr) => {
-                                        if (!optsArr || !Array.isArray(optsArr)) return false;
-                                        if (objPronouns.includes(String(answerStr).toLowerCase().trim())) {
-                                            return optsArr.filter(opt => objPronouns.includes(String(opt).toLowerCase().trim())).length > 1; 
-                                        }
-                                        return false;
-                                    };
-                                    if (isPronounAmbiguous(ans, safeOptions)) return; 
+                                    // 🔥 代名詞防呆：主動替換危險選項，不丟棄整筆 JSON
+                                    const objPronouns = ['him', 'her', 'them', 'us', 'me', 'he', 'she', 'they', 'it', 'i', 'you'];
+                                    if (objPronouns.includes(ans.toLowerCase())) {
+                                        const safePool = window.generateVocabOptions(ans, activeDB).filter(o => !objPronouns.includes(String(o).toLowerCase()));
+                                        let rIdx = 0;
+                                        safeOptions = safeOptions.map(opt => {
+                                            if (opt.toLowerCase() !== ans.toLowerCase() && objPronouns.includes(opt.toLowerCase())) {
+                                                return safePool[rIdx++] || "apple";
+                                            }
+                                            return opt;
+                                        });
+                                    }
 
                                     let sentence = (q.s || q.sentence) ? String(q.s || q.sentence) : "";
                                     sentence = sentence.replace(/[a-zA-Z]*_{2,}[a-zA-Z]*/g, '______');
                                     if (sentence.indexOf('______') === -1) { 
-                                        const reg = new RegExp('\\b' + escapeRegExp(ans) + '\\b', 'gi'); sentence = sentence.replace(reg, '______'); 
+                                        const reg = new RegExp('\\b' + window.escapeRegExp(ans) + '\\b', 'gi'); sentence = sentence.replace(reg, '______'); 
                                         if (sentence.indexOf('______') === -1) sentence += ' ______'; 
                                     }
                                     
@@ -452,6 +457,7 @@
                                     
                                     let cleanTrans = (q.t || q.translation) || ""; 
                                     cleanTrans = cleanTrans.replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').trim();
+                                    // 🔥 底線防護：強制將任何殘缺底線替換為真正的中文
                                     const dictWord = (window.SH_DICTIONARY && window.SH_DICTIONARY[ans.toLowerCase()]) ? window.SH_DICTIONARY[ans.toLowerCase()].split(/[;；]/)[0] : ans;
                                     cleanTrans = cleanTrans.replace(/[_＿]{2,}/g, dictWord);
 
@@ -551,7 +557,7 @@
                               overrideTriggeredRef.current[key] = true;
                               setQuestions(prev => { const nq = [...prev]; nq[index] = { ...nq[index], answer: answers[index] }; return nq; });
                               setQStatus(prev => { const nqs = [...prev]; nqs[index] = true; return nqs; });
-                              setCombo(prevCombo => { const nc = prevCombo + 1; setMaxCombo(max => nc > max ? nc : max); if (nc >= 3) { SOUND_ENGINE.playCombo(); setShowComboAnim(true); setTimeout(() => setShowComboAnim(false), 1000); } else SOUND_ENGINE.playCorrect(); return nc; });
+                              setCombo(prevCombo => { const nc = prevCombo + 1; setMaxCombo(max => nc > max ? nc : max); if (nc >= 3) { window.SOUND_ENGINE.playCombo(); setShowComboAnim(true); setTimeout(() => setShowComboAnim(false), 1000); } else window.SOUND_ENGINE.playCorrect(); return nc; });
                               setStorage(prev => { const nextS = { ...prev.stats }; if (nextS[safeAnswerStr.toLowerCase()]) { nextS[safeAnswerStr.toLowerCase()].wrong = Math.max(0, nextS[safeAnswerStr.toLowerCase()].wrong - 1); const userAnsLower = String(answers[index]).toLowerCase(); if (!nextS[userAnsLower]) nextS[userAnsLower] = { correct: 0, wrong: 0 }; nextS[userAnsLower].correct += 1; } return { ...prev, stats: nextS }; });
                               setMistakePool(prev => prev.filter(w => w.toLowerCase() !== safeAnswerStr.toLowerCase()));
                           }
@@ -606,19 +612,19 @@
             if (qStatus[index] !== null || submitted) return; let finalAnswer = answers[index];
             if (forcedAnswer !== undefined && forcedAnswer !== null) { finalAnswer = forcedAnswer; const newAns = [...answers]; newAns[index] = forcedAnswer; setAnswers(newAns); }
             if (!finalAnswer) return; 
-            const isCorr = SYSTEM_ENGINE.isCorrect(finalAnswer, questions[index].answer);
-            if (isCorr) { const nc = combo + 1; setCombo(nc); if (nc > maxCombo) setMaxCombo(nc); if (nc >= 3) { SOUND_ENGINE.playCombo(); setShowComboAnim(true); setTimeout(() => setShowComboAnim(false), 1000); } else SOUND_ENGINE.playCorrect(); } else { setCombo(0); SOUND_ENGINE.playWrong(); }
+            const isCorr = window.SYSTEM_ENGINE.isCorrect(finalAnswer, questions[index].answer);
+            if (isCorr) { const nc = combo + 1; setCombo(nc); if (nc > maxCombo) setMaxCombo(nc); if (nc >= 3) { window.SOUND_ENGINE.playCombo(); setShowComboAnim(true); setTimeout(() => setShowComboAnim(false), 1000); } else window.SOUND_ENGINE.playCorrect(); } else { setCombo(0); window.SOUND_ENGINE.playWrong(); }
             const nqs = [...qStatus]; nqs[index] = isCorr; setQStatus(nqs); syncMistakesAndStats(index, isCorr);
           };
 
           const handleGradeAll = () => {
-            setSubmitted(true); SOUND_ENGINE.playVictory(); let score = 0; questions.forEach((q, i) => { let isCorr = qStatus[i]; if (isCorr === null) { isCorr = SYSTEM_ENGINE.isCorrect(answers[i], q.answer); syncMistakesAndStats(i, isCorr); } if (isCorr) score++; });
+            setSubmitted(true); window.SOUND_ENGINE.playVictory(); let score = 0; questions.forEach((q, i) => { let isCorr = qStatus[i]; if (isCorr === null) { isCorr = window.SYSTEM_ENGINE.isCorrect(answers[i], q.answer); syncMistakesAndStats(i, isCorr); } if (isCorr) score++; });
             const percent = Math.round((score / questions.length) * 100); let coins = percent >= 91 ? 20 : percent >= 81 ? 10 : percent >= 70 ? 5 : 0; if (maxCombo >= 3 && coins > 0) coins *= 2; const exp = (score * 10) + (percent === 100 ? 50 : 0);
-            setEarnedCoins(coins); setEarnedExp(exp); if (coins > 0) setTimeout(() => SOUND_ENGINE.playCoin(), 800);
+            setEarnedCoins(coins); setEarnedExp(exp); if (coins > 0) setTimeout(() => window.SOUND_ENGINE.playCoin(), 800);
             setStorage(prev => {
                 const nextH = [{date: new Date().toLocaleDateString('zh-TW',{month:'short',day:'numeric'}), score: score, total:questions.length}, ...prev.history].slice(0, 10);
-                const tc = prev.coins + coins; const te = prev.exp + exp; const oldL = getCurrentLevelInfo(prev.exp); const newL = getCurrentLevelInfo(te);
-                if (newL.current.level > oldL.current.level) { setLevelUpData(newL.current); setTimeout(() => SOUND_ENGINE.playLevelUp(), 1500); }
+                const tc = prev.coins + coins; const te = prev.exp + exp; const oldL = window.getCurrentLevelInfo(prev.exp); const newL = window.getCurrentLevelInfo(te);
+                if (newL.current.level > oldL.current.level) { setLevelUpData(newL.current); setTimeout(() => window.SOUND_ENGINE.playLevelUp(), 1500); }
                 try { localStorage.setItem('sh_h_v28', JSON.stringify(nextH)); localStorage.setItem('sh_coins_v28', tc.toString()); localStorage.setItem('sh_exp_v28', te.toString()); localStorage.setItem('sh_level_v28', newL.current.level.toString()); } catch(e) {}
                 return {...prev, history: nextH, coins: tc, exp: te, level: newL.current.level};
             }); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
@@ -627,7 +633,7 @@
           const handleRedeem = () => {
             const am = parseInt(redeemAmount); if (isNaN(am) || am <= 0 || am % 100 !== 0 || am > storage.coins) { setRedeemMessage("金幣不足或數量錯誤喔！"); return; }
             const nc = storage.coins - am; setStorage(p => { const ns = {...p, coins: nc}; try { localStorage.setItem('sh_coins_v28', nc.toString()); } catch(e){} return ns; });
-            setRedeemMessage("🎉 成功兌換 NT$ " + ((am/100)*10) + " 元！"); setRedeemAmount(100); SOUND_ENGINE.playCoin();
+            setRedeemMessage("🎉 成功兌換 NT$ " + ((am/100)*10) + " 元！"); setRedeemAmount(100); window.SOUND_ENGINE.playCoin();
           };
 
           const playTTS = async (text, isS, a) => {
@@ -637,13 +643,13 @@
             if (!('speechSynthesis' in window)) return; window.speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(finalString); const targetLang = config.accent === 'UK' ? 'en-GB' : 'en-US'; utterance.lang = targetLang; utterance.rate = config.speed; utterance.pitch = 1.1; const voices = window.speechSynthesis.getVoices(); if (voices.length > 0) { const langVoices = voices.filter(v => v.lang.startsWith(targetLang) || v.lang.replace('_', '-').startsWith(targetLang)); const premiumKeywords = ['premium', 'enhanced', 'google', 'samantha', 'ava', 'karen']; let bestVoice = langVoices.find(v => premiumKeywords.some(k => v.name.toLowerCase().includes(k))); if (bestVoice) { utterance.voice = bestVoice; } else if (langVoices.length > 0) { utterance.voice = langVoices[0]; } } window.speechSynthesis.speak(utterance);
           };
 
-          const levelInfoObj = getCurrentLevelInfo(storage.exp); const currentLevelInfo = levelInfoObj.current; const nextLevel = levelInfoObj.nextLevel;
+          const levelInfoObj = window.getCurrentLevelInfo(storage.exp); const currentLevelInfo = levelInfoObj.current; const nextLevel = levelInfoObj.nextLevel;
           const expPercent = nextLevel ? Math.min(100, Math.floor(((storage.exp - currentLevelInfo.reqExp) / (nextLevel.reqExp - currentLevelInfo.reqExp)) * 100)) : 100;
           const progressPercent = questions.length > 0 ? Math.floor((answers.filter(a => a && String(a).trim() !== '').length * 100) / questions.length) : 0;
           const avgPercent = storage.history.length > 0 ? Math.round(storage.history.reduce((sum, h) => sum + (h.score / h.total) * 100, 0) / storage.history.length) : 0;
           const finalScoreCount = questions.filter((_,idx) => qStatus[idx]).length;
           
-          const currentActiveDB = mainMenu === 'grammar' ? getActiveGrammarDB(selectedNotebooks) : getActiveDB(selectedNotebooks, vocabMode);
+          const currentActiveDB = mainMenu === 'grammar' ? window.getActiveGrammarDB(selectedNotebooks) : window.getActiveDB(selectedNotebooks, vocabMode);
           let displayModelName = String(aiModel).toUpperCase(); if (displayModelName.indexOf('OPENROUTER/AUTO') !== -1 || displayModelName.indexOf('OPENROUTER/FREE') !== -1 || displayModelName.indexOf('AUTO_FILTERED') !== -1) displayModelName = 'AUTO-ROUTER'; else if (displayModelName.indexOf('DEEPSEEK') !== -1) displayModelName = 'DEEPSEEK'; else if (displayModelName.indexOf('GEMINI-') !== -1) displayModelName = displayModelName.replace('GEMINI-', ''); else if (displayModelName.indexOf('/') !== -1) displayModelName = displayModelName.split('/')[1];
 
           const availableNotebooks = mainMenu === 'grammar' ? ['All', 'PB1 U2 句型庫', 'PB1 U5 句型庫'] : ['All', 'Words to know 1', 'Words to know 2', 'Words to know 3', 'CHINGSHIN Kidboxs 3 U1', 'CHINGSHIN Kidboxs 3 U2', 'CHINGSHIN Kidboxs 3 U3', 'CHINGSHIN Kidboxs 3 U5', '劍橋英檢 Movers', 'WTK (A-E)', 'WTK (F-J)', 'WTK (K-O)', 'WTK (P-T)', 'WTK (U-Z)'];
@@ -797,19 +803,17 @@
                                     </div>
                                 </div>
 
-                                {/* 🔥 緊湊型控制工具列 */}
-                                <div className="mt-4 pt-4 border-t border-[#7a8575] flex flex-col sm:flex-row gap-3 justify-between items-center w-full">
-                                    <div className="flex gap-2 flex-wrap w-full sm:w-auto flex-1">
-                                        <button onClick={handleExportData} className="flex-1 sm:flex-none bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-3 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-1 border border-[#d6cfc5]">📤 匯出 JSON</button>
-                                        <button onClick={() => importFileRef.current && importFileRef.current.click()} className="flex-1 sm:flex-none bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-3 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-1 border border-[#d6cfc5]">📥 匯入 JSON</button>
-                                        <input ref={importFileRef} type="file" accept=".json" onChange={handleImportData} className="hidden" />
-                                        <button onClick={() => setShowLogsPanel(!showLogsPanel)} className="flex-1 sm:flex-none bg-[#6b7566] hover:bg-[#5a6356] text-[#e6e9e4] px-3 py-2 rounded-lg text-xs font-bold transition-colors shadow-inner flex items-center justify-center gap-1"><ScrollText size={14}/> {showLogsPanel ? '隱藏日誌' : '📜 系統日誌'}</button>
-                                    </div>
-                                    <button onClick={saveCustomKey} className="w-full sm:w-auto bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-6 py-2 rounded-lg text-sm font-black transition-colors shadow-sm active:scale-95 border border-[#d6cfc5]">💾 儲存金鑰與設定</button>
+                                {/* 緊湊型控制工具列 (Grid 排版) */}
+                                <div className="mt-4 pt-4 border-t border-[#7a8575] grid grid-cols-2 md:grid-cols-4 gap-2 w-full">
+                                    <button onClick={handleExportData} className="bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-2 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-1 border border-[#d6cfc5] truncate">📤 匯出</button>
+                                    <button onClick={() => importFileRef.current && importFileRef.current.click()} className="bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-2 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-1 border border-[#d6cfc5] truncate">📥 匯入</button>
+                                    <input ref={importFileRef} type="file" accept=".json" onChange={handleImportData} className="hidden" />
+                                    <button onClick={() => setShowLogsPanel(!showLogsPanel)} className="bg-[#6b7566] hover:bg-[#5a6356] text-[#e6e9e4] px-2 py-2 rounded-lg text-xs font-bold transition-colors shadow-inner flex items-center justify-center gap-1 truncate"><ScrollText size={14}/> {showLogsPanel ? '關閉日誌' : '系統日誌'}</button>
+                                    <button onClick={saveCustomKey} className="col-span-2 md:col-span-1 bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-2 py-2 rounded-lg text-xs font-black transition-colors shadow-sm active:scale-95 border border-[#d6cfc5] truncate">💾 儲存設定</button>
                                 </div>
 
                                 {showLogsPanel && (
-                                    <div ref={dashLogRef} className="bg-[#1c1917] p-4 rounded-xl text-[11px] md:text-xs text-[#9BAA97] font-mono text-left h-48 overflow-y-auto shadow-inner border border-[#3d3935] flex flex-col gap-1.5 terminal-scroll mt-3 w-full animate-in slide-in-from-top-2">
+                                    <div ref={dashLogRef} className="bg-[#1c1917] p-4 rounded-xl text-[11px] md:text-xs text-[#9BAA97] font-mono text-left h-48 overflow-y-auto shadow-inner border border-[#3d3935] flex flex-col gap-1.5 terminal-scroll mt-2 w-full col-span-2 md:col-span-4 animate-in slide-in-from-top-2">
                                         {aiLogs.length === 0 ? <div className="opacity-50 italic">尚無最近的連線紀錄。</div> : aiLogs.map((log, idx) => (
                                             <div key={idx} className="opacity-90 break-words leading-relaxed">
                                                 {log.indexOf('[錯誤]') !== -1 || log.indexOf('[超時]') !== -1 || log.indexOf('[異常]') !== -1 || log.indexOf('[失敗]') !== -1 || log.indexOf('❌') !== -1 ? <span className="text-[#b5847e] font-bold">{log}</span> : log.indexOf('[成功]') !== -1 || log.indexOf('[完成]') !== -1 || log.indexOf('[快取]') !== -1 || log.indexOf('✅') !== -1 ? <span className="text-[#8b9586] font-bold">{log}</span> : log.indexOf('[遞補]') !== -1 || log.indexOf('[定額預載]') !== -1 || log.indexOf('[動態預載]') !== -1 || log.indexOf('[備援]') !== -1 || log.indexOf('[重試]') !== -1 || log.indexOf('⏳') !== -1 || log.indexOf('🟡') !== -1 || log.indexOf('🔴') !== -1 || log.indexOf('🟢') !== -1 ? <span className="text-[#cca677] font-bold">{log}</span> : <span className="text-[#c5bbae]">{log}</span>}
@@ -879,11 +883,11 @@
                 <div className="space-y-6 md:space-y-8">
                 {questions.map((q, i) => {
   const safeAnswerStr = String(q.answer||""); 
-  const isFinallyCorrect = SYSTEM_ENGINE.isCorrect(answers[i], safeAnswerStr); 
+  const isFinallyCorrect = window.SYSTEM_ENGINE.isCorrect(answers[i], safeAnswerStr); 
   const isLocked = qStatus[i] !== null || submitted;
   const isLayout2 = uiLayout === 'layout2'; const isLayout3 = uiLayout === 'layout3';
   
-  let hintMask = mainMenu === 'grammar' ? '______' : (SYSTEM_ENGINE.createHintMask(safeAnswerStr) || '______'); 
+  let hintMask = mainMenu === 'grammar' ? '______' : (window.SYSTEM_ENGINE.createHintMask(safeAnswerStr) || '______'); 
   let currentAns = String(answers[i]||"");
   
   let cleanSentence = String(q.sentence||"").replace(/_{2,}/g, '______');
@@ -891,7 +895,7 @@
   let p0 = cleanSentence; let p1 = "";
   if (firstBlankIdx !== -1) { p0 = cleanSentence.substring(0, firstBlankIdx); p1 = cleanSentence.substring(firstBlankIdx + 6); }
   
-  if (!/[a-zA-Z]/.test(p0)) { hintMask = SYSTEM_ENGINE.capitalize(hintMask); currentAns = SYSTEM_ENGINE.capitalize(currentAns); }
+  if (!/[a-zA-Z]/.test(p0)) { hintMask = window.SYSTEM_ENGINE.capitalize(hintMask); currentAns = window.SYSTEM_ENGINE.capitalize(currentAns); }
   
   return (
     <div key={q.runtimeId} className={`bg-[#f4f1ea] rounded-[2rem] border-[3px] shadow-sm transition-all relative overflow-hidden ${isReview ? 'border-[#dcb5b0]' : 'border-[#e6e9e4] hover:border-[#c4cec1]'} ${isLayout2 ? 'p-5 md:p-8' : 'p-5 md:p-8 flex flex-col items-center'}`}>
@@ -908,7 +912,7 @@
       <div className={isLayout2 ? 'grid grid-cols-1 md:grid-cols-2 gap-6 w-full' : 'w-full flex flex-col items-center'}>
           <div className={`w-full flex flex-col ${isLayout2 ? 'items-start' : 'items-center'} relative z-10`}>
               <div className={`text-xl md:text-3xl font-bold leading-normal md:leading-relaxed break-words mt-2 ${!q.isAI ? 'text-[#8a847c]' : 'text-[#524d46]'} ${!isLayout2 && 'text-center'}`}>
-                <span>{SYSTEM_ENGINE.capitalize(p0)}</span>
+                <span>{window.SYSTEM_ENGINE.capitalize(p0)}</span>
                 <span className={`mx-1 inline-block ${!isLocked && hintMask.indexOf('_') !== -1 && mainMenu !== 'grammar' ? 'tracking-[0.2em]' : ''} ${isLocked ? (isFinallyCorrect ? "text-[#7a8575]" : "text-[#b5847e] line-through decoration-[#b5847e] decoration-[3px]") : (combo >= 3 ? "text-[#cca677]" : "text-[#8b9586]")} transition-colors duration-300`}>{isLocked ? (currentAns || '______') : hintMask}</span>
                 <span>{p1}</span>
                 {mainMenu !== 'grammar' && ( <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className={`ml-3 inline-flex items-center justify-center p-2 rounded-full transition-all active:scale-90 align-middle ${isLocked ? 'bg-[#e6e9e4] text-[#6b7566]' : 'bg-[#f4ebd9] text-[#cca677]'}`}><Volume2 size={24}/></button> )}
