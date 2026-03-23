@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (分離題庫極速版 v6)</title>
+    <title>Spelling Hero - 互動家教版 (風格擴充版 v8)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     
-    <script src="database.js?v=5"></script>
+    <script src="database.js?v=4"></script>
     <script src="engine.js?v=3"></script>
 
     <style>
@@ -73,7 +73,6 @@
           const [uiLayout, setUiLayout] = useState(localStorage.getItem('sh_ui_layout') || 'layout1');
           const [ttsEngine, setTtsEngine] = useState(localStorage.getItem('sh_tts_engine') || 'native');
           
-          // 安全存取 engine.js 提供的加密工具
           const getVal = (funcName, fallback) => (window[funcName] ? window[funcName]() : fallback);
           
           const [openAITtsKey, setOpenAITtsKey] = useState(getVal('getOpenAITtsKey', ''));
@@ -97,6 +96,22 @@
                   return next;
               });
           };
+
+          const [promptMode, setPromptMode] = useState(localStorage.getItem('sh_prompt_mode') || 'v1');
+          const defaultCustomPrompt = `You are an English tutor for a child in Taiwan.
+Question: "{q.sentence}"
+Target Answer: "{safeAnswerStr}"
+Student's Answer: "{studentAns}"
+
+TASK:
+1. If Target is grammatically WRONG for subject, OR Student is perfectly correct synonym, YOU MUST OVERRIDE. First word MUST be "[OVERRIDE_CORRECT]".
+2. Explain in TRADITIONAL CHINESE. Use very simple language.
+3. Format exactly as below:
+🔍 題目線索：[...]
+💡 文法秘訣：[...]
+🎯 答題結果：[...]`;
+          const [customPromptText, setCustomPromptText] = useState(localStorage.getItem('sh_custom_prompt') || defaultCustomPrompt);
+          const [qPromptModes, setQPromptModes] = useState({});
 
           const [apiUsage, setApiUsage] = useState({ date: new Date().toLocaleDateString(), openRouter: 0, gemini: 0, groq: 0, openai: 0 });
           const [combo, setCombo] = useState(0); const [maxCombo, setMaxCombo] = useState(0);
@@ -138,7 +153,7 @@
           const importFileRef = useRef(null);
           const handleExportData = () => {
               const payload = {
-                  version: "SH_v1", exportedAt: new Date().toISOString(),
+                  version: "SH_v2", exportedAt: new Date().toISOString(),
                   history: JSON.parse(localStorage.getItem('sh_h_v28')||'[]'), memory: JSON.parse(localStorage.getItem('sh_m_v28')||'{}'), stats: JSON.parse(localStorage.getItem('sh_s_v28')||'{}'),
                   coins: parseInt(localStorage.getItem('sh_coins_v28')||'0'), exp: parseInt(localStorage.getItem('sh_exp_v28')||'0'), level: parseInt(localStorage.getItem('sh_level_v28')||'1'),
                   mistakes: JSON.parse(localStorage.getItem('sh_mistakes_v29')||'[]'), modelVotes: JSON.parse(localStorage.getItem('sh_model_votes_v1')||'{}'), apiUsage: JSON.parse(localStorage.getItem('sh_api_usage_v29')||'{}'),
@@ -146,7 +161,8 @@
                       uiLayout: localStorage.getItem('sh_ui_layout')||'layout1', ttsEngine: localStorage.getItem('sh_tts_engine')||'native', ttsVoice: localStorage.getItem('sh_openai_tts_voice')||'nova',
                       orModel: localStorage.getItem('sh_or_model')||'openrouter/auto', groqModel: localStorage.getItem('sh_groq_model')||'llama-3.3-70b-versatile',
                       geminiKey: localStorage.getItem('gemini_api_key')||'', orKey: localStorage.getItem('openrouter_api_key')||'', groqKey: localStorage.getItem('groq_api_key')||'', openAITtsKey: localStorage.getItem('sh_openai_tts_key')||'', routingMode: localStorage.getItem('sh_routing_mode')||'dynamic',
-                      enableGroq: localStorage.getItem('sh_enable_groq'), enableGoogle: localStorage.getItem('sh_enable_google'), enableOr: localStorage.getItem('sh_enable_or'), enableOpenAI: localStorage.getItem('sh_enable_openai')
+                      enableGroq: localStorage.getItem('sh_enable_groq'), enableGoogle: localStorage.getItem('sh_enable_google'), enableOr: localStorage.getItem('sh_enable_or'), enableOpenAI: localStorage.getItem('sh_enable_openai'),
+                      promptMode: localStorage.getItem('sh_prompt_mode')||'v1', customPrompt: localStorage.getItem('sh_custom_prompt')||defaultCustomPrompt
                   }
               };
               const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob);
@@ -169,6 +185,7 @@
                           if (s.geminiKey) localStorage.setItem('gemini_api_key', s.geminiKey); if (s.orKey) localStorage.setItem('openrouter_api_key', s.orKey); if (s.groqKey) localStorage.setItem('groq_api_key', s.groqKey); if (s.openAITtsKey) localStorage.setItem('sh_openai_tts_key', s.openAITtsKey);
                           if (s.routingMode) localStorage.setItem('sh_routing_mode', s.routingMode);
                           if (s.enableGroq) localStorage.setItem('sh_enable_groq', s.enableGroq); if (s.enableGoogle) localStorage.setItem('sh_enable_google', s.enableGoogle); if (s.enableOr) localStorage.setItem('sh_enable_or', s.enableOr); if (s.enableOpenAI) localStorage.setItem('sh_enable_openai', s.enableOpenAI);
+                          if (s.promptMode) localStorage.setItem('sh_prompt_mode', s.promptMode); if (s.customPrompt) localStorage.setItem('sh_custom_prompt', s.customPrompt);
                       }
                       setTimeout(() => window.location.reload(), 1500);
                   } catch(err) { showAlert('❌ 解析失敗：' + err.message); }
@@ -237,6 +254,9 @@
                   localStorage.setItem('sh_groq_model', groqModel); localStorage.setItem('sh_tts_engine', ttsEngine); 
                   localStorage.setItem('sh_openai_tts_key', window.Obfuscator.encode(openAITtsKey)); localStorage.setItem('sh_openai_tts_voice', openAITtsVoice); 
                   
+                  localStorage.setItem('sh_prompt_mode', promptMode);
+                  localStorage.setItem('sh_custom_prompt', customPromptText);
+
                   setDiagMsg("✅ 金鑰與設定已儲存！"); 
                   if(window.sharedAIClient) {
                       window.sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey, openAITtsKey); 
@@ -542,15 +562,35 @@
               setVoteStatus(prev => ({...prev, [provider]: delta > 0 ? '👍 已感謝老師' : '👎 已降低權重'})); setTimeout(() => setVoteStatus(prev => ({...prev, [provider]: null})), 2000);
           };
 
-          // 🔥 解題功能與引擎限定
-          const handleOnDemand = async (index, type, isRetry = false, retryCount = 0) => {
+          const generateExpPrompt = (mode, qSentence, safeAns, studentAns) => {
+              const baseTask = `TASK:\n1. If Target is grammatically WRONG for subject, OR Student is perfectly correct synonym, YOU MUST OVERRIDE. First word MUST be "[OVERRIDE_CORRECT]".\n2. Explain in TRADITIONAL CHINESE (繁體中文).\n`;
+              const baseFormat = `3. Format exactly as below:\n🔍 題目線索：[...]\n💡 文法秘訣：[...]\n🎯 答題結果：[...]`;
+              
+              if (mode === 'v1') {
+                  return `You are a friendly English tutor for an elementary school student in Taiwan.\nQuestion: "${qSentence}"\nTarget Answer: "${safeAns}"\nStudent's Answer: "${studentAns}"\n${baseTask}MUST be extremely simple, brief, and easy for a 10-year-old child to understand. Avoid complex grammar terms. Maximum 3 sentences per section.\n${baseFormat}`;
+              } else if (mode === 'v2') {
+                  return `You are an enthusiastic English teacher for kids in Taiwan.\nQuestion: "${qSentence}"\nTarget Answer: "${safeAns}"\nStudent's Answer: "${studentAns}"\n${baseTask}Talk like you are chatting with a 3rd grader. Keep it short and use fun analogies if possible. NO hard grammar jargon.\n${baseFormat}`;
+              } else if (mode === 'v3') {
+                  return `You are a clear and concise English tutor for elementary students in Taiwan.\nQuestion: "${qSentence}"\nTarget Answer: "${safeAns}"\nStudent's Answer: "${studentAns}"\n${baseTask}Keep it absolutely brief and conversational. Use bullet points if necessary. Do not use advanced linguistic terms.\n${baseFormat}`;
+              } else {
+                  return customPromptText.replace(/{q\.sentence}/g, qSentence).replace(/{safeAnswerStr}/g, safeAns).replace(/{studentAns}/g, studentAns);
+              }
+          };
+
+          const handleOnDemand = async (index, type, isRetry = false, retryCount = 0, targetPromptMode = null) => {
               const key = `${type}_${index}`; if (loadingStates[key] && !isRetry) return;
               setLoadingStates(prev => ({...prev, [key]: true})); if (!isRetry) setDynamicContent(prev => ({...prev, [key]: ""}));
 
               const q = questions[index]; const safeAnswerStr = String(q.answer||""); const studentAns = String(answers[index]||"[未作答]");
+              
+              let currentPMode = targetPromptMode || promptMode;
+              if (type === 'exp') {
+                  setQPromptModes(prev => ({...prev, [index]: currentPMode}));
+              }
+
               let prompt = "";
               if (type === 'hint') prompt = `Please provide ONLY the Traditional Chinese (Taiwan) translation for the word/phrase: "${q.answer}". Output nothing else.`;
-              else if (type === 'exp') prompt = `You are an ESL teacher for a student in Taiwan.\nQuestion: "${q.sentence}"\nTarget Answer: "${safeAnswerStr}"\nStudent's Answer: "${studentAns}"\nTASK:\n1. If Target is grammatically WRONG for subject, OR Student is perfectly correct synonym, YOU MUST OVERRIDE. First word MUST be "[OVERRIDE_CORRECT]".\n2. Explain in TRADITIONAL CHINESE (繁體中文). NO English.\n3. Format:\n🔍 抓找線索：[...]\n💡 文法秘訣：[...]\n🎯 判決結果：[...]`;
+              else if (type === 'exp') prompt = generateExpPrompt(currentPMode, q.sentence, safeAnswerStr, studentAns);
 
               try {
                   let firstChunk = false;
@@ -572,7 +612,6 @@
                   
                   let providersToTry = ['groq', 'google', 'openrouter', 'openai'].sort((a,b) => (storage.modelVotes[b]||0) - (storage.modelVotes[a]||0)).filter(p => enginesEnabled[p]);
                   
-                  // 🔥 強制限定解題模型：若為文法解題 (type==='exp')，僅能使用 openrouter 或 groq
                   if (type === 'exp') {
                       providersToTry = ['openrouter', 'groq'].filter(p => enginesEnabled[p]);
                   }
@@ -601,11 +640,19 @@
                   setLoadingStates(prev => ({...prev, [key]: false}));
               } catch (e) {
                   if (retryCount < 2 && e.message !== "無可用引擎") {
-                      setDynamicContent(prev => ({...prev, [key]: `⏳ 重試中 (${retryCount + 1}/3)...`})); setTimeout(() => handleOnDemand(index, type, true, retryCount + 1), 3000);
+                      setDynamicContent(prev => ({...prev, [key]: `⏳ 重試中 (${retryCount + 1}/3)...`})); setTimeout(() => handleOnDemand(index, type, true, retryCount + 1, currentPMode), 3000);
                   } else {
                       setDynamicContent(prev => ({...prev, [key]: `⚠️ ${e.message}`})); setLoadingStates(prev => ({...prev, [key]: false}));
                   }
               }
+          };
+
+          const cyclePromptMode = (currentIndex) => {
+              const modes = ['v1', 'v2', 'v3', 'custom'];
+              const current = qPromptModes[currentIndex] || promptMode;
+              let nextIdx = modes.indexOf(current) + 1;
+              if (nextIdx >= modes.length) nextIdx = 0;
+              return modes[nextIdx];
           };
 
           const startReview = () => { if (mistakePool.length === 0) return; handleMainMenuChange('review'); };
@@ -621,7 +668,6 @@
             setMistakePool(prev => { let updated = [...prev]; if (isCorr) updated = updated.filter(w => w.toLowerCase() !== k); else if (!updated.some(w => w.toLowerCase() === k)) updated.push(q.answer); try { localStorage.setItem('sh_mistakes_v29', JSON.stringify(updated)); } catch(e){} return updated; });
           };
 
-          // 🔥 單題作答：錯題自動觸發解題
           const handleCheckSingle = (index, forcedAnswer) => {
             if (qStatus[index] !== null || submitted) return; let finalAnswer = answers[index];
             if (forcedAnswer !== undefined && forcedAnswer !== null) { finalAnswer = forcedAnswer; const newAns = [...answers]; newAns[index] = forcedAnswer; setAnswers(newAns); }
@@ -632,12 +678,11 @@
                 if (nc >= 3) { window.SOUND_ENGINE.playCombo(); setShowComboAnim(true); setTimeout(() => setShowComboAnim(false), 1000); } else window.SOUND_ENGINE.playCorrect(); 
             } else { 
                 setCombo(0); window.SOUND_ENGINE.playWrong(); 
-                if (mainMenu === 'grammar') { setTimeout(() => handleOnDemand(index, 'exp'), 100); } // 自動解題
+                if (mainMenu === 'grammar') { setTimeout(() => handleOnDemand(index, 'exp'), 100); } 
             }
             const nqs = [...qStatus]; nqs[index] = isCorr; setQStatus(nqs); syncMistakesAndStats(index, isCorr);
           };
 
-          // 🔥 批次交卷：錯題自動觸發解題
           const handleGradeAll = () => {
             setSubmitted(true); window.SOUND_ENGINE.playVictory(); let score = 0; 
             questions.forEach((q, i) => { 
@@ -645,7 +690,7 @@
                 if (isCorr === null) { 
                     isCorr = window.SYSTEM_ENGINE.isCorrect(answers[i], q.answer); 
                     syncMistakesAndStats(i, isCorr); 
-                    if (!isCorr && mainMenu === 'grammar') { setTimeout(() => handleOnDemand(i, 'exp'), 100 * i); } // 自動解題 (加點延遲避免 API 被限流)
+                    if (!isCorr && mainMenu === 'grammar') { setTimeout(() => handleOnDemand(i, 'exp'), 100 * i); } 
                 } 
                 if (isCorr) score++; 
             });
@@ -784,6 +829,25 @@
                                             </div>
                                         )}
                                     </div>
+                                </div>
+
+                                {/* 🔥 解說風格與自訂 Prompt 區塊 */}
+                                <div className="grid grid-cols-1 gap-4 border-t border-[#7a8575] pt-4">
+                                    <div className="flex flex-col gap-2">
+                                        <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><Edit3 size={16}/> AI 老師解說風格：</span>
+                                        <div className="flex flex-wrap gap-1 w-full bg-[#6b7566] p-1 rounded-lg">
+                                            <button onClick={() => {setPromptMode('v1'); localStorage.setItem('sh_prompt_mode', 'v1');}} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${promptMode === 'v1' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>v1 極簡</button>
+                                            <button onClick={() => {setPromptMode('v2'); localStorage.setItem('sh_prompt_mode', 'v2');}} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${promptMode === 'v2' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>v2 比喻</button>
+                                            <button onClick={() => {setPromptMode('v3'); localStorage.setItem('sh_prompt_mode', 'v3');}} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${promptMode === 'v3' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>v3 條列</button>
+                                            <button onClick={() => {setPromptMode('custom'); localStorage.setItem('sh_prompt_mode', 'custom');}} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${promptMode === 'custom' ? 'bg-[#cca677] text-white shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>⚙️ 自訂</button>
+                                        </div>
+                                    </div>
+                                    {promptMode === 'custom' && (
+                                        <div className="flex flex-col gap-2 animate-in fade-in">
+                                            <div className="text-[#cca677] text-[10px] font-bold px-1 leading-tight">⚠️ 警告：請勿刪除 [OVERRIDE_CORRECT] 相關指令，以免破壞計分。變數支援：{`{q.sentence}`}, {`{safeAnswerStr}`}, {`{studentAns}`}</div>
+                                            <textarea value={customPromptText} onChange={e => {setCustomPromptText(e.target.value); localStorage.setItem('sh_custom_prompt', e.target.value);}} className="w-full h-40 bg-[#3d3935] border border-[#2d2a26] rounded-lg p-3 text-xs text-white font-mono placeholder-[#6b655f] outline-none shadow-inner" spellCheck="false"></textarea>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#7a8575] pt-4">
@@ -1026,7 +1090,8 @@
                                           {!dynamicContent[`exp_${i}`].includes('重試') && (
                                           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#d6cfc5] pt-3 mt-1">
                                               <div className="flex items-center gap-1 text-[10px] text-[#8a847c]">評分：<button onClick={() => handleVote(dynamicProviders[`exp_${i}`], 1)} className="p-1 bg-[#e6e9e4] rounded active:scale-90"><ThumbsUp size={14} className="text-[#6b7566]"/></button><button onClick={() => handleVote(dynamicProviders[`exp_${i}`], -1)} className="p-1 bg-[#f2e7e6] rounded active:scale-90"><ThumbsDown size={14} className="text-[#b5847e]"/></button></div>
-                                              <button onClick={() => handleOnDemand(i, 'exp', true)} className="text-xs font-bold text-[#b5847e] bg-[#f2e7e6] px-2 py-1 rounded border border-[#dcb5b0] flex items-center gap-1 shadow-sm active:scale-95"><RefreshCcw size={12}/> 換老師</button>
+                                              {/* 🔥 更新按鈕：觸發引擎與 Prompt 雙軌輪替 */}
+                                              <button onClick={() => { const nextM = cyclePromptMode(i); handleOnDemand(i, 'exp', true, 0, nextM); }} className="text-xs font-bold text-[#b5847e] bg-[#f2e7e6] px-2 py-1 rounded border border-[#dcb5b0] flex items-center gap-1 shadow-sm active:scale-95"><RefreshCcw size={12}/> 換說法 ({qPromptModes[i] === 'v1' ? '極簡' : qPromptModes[i] === 'v2' ? '比喻' : qPromptModes[i] === 'v3' ? '條列' : qPromptModes[i] === 'custom' ? '自訂' : '切換'})</button>
                                           </div>
                                           )}
                                       </div>
