@@ -366,7 +366,7 @@
             }
         }
         const sharedAIClient = new PersistentAIClient();
-        class ErrorBoundary extends Component {
+       class ErrorBoundary extends Component {
           constructor(props) { super(props); this.state = { hasError: false, errorInfo: "" }; }
           static getDerivedStateFromError(error) { return { hasError: true }; }
           componentDidCatch(error, info) { this.setState({ errorInfo: error.toString() }); }
@@ -512,7 +512,7 @@
           };
 
           const logScrollRef = useRef(null);
-          const dashLogRef = useRef(null); 
+          const dashLogRef = useRef(null); // 設定面板專用的捲動控制器
           
           const addLog = msg => {
               setAiLogs(p => {
@@ -719,20 +719,22 @@
                         let systemPrompt = ""; let userQuery = "";
                         if (targetMenu === 'grammar') {
                             const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)}`);
+                            // 🔥 防護提示詞更新：強制要求不能有底線
                             systemPrompt = `ESL grammar fill-blank, 3rd grade. RULES:
     ① STRICT SUBJECT: Keep EXACT target answer & grammatical subject from pattern. Change ONLY the situation.
     ② PRONOUN CONTEXT: If answer is pronoun, write specific name BEFORE the blank.
     ③ OPTIONS: 'o' MUST have 4 items.
-    ④ JSON only: [{"idx":0,"a":"answer","s":"sent______","t":"中文翻譯","o":["opt1","opt2","opt3","opt4"]}]
+    ④ JSON only: [{"idx":0,"a":"answer","s":"sent______","t":"完整中文翻譯(絕對不可有底線)","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH. Patterns:\n${patterns.join('\n')}`;
                         } else {
                             const wordsToGenerate = chunkPending.map((s, idx) => `[IDX:${idx}] Target Word: "${s.answer}"`);
+                            // 🔥 防護提示詞更新：強制要求不能有底線
                             systemPrompt = `ESL vocab fill-blank, 3rd grade. RULES:
     ① Simple formal English. Blank=______(6 underscores).
     ② CONTEXT: Sentence MUST contain clues.
     ③ OPTIONS: 'o' MUST have 4 items.
-    ④ JSON only: [{"idx":0,"a":"answer","s":"sent______","t":"中文句翻譯","h":"","o":["opt1","opt2","opt3","opt4"]}]
+    ④ JSON only: [{"idx":0,"a":"answer","s":"sent______","t":"完整中文翻譯(絕對不可有底線)","h":"","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH. Words:\n${wordsToGenerate.join('\n')}`;
                         }
@@ -1300,7 +1302,8 @@
                       <div className="mt-5 w-full bg-white/60 p-4 rounded-xl border border-[#c4cec1] shadow-sm text-left">
                           <div className="text-xs font-black text-[#7a8575] mb-1 flex items-center gap-1 uppercase tracking-widest"><BookOpen size={14}/> 完整中英對照</div>
                           <div className="text-lg font-black text-[#524d46] mb-1 leading-relaxed">{String(q.sentence||"").replace(/_{2,}/g, safeAnswerStr)}</div>
-                          <div className="text-base font-bold text-[#8b9586] leading-relaxed">{q.translation || "目前尚無翻譯"}</div>
+                          {/* 🔥 修復底線殘留：強制替換 q.translation 中的底線，改以字典中文或原單字填補 */}
+                          <div className="text-base font-bold text-[#8b9586] leading-relaxed">{String(q.translation || "目前尚無翻譯").replace(/_{2,}/g, (window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) ? window.SH_DICTIONARY[safeAnswerStr.toLowerCase()].split(/[;；]/)[0] : safeAnswerStr)}</div>
                           {mainMenu !== 'grammar' && (
                               <div className="mt-3 pt-3 border-t border-[#d6cfc5] flex items-start gap-2">
                                   <span className="text-[10px] font-black text-[#a68258] bg-[#f4ebd9] px-2 py-0.5 rounded border border-[#e0c9aa] whitespace-nowrap mt-0.5">單字</span>
