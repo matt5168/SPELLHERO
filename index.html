@@ -366,7 +366,7 @@
             }
         }
         const sharedAIClient = new PersistentAIClient();
-       class ErrorBoundary extends Component {
+        class ErrorBoundary extends Component {
           constructor(props) { super(props); this.state = { hasError: false, errorInfo: "" }; }
           static getDerivedStateFromError(error) { return { hasError: true }; }
           componentDidCatch(error, info) { this.setState({ errorInfo: error.toString() }); }
@@ -414,7 +414,6 @@
           const [inputGroqKey, setInputGroqKey] = useState(getGroqKey() || '');
           const [groqModel, setGroqModel] = useState(localStorage.getItem('sh_groq_model') || 'llama-3.3-70b-versatile');
           
-          // 引擎獨立開關
           const [enginesEnabled, setEnginesEnabled] = useState({
               groq: localStorage.getItem('sh_enable_groq') !== 'false',
               google: localStorage.getItem('sh_enable_google') !== 'false',
@@ -512,7 +511,7 @@
           };
 
           const logScrollRef = useRef(null);
-          const dashLogRef = useRef(null); // 設定面板專用的捲動控制器
+          const dashLogRef = useRef(null); 
           
           const addLog = msg => {
               setAiLogs(p => {
@@ -719,7 +718,6 @@
                         let systemPrompt = ""; let userQuery = "";
                         if (targetMenu === 'grammar') {
                             const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)}`);
-                            // 🔥 防護提示詞更新：強制要求不能有底線
                             systemPrompt = `ESL grammar fill-blank, 3rd grade. RULES:
     ① STRICT SUBJECT: Keep EXACT target answer & grammatical subject from pattern. Change ONLY the situation.
     ② PRONOUN CONTEXT: If answer is pronoun, write specific name BEFORE the blank.
@@ -729,7 +727,6 @@
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH. Patterns:\n${patterns.join('\n')}`;
                         } else {
                             const wordsToGenerate = chunkPending.map((s, idx) => `[IDX:${idx}] Target Word: "${s.answer}"`);
-                            // 🔥 防護提示詞更新：強制要求不能有底線
                             systemPrompt = `ESL vocab fill-blank, 3rd grade. RULES:
     ① Simple formal English. Blank=______(6 underscores).
     ② CONTEXT: Sentence MUST contain clues.
@@ -785,7 +782,13 @@
                                     
                                     let finalHint = "無提示";
                                     if (targetMenu !== 'grammar') { const dictHint = window.SH_DICTIONARY && window.SH_DICTIONARY[ans.toLowerCase()]; if (dictHint) finalHint = dictHint; }
-                                    let cleanTrans = (q.t || q.translation) || ""; cleanTrans = cleanTrans.replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').trim();
+                                    
+                                    let cleanTrans = (q.t || q.translation) || ""; 
+                                    cleanTrans = cleanTrans.replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').trim();
+                                    // 🔥 最終防護：直接在資料層斬草除根，將 AI 傳來的底線替換為真正的中文
+                                    const dictWord = (window.SH_DICTIONARY && window.SH_DICTIONARY[ans.toLowerCase()]) ? window.SH_DICTIONARY[ans.toLowerCase()].split(/[;；]/)[0] : ans;
+                                    cleanTrans = cleanTrans.replace(/[_＿]{2,}/g, dictWord);
+
                                     const finalQ = { id: "ai_" + Math.random(), poolKey: refKey, runtimeId: Math.random(), answer: ans, sentence: sentence, translation: cleanTrans, hint: finalHint, explanation: q.e || q.explanation || "", options: safeOptions, isAI: true, modelName: cardModelName };
 
                                     if (currentUIQs.length < targetTotal && !uiPoolKeys.has(refKey)) {
@@ -1055,73 +1058,76 @@
                                 <div className={`flex-1 p-3 rounded-xl font-bold text-xs md:text-sm border-2 ${diagStatus === 'success' ? 'bg-[#9BAA97]/20 border-[#9BAA97] text-[#e6e9e4]' : diagStatus === 'error' ? 'bg-[#b5847e]/20 border-[#b5847e] text-[#f2e7e6]' : 'bg-white/10 border-white/20 text-[#e6e9e4]'}`}>{diagMsg || "點擊按鈕測試 API KEY。灰色的代表已在下方關閉。"}</div>
                             </div>
                             
-                            <div className="mt-4 flex flex-col gap-3 border-t border-[#7a8575] pt-4">
-                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                                    <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px] flex items-center gap-1"><Activity size={16}/> 路由模式：</span>
-                                    <div className="flex gap-2 w-full sm:w-auto bg-[#6b7566] p-1 rounded-lg"><button onClick={() => handleRoutingModeChange('dynamic')} className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 ${routingMode === 'dynamic' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>🚦 智慧動態路由</button><button onClick={() => handleRoutingModeChange('sequential')} className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center justify-center gap-1 ${routingMode === 'sequential' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>➡️ 傳統順序備援</button></div>
+                            <div className="mt-4 flex flex-col gap-4 border-t border-[#7a8575] pt-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="flex flex-col gap-2">
+                                        <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><Activity size={16}/> 路由模式：</span>
+                                        <div className="flex gap-1 bg-[#6b7566] p-1 rounded-lg"><button onClick={() => handleRoutingModeChange('dynamic')} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${routingMode === 'dynamic' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>🚦 動態</button><button onClick={() => handleRoutingModeChange('sequential')} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${routingMode === 'sequential' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>➡️ 順序</button></div>
+                                    </div>
+                                    <div className="flex flex-col gap-2 animate-in fade-in">
+                                        <span className="text-[#e6e9e4] font-bold text-sm">{routingMode === 'dynamic' ? '🚦 即時狀態：' : '🤖 備援順序：'}</span>
+                                        {routingMode === 'dynamic' ? (
+                                            <div className="flex flex-wrap gap-1">
+                                                {['groq', 'google', 'openrouter', 'openai'].map(provider => {
+                                                    const light = engineLights[provider];
+                                                    const colorClass = light === 'green' ? 'bg-[#8b9586] text-white border-[#c4cec1]' : light === 'yellow' ? 'bg-[#cca677] text-white border-[#e0c9aa] animate-pulse' : 'bg-[#b5847e] text-white border-[#dcb5b0]';
+                                                    const icon = light === 'green' ? '🟢' : light === 'yellow' ? '🟡' : '🔴';
+                                                    const name = provider === 'google' ? 'Gem' : provider === 'openrouter' ? 'OR' : provider === 'openai' ? 'OAI' : provider.toUpperCase();
+                                                    return <div key={provider} className={`px-2 py-1 rounded text-xs font-bold border flex items-center gap-1 shadow-inner ${colorClass}`}><span>{name}</span><span className="text-[10px]">{icon}</span></div>;
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <div className="flex bg-[#6b7566] px-3 py-1.5 rounded-lg shadow-inner items-center gap-1 text-xs font-bold text-[#e6e9e4] overflow-hidden whitespace-nowrap truncate">
+                                                <span><span className="text-white">Groq</span> ➡️ <span className="text-[#c4cec1]">Gem</span> ➡️ <span className="text-[#a4b1a1]">OR</span> ➡️ <span className="text-[#b5847e]">OAI</span></span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
-                                {routingMode === 'dynamic' ? (
-                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-1 animate-in fade-in">
-                                        <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px]">🚦 即時健康狀態：</span>
-                                        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                                            {['groq', 'google', 'openrouter', 'openai'].map(provider => {
-                                                const light = engineLights[provider];
-                                                const colorClass = light === 'green' ? 'bg-[#8b9586] text-white border-[#c4cec1]' : light === 'yellow' ? 'bg-[#cca677] text-white border-[#e0c9aa] animate-pulse' : 'bg-[#b5847e] text-white border-[#dcb5b0]';
-                                                const icon = light === 'green' ? '🟢 可用' : light === 'yellow' ? '🟡 冷卻中' : '🔴 熔斷中';
-                                                const name = provider === 'google' ? 'Gemini' : provider === 'openrouter' ? 'OR' : provider.toUpperCase();
-                                                return (
-                                                    <div key={provider} className={`px-2 py-1 rounded text-xs font-bold border flex items-center gap-1 shadow-inner ${colorClass}`}>
-                                                        <span>{name}</span><span className="text-[10px] bg-black/20 px-1 rounded">{icon}</span>
-                                                    </div>
-                                                );
-                                            })}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#7a8575] pt-4">
+                                    <div className="flex flex-col gap-2">
+                                        <span className="text-[#e6e9e4] font-bold text-sm">🧠 Groq 模型：</span>
+                                        <select value={groqModel} onChange={e => setGroqModel(e.target.value)} className="w-full bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono"><option value="llama-3.3-70b-versatile">Llama 3.3 70B (推薦)</option><option value="llama-3.1-8b-instant">Llama 3.1 8B (最快)</option><option value="mixtral-8x7b-32768">Mixtral 8x7B</option><option value="gemma2-9b-it">Gemma 2 9B</option></select>
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <span className="text-[#e6e9e4] font-bold text-sm">🧠 OR 模型：</span>
+                                        <div className="flex gap-2">
+                                            <select value={(openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free') ? openRouterModel : 'custom'} onChange={e => { if(e.target.value === 'custom') setOpenRouterModel(''); else setOpenRouterModel(e.target.value); }} className="w-1/2 bg-[#6b7566] border border-[#5a6356] rounded-lg px-2 py-2 text-xs outline-none text-white font-mono"><option value="openrouter/auto">/AUTO</option><option value="openrouter/free">/FREE</option><option value="custom">✍️ 自訂</option></select>
+                                            <input type="text" value={openRouterModel} onChange={e => setOpenRouterModel(e.target.value.toLowerCase().replace(/／/g, '/').replace(/\s+/g, '-'))} onBlur={e => setOpenRouterModel(openRouterModel.replace(/[^a-z0-9\-\.\/:]/g, ''))} disabled={openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free'} className={`w-1/2 rounded-lg px-2 py-2 text-xs outline-none font-mono tracking-widest ${ (openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free') ? 'bg-[#5a6356] text-[#a4b1a1] cursor-not-allowed opacity-50' : 'bg-[#6b7566] text-white placeholder-[#a4b1a1]' }`} />
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-1 animate-in fade-in">
-                                        <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px]">🤖 強制備援順序：</span>
-                                        <div className="flex bg-[#6b7566] px-3 py-1.5 rounded-lg w-full sm:w-auto shadow-inner items-center gap-2 text-sm font-bold text-[#e6e9e4]">
-                                            <span><span className="text-white">Groq</span> ➡️ <span className="text-[#c4cec1]">Gemini</span> ➡️ <span className="text-[#a4b1a1]">OR</span> ➡️ <span className="text-[#b5847e]">OpenAI</span></span>
-                                        </div>
-                                    </div>
-                                )}
+                                </div>
 
-                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-2 border-t border-[#7a8575] pt-3">
-                                    <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px]">🧠 Groq 模型：</span>
-                                    <select value={groqModel} onChange={e => setGroqModel(e.target.value)} className="w-full sm:w-auto bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono min-w-[200px]"><option value="llama-3.3-70b-versatile">Llama 3.3 70B (推薦)</option><option value="llama-3.1-8b-instant">Llama 3.1 8B (最快)</option><option value="mixtral-8x7b-32768">Mixtral 8x7B</option><option value="gemma2-9b-it">Gemma 2 9B</option></select>
-                                </div>
-                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-2">
-                                    <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px]">🧠 OR 模型：</span>
-                                    <select value={(openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free') ? openRouterModel : 'custom'} onChange={e => { if(e.target.value === 'custom') setOpenRouterModel(''); else setOpenRouterModel(e.target.value); }} className="w-full sm:w-auto bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono min-w-[200px]"><option value="openrouter/auto">/AUTO (官方智慧路由)</option><option value="openrouter/free">/FREE (官方免費路由)</option><option value="custom">✍️ 自訂模型...</option></select>
-                                    <input type="text" value={openRouterModel} onChange={e => setOpenRouterModel(e.target.value.toLowerCase().replace(/／/g, '/').replace(/\s+/g, '-'))} onBlur={e => setOpenRouterModel(openRouterModel.replace(/[^a-z0-9\-\.\/:]/g, ''))} placeholder={(openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free') ? "請先由左側下拉切換為自訂" : "輸入格式 例: google/gemma-3-12b"} disabled={openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free'} className={`flex-1 w-full rounded-lg px-3 py-2 text-sm outline-none font-mono tracking-widest ${ (openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free') ? 'bg-[#5a6356] text-[#a4b1a1] cursor-not-allowed opacity-50' : 'bg-[#6b7566] text-white placeholder-[#a4b1a1]' }`} />
-                                </div>
-                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-2 border-t border-[#7a8575] pt-3">
-                                    <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px] flex items-center gap-1"><Layout size={16}/> 畫面排版：</span>
-                                    <div className="flex gap-2 w-full sm:w-auto bg-[#6b7566] p-1 rounded-lg"><button onClick={() => handleUiLayoutChange('layout1')} className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout1' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>置中展開</button><button onClick={() => handleUiLayoutChange('layout2')} className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout2' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>左右分流</button><button onClick={() => handleUiLayoutChange('layout3')} className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout3' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>沉浸卡片</button></div>
-                                </div>
-                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-2 border-t border-[#7a8575] pt-3">
-                                    <span className="text-[#e6e9e4] font-bold text-sm whitespace-nowrap min-w-[120px] flex items-center gap-1"><Volume2 size={16}/> 發音引擎：</span>
-                                    <select value={ttsEngine} onChange={e => setTtsEngine(e.target.value)} className="w-full sm:w-auto bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono min-w-[200px]"><option value="native">瀏覽器原生 (免費)</option><option value="openai">OpenAI TTS (高擬真)</option></select>
-                                    {ttsEngine === 'openai' && ( <select value={openAITtsVoice} onChange={e => setOpenAITtsVoice(e.target.value)} className="w-full sm:w-auto bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-[#cca677] font-mono min-w-[200px]"><option value="nova">Nova</option><option value="alloy">Alloy</option><option value="shimmer">Shimmer</option><option value="echo">Echo</option><option value="fable">Fable</option></select> )}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#7a8575] pt-4">
+                                    <div className="flex flex-col gap-2">
+                                        <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><Layout size={16}/> 畫面排版：</span>
+                                        <div className="flex gap-1 w-full bg-[#6b7566] p-1 rounded-lg"><button onClick={() => handleUiLayoutChange('layout1')} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout1' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>置中</button><button onClick={() => handleUiLayoutChange('layout2')} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout2' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>分流</button><button onClick={() => handleUiLayoutChange('layout3')} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout3' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>卡片</button></div>
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><Volume2 size={16}/> 發音引擎：</span>
+                                        <div className="flex gap-2">
+                                            <select value={ttsEngine} onChange={e => setTtsEngine(e.target.value)} className="w-1/2 bg-[#6b7566] border border-[#5a6356] rounded-lg px-2 py-2 text-xs outline-none text-white font-mono"><option value="native">原生</option><option value="openai">OpenAI</option></select>
+                                            {ttsEngine === 'openai' ? ( <select value={openAITtsVoice} onChange={e => setOpenAITtsVoice(e.target.value)} className="w-1/2 bg-[#6b7566] border border-[#5a6356] rounded-lg px-2 py-2 text-xs outline-none text-[#cca677] font-mono"><option value="nova">Nova</option><option value="alloy">Alloy</option><option value="shimmer">Shimmer</option><option value="echo">Echo</option><option value="fable">Fable</option></select> ) : <div className="w-1/2 opacity-50 bg-[#5a6356] rounded-lg"></div>}
+                                        </div>
+                                    </div>
                                 </div>
                                 
-                                <div className="flex flex-col gap-2 mt-2 bg-[#5a6356] p-3 rounded-xl border border-[#6b7566] shadow-inner">
-                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                                        <label className="text-[#c4cec1] font-bold text-xs whitespace-nowrap min-w-[120px] flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.groq} onChange={() => toggleEngine('groq')} className="w-4 h-4 accent-[#cca677]"/> Groq Key：</label>
-                                        <input type="password" value={inputGroqKey} onChange={e => setInputGroqKey(e.target.value)} placeholder="gsk_..." disabled={!enginesEnabled.groq} className="flex-1 w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white placeholder-[#6b655f] font-mono tracking-widest disabled:opacity-50"/>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2 bg-[#5a6356] p-4 rounded-xl border border-[#6b7566] shadow-inner">
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[#c4cec1] font-bold text-xs flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.groq} onChange={() => toggleEngine('groq')} className="w-4 h-4 accent-[#cca677]"/> Groq Key：</label>
+                                        <input type="password" value={inputGroqKey} onChange={e => setInputGroqKey(e.target.value)} disabled={!enginesEnabled.groq} className="w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white font-mono tracking-widest disabled:opacity-50"/>
                                     </div>
-                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                                        <label className="text-[#c4cec1] font-bold text-xs whitespace-nowrap min-w-[120px] flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.openrouter} onChange={() => toggleEngine('openrouter')} className="w-4 h-4 accent-[#cca677]"/> OR Key：</label>
-                                        <input type="password" value={inputOrKey} onChange={e => setInputOrKey(e.target.value)} placeholder="sk-or-..." disabled={!enginesEnabled.openrouter} className="flex-1 w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white placeholder-[#6b655f] font-mono tracking-widest disabled:opacity-50"/>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[#c4cec1] font-bold text-xs flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.openrouter} onChange={() => toggleEngine('openrouter')} className="w-4 h-4 accent-[#cca677]"/> OR Key：</label>
+                                        <input type="password" value={inputOrKey} onChange={e => setInputOrKey(e.target.value)} disabled={!enginesEnabled.openrouter} className="w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white font-mono tracking-widest disabled:opacity-50"/>
                                     </div>
-                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                                        <label className="text-[#c4cec1] font-bold text-xs whitespace-nowrap min-w-[120px] flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.google} onChange={() => toggleEngine('google')} className="w-4 h-4 accent-[#cca677]"/> Gemini Key：</label>
-                                        <input type="password" value={inputKey} onChange={e => setInputKey(e.target.value)} placeholder="AIza..." disabled={!enginesEnabled.google} className="flex-1 w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white placeholder-[#6b655f] font-mono tracking-widest disabled:opacity-50"/>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[#c4cec1] font-bold text-xs flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.google} onChange={() => toggleEngine('google')} className="w-4 h-4 accent-[#cca677]"/> Gemini Key：</label>
+                                        <input type="password" value={inputKey} onChange={e => setInputKey(e.target.value)} disabled={!enginesEnabled.google} className="w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white font-mono tracking-widest disabled:opacity-50"/>
                                     </div>
-                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                                        <label className="text-[#c4cec1] font-bold text-xs whitespace-nowrap min-w-[120px] flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.openai} onChange={() => toggleEngine('openai')} className="w-4 h-4 accent-[#cca677]"/> OpenAI Key：</label>
-                                        <input type="password" value={openAITtsKey} onChange={e => setOpenAITtsKey(e.target.value)} placeholder="sk-proj-..." disabled={!enginesEnabled.openai} className="flex-1 w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white placeholder-[#6b655f] font-mono tracking-widest disabled:opacity-50"/>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[#c4cec1] font-bold text-xs flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.openai} onChange={() => toggleEngine('openai')} className="w-4 h-4 accent-[#cca677]"/> OpenAI Key：</label>
+                                        <input type="password" value={openAITtsKey} onChange={e => setOpenAITtsKey(e.target.value)} disabled={!enginesEnabled.openai} className="w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white font-mono tracking-widest disabled:opacity-50"/>
                                     </div>
                                 </div>
 
@@ -1302,8 +1308,7 @@
                       <div className="mt-5 w-full bg-white/60 p-4 rounded-xl border border-[#c4cec1] shadow-sm text-left">
                           <div className="text-xs font-black text-[#7a8575] mb-1 flex items-center gap-1 uppercase tracking-widest"><BookOpen size={14}/> 完整中英對照</div>
                           <div className="text-lg font-black text-[#524d46] mb-1 leading-relaxed">{String(q.sentence||"").replace(/_{2,}/g, safeAnswerStr)}</div>
-                          {/* 🔥 修復底線殘留：強制替換 q.translation 中的底線，改以字典中文或原單字填補 */}
-                          <div className="text-base font-bold text-[#8b9586] leading-relaxed">{String(q.translation || "目前尚無翻譯").replace(/_{2,}/g, (window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) ? window.SH_DICTIONARY[safeAnswerStr.toLowerCase()].split(/[;；]/)[0] : safeAnswerStr)}</div>
+                          <div className="text-base font-bold text-[#8b9586] leading-relaxed">{String(q.translation || "目前尚無翻譯").replace(/[_＿]{2,}/g, (window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) ? window.SH_DICTIONARY[safeAnswerStr.toLowerCase()].split(/[;；]/)[0] : safeAnswerStr)}</div>
                           {mainMenu !== 'grammar' && (
                               <div className="mt-3 pt-3 border-t border-[#d6cfc5] flex items-start gap-2">
                                   <span className="text-[10px] font-black text-[#a68258] bg-[#f4ebd9] px-2 py-0.5 rounded border border-[#e0c9aa] whitespace-nowrap mt-0.5">單字</span>
