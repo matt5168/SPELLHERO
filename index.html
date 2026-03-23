@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (風格擴充版 v8)</title>
+    <title>Spelling Hero - 互動家教版 (擴充完整版 v8)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     
-    <script src="database.js?v=4"></script>
+    <script src="database.js?v=5"></script>
     <script src="engine.js?v=3"></script>
 
     <style>
@@ -562,8 +562,9 @@ TASK:
               setVoteStatus(prev => ({...prev, [provider]: delta > 0 ? '👍 已感謝老師' : '👎 已降低權重'})); setTimeout(() => setVoteStatus(prev => ({...prev, [provider]: null})), 2000);
           };
 
-          const generateExpPrompt = (mode, qSentence, safeAns, studentAns) => {
-              const baseTask = `TASK:\n1. If Target is grammatically WRONG for subject, OR Student is perfectly correct synonym, YOU MUST OVERRIDE. First word MUST be "[OVERRIDE_CORRECT]".\n2. Explain in TRADITIONAL CHINESE (繁體中文).\n`;
+          const generateExpPrompt = (mode, qSentence, safeAns, studentAns, allowOverride = true) => {
+              const overrideTask = allowOverride ? `1. If Target is grammatically WRONG for subject, OR Student is perfectly correct synonym, YOU MUST OVERRIDE. First word MUST be "[OVERRIDE_CORRECT]".\n2. Explain in TRADITIONAL CHINESE (繁體中文).\n` : `1. Explain in TRADITIONAL CHINESE (繁體中文).\n`;
+              const baseTask = `TASK:\n${overrideTask}`;
               const baseFormat = `3. Format exactly as below:\n🔍 題目線索：[...]\n💡 文法秘訣：[...]\n🎯 答題結果：[...]`;
               
               if (mode === 'v1') {
@@ -577,20 +578,18 @@ TASK:
               }
           };
 
-          const handleOnDemand = async (index, type, isRetry = false, retryCount = 0, targetPromptMode = null) => {
+          const handleOnDemand = async (index, type, isRetry = false, retryCount = 0, targetPromptMode = null, isManual = false) => {
               const key = `${type}_${index}`; if (loadingStates[key] && !isRetry) return;
               setLoadingStates(prev => ({...prev, [key]: true})); if (!isRetry) setDynamicContent(prev => ({...prev, [key]: ""}));
 
               const q = questions[index]; const safeAnswerStr = String(q.answer||""); const studentAns = String(answers[index]||"[未作答]");
               
               let currentPMode = targetPromptMode || promptMode;
-              if (type === 'exp') {
-                  setQPromptModes(prev => ({...prev, [index]: currentPMode}));
-              }
+              if (type === 'exp') { setQPromptModes(prev => ({...prev, [index]: currentPMode})); }
 
               let prompt = "";
               if (type === 'hint') prompt = `Please provide ONLY the Traditional Chinese (Taiwan) translation for the word/phrase: "${q.answer}". Output nothing else.`;
-              else if (type === 'exp') prompt = generateExpPrompt(currentPMode, q.sentence, safeAnswerStr, studentAns);
+              else if (type === 'exp') prompt = generateExpPrompt(currentPMode, q.sentence, safeAnswerStr, studentAns, !isManual && !overrideTriggeredRef.current[key]);
 
               try {
                   let firstChunk = false;
@@ -598,7 +597,7 @@ TASK:
                       firstChunk = true; let clean = text.replace(/^["']|["']$/g, '');
                       if (clean.includes('[OVERRIDE_CORRECT]')) {
                           clean = clean.replace(/\[OVERRIDE_CORRECT\]/g, '').trim();
-                          if (!overrideTriggeredRef.current[key]) {
+                          if (!isManual && !overrideTriggeredRef.current[key]) {
                               overrideTriggeredRef.current[key] = true;
                               setQuestions(prev => { const nq = [...prev]; nq[index] = { ...nq[index], answer: answers[index] }; return nq; });
                               setQStatus(prev => { const nqs = [...prev]; nqs[index] = true; return nqs; });
@@ -611,10 +610,7 @@ TASK:
                   };
                   
                   let providersToTry = ['groq', 'google', 'openrouter', 'openai'].sort((a,b) => (storage.modelVotes[b]||0) - (storage.modelVotes[a]||0)).filter(p => enginesEnabled[p]);
-                  
-                  if (type === 'exp') {
-                      providersToTry = ['openrouter', 'groq'].filter(p => enginesEnabled[p]);
-                  }
+                  if (type === 'exp') { providersToTry = ['openrouter', 'groq'].filter(p => enginesEnabled[p]); }
 
                   if (routingMode === 'dynamic') providersToTry = providersToTry.filter(p => window.sharedAIClient.getEngineStatus(p) !== 'red');
                   if (isRetry && dynamicProviders[key]) { handleVote(dynamicProviders[key], -1); providersToTry = providersToTry.filter(p => p !== dynamicProviders[key]); }
@@ -640,7 +636,7 @@ TASK:
                   setLoadingStates(prev => ({...prev, [key]: false}));
               } catch (e) {
                   if (retryCount < 2 && e.message !== "無可用引擎") {
-                      setDynamicContent(prev => ({...prev, [key]: `⏳ 重試中 (${retryCount + 1}/3)...`})); setTimeout(() => handleOnDemand(index, type, true, retryCount + 1, currentPMode), 3000);
+                      setDynamicContent(prev => ({...prev, [key]: `⏳ 重試中 (${retryCount + 1}/3)...`})); setTimeout(() => handleOnDemand(index, type, true, retryCount + 1, currentPMode, isManual), 3000);
                   } else {
                       setDynamicContent(prev => ({...prev, [key]: `⚠️ ${e.message}`})); setLoadingStates(prev => ({...prev, [key]: false}));
                   }
@@ -831,7 +827,6 @@ TASK:
                                     </div>
                                 </div>
 
-                                {/* 🔥 解說風格與自訂 Prompt 區塊 */}
                                 <div className="grid grid-cols-1 gap-4 border-t border-[#7a8575] pt-4">
                                     <div className="flex flex-col gap-2">
                                         <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><Edit3 size={16}/> AI 老師解說風格：</span>
@@ -1090,8 +1085,7 @@ TASK:
                                           {!dynamicContent[`exp_${i}`].includes('重試') && (
                                           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#d6cfc5] pt-3 mt-1">
                                               <div className="flex items-center gap-1 text-[10px] text-[#8a847c]">評分：<button onClick={() => handleVote(dynamicProviders[`exp_${i}`], 1)} className="p-1 bg-[#e6e9e4] rounded active:scale-90"><ThumbsUp size={14} className="text-[#6b7566]"/></button><button onClick={() => handleVote(dynamicProviders[`exp_${i}`], -1)} className="p-1 bg-[#f2e7e6] rounded active:scale-90"><ThumbsDown size={14} className="text-[#b5847e]"/></button></div>
-                                              {/* 🔥 更新按鈕：觸發引擎與 Prompt 雙軌輪替 */}
-                                              <button onClick={() => { const nextM = cyclePromptMode(i); handleOnDemand(i, 'exp', true, 0, nextM); }} className="text-xs font-bold text-[#b5847e] bg-[#f2e7e6] px-2 py-1 rounded border border-[#dcb5b0] flex items-center gap-1 shadow-sm active:scale-95"><RefreshCcw size={12}/> 換說法 ({qPromptModes[i] === 'v1' ? '極簡' : qPromptModes[i] === 'v2' ? '比喻' : qPromptModes[i] === 'v3' ? '條列' : qPromptModes[i] === 'custom' ? '自訂' : '切換'})</button>
+                                              <button onClick={() => { const nextM = cyclePromptMode(i); handleOnDemand(i, 'exp', true, 0, nextM, true); }} className="text-xs font-bold text-[#b5847e] bg-[#f2e7e6] px-2 py-1 rounded border border-[#dcb5b0] flex items-center gap-1 shadow-sm active:scale-95"><RefreshCcw size={12}/> 換說法 ({qPromptModes[i] === 'v1' ? '極簡' : qPromptModes[i] === 'v2' ? '比喻' : qPromptModes[i] === 'v3' ? '條列' : qPromptModes[i] === 'custom' ? '自訂' : '切換'})</button>
                                           </div>
                                           )}
                                       </div>
