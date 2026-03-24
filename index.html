@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (無敵對照版 v11)</title>
+    <title>Spelling Hero - 互動家教版 (完美標點版 v12)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -228,7 +228,6 @@ TASK:
                 
                 setStorage({ history: h, memory: m, stats: s, coins: c, exp: exp, level: lvl }); setMistakePool(mist); setApiUsage(apiU); 
                 
-                // 強制升級快取版號 v34
                 const currentPool = JSON.parse(localStorage.getItem('sh_qpool_v34') || '{}'); let sz = 0; Object.values(currentPool).forEach(arr => sz += arr.length); setPoolStats(p => ({...p, size: sz}));
 
                 if (window.sharedAIClient) {
@@ -473,18 +472,24 @@ TASK:
                                         });
                                     }
 
-                                    let sentence = (q.s || q.sentence) ? String(q.s || q.sentence) : "";
+                                    // 🔥 標點符號與底線的終極清洗
+                                    let sentence = (q.s || q.sentence) ? String(q.s || q.sentence).trim() : "";
+                                    sentence = sentence.replace(/\s+([.!?])/g, '$1'); // 清除懸空標點 (e.g. "____ .")
+                                    if (sentence && !/[.!?]$/.test(sentence)) sentence += "."; // 補齊遺漏的句號
+                                    
                                     sentence = sentence.replace(/[a-zA-Z]*_{2,}[a-zA-Z]*/g, '______');
                                     if (sentence.indexOf('______') === -1) { 
                                         const reg = new RegExp('\\b' + window.escapeRegExp(ans) + '\\b', 'gi'); 
                                         sentence = sentence.replace(reg, '______'); 
-                                        if (sentence.indexOf('______') === -1) sentence += ' ______'; 
+                                        if (sentence.indexOf('______') === -1) {
+                                             sentence = sentence.replace(/([.!?])$/, ' ______$1');
+                                             if (sentence.indexOf('______') === -1) sentence += ' ______.';
+                                        }
                                     }
                                     
                                     let finalHint = "無提示";
                                     if (targetMenu !== 'grammar') { const dictHint = window.SH_DICTIONARY && window.SH_DICTIONARY[ans.toLowerCase()]; if (dictHint) finalHint = dictHint; }
                                     
-                                    // 更強韌的翻譯解析
                                     let rawT = q.t || q.translation || q.trans || q.chinese || q.c || "";
                                     let cleanTrans = String(rawT).replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').trim();
 
@@ -977,10 +982,15 @@ TASK:
   const isLocked = qStatus[i] !== null || submitted;
   const isLayout2 = uiLayout === 'layout2'; const isLayout3 = uiLayout === 'layout3';
   
-  let hintMask = mainMenu === 'grammar' ? '______' : (window.SYSTEM_ENGINE.createHintMask(safeAnswerStr) || '______'); 
   let currentAns = String(answers[i]||"");
+  let hintMask = mainMenu === 'grammar' ? '______' : (window.SYSTEM_ENGINE.createHintMask(safeAnswerStr) || '______'); 
   
-  let cleanSentence = String(q.sentence||"").replace(/_{2,}/g, '______');
+  // 🔥 新增：確保句子清理與標點符號邏輯一致 (消除懸空標點，補齊句號)
+  let cleanSentence = String(q.sentence||"").trim().replace(/\s+([.!?])/g, '$1').replace(/_{2,}/g, '______');
+  if (cleanSentence && !/[.!?]$/.test(cleanSentence) && cleanSentence.indexOf('______') !== -1) {
+      cleanSentence += "."; 
+  }
+  
   const firstBlankIdx = cleanSentence.indexOf('______');
   let p0 = cleanSentence; let p1 = "";
   if (firstBlankIdx !== -1) { p0 = cleanSentence.substring(0, firstBlankIdx); p1 = cleanSentence.substring(firstBlankIdx + 6); }
@@ -1072,7 +1082,7 @@ TASK:
                           <div className="text-xs font-black text-[#7a8575] mb-2 flex items-center gap-1 uppercase tracking-widest"><BookOpen size={14}/> 完整中英對照</div>
                           
                           <div className="text-lg md:text-xl font-black text-[#524d46] mb-2 leading-relaxed">
-                              {String(q.sentence||"").replace(/_{2,}/g, '______').split('______').map((part, idx, arr) => (
+                              {cleanSentence.split('______').map((part, idx, arr) => (
                                   <span key={idx}>
                                       {part}
                                       {idx < arr.length - 1 && <span className="text-[#cca677] border-b-[3px] border-[#cca677] mx-1 px-1 pb-0.5">{safeAnswerStr || "???"}</span>}
@@ -1084,7 +1094,7 @@ TASK:
                               {String(q.translation || "目前尚無翻譯").split(/[_＿]{2,}/).map((part, idx, arr) => (
                                   <span key={idx}>
                                       {part}
-                                      {idx < arr.length - 1 && <span className="text-[#cca677] mx-1">{ (window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) ? window.SH_DICTIONARY[safeAnswerStr.toLowerCase()].split(/[;；]/)[0] : "???" }</span>}
+                                      {idx < arr.length - 1 && <span className="text-[#cca677] mx-1">{ (window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) ? window.SH_DICTIONARY[safeAnswerStr.toLowerCase()].split(/[;；]/)[0] : safeAnswerStr }</span>}
                                   </span>
                               ))}
                           </div>
