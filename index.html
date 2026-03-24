@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (排他性線索強化版 v20)</title>
+    <title>Spelling Hero - 互動家教版 (雙重防護版 v21)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -444,9 +444,9 @@ TASK:
                             const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)}`);
                             systemPrompt = `ESL grammar fill-blank, 3rd grade. RULES:
     ① STRICT SUBJECT: Keep EXACT target answer & grammatical subject from pattern. Change ONLY the situation.
-    ② EXCLUSIVE CLUES: Add an extra sentence with undeniable logical context so ONLY the target answer fits (e.g. if answer is "always", add "I do it 7 days a week!"). NO AMBIGUITY.
-    ③ PRONOUN CONTEXT: If answer is pronoun, write specific name BEFORE the blank.
-    ④ OPTIONS: 'o' MUST have 4 items.
+    ② EXCLUSIVE CLUES: Add an extra sentence with undeniable logical context so ONLY the target answer fits. NO AMBIGUITY.
+    ③ ABSURD DISTRACTORS: The 3 wrong options in 'o' MUST be completely absurd, grammatically incorrect, or categorically unrelated. NEVER use synonyms or logically fitting words!
+    ④ PRONOUN CONTEXT: If answer is pronoun, write specific name BEFORE the blank.
     ⑤ JSON only: [{"idx":0,"a":"answer","s":"English sentence with ______","t":"完整繁體中文翻譯(必須將答案單字直接翻譯並寫入句子中，絕對不可有底線)","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH. Patterns:\n${patterns.join('\n')}`;
@@ -454,8 +454,8 @@ TASK:
                             const wordsToGenerate = chunkPending.map((s, idx) => `[IDX:${idx}] Target Word: "${s.answer}"`);
                             systemPrompt = `ESL vocab fill-blank, 3rd grade. RULES:
     ① Simple formal English. Blank=______(6 underscores).
-    ② EXCLUSIVE CONTEXT: Add an extra sentence with undeniable logical clues so ONLY the target word fits. NO AMBIGUITY (e.g., if answer is 'windy', add 'Hold onto your hat, it is blowing hard!').
-    ③ OPTIONS: 'o' MUST have 4 items.
+    ② EXCLUSIVE CONTEXT: Add an extra sentence with undeniable logical clues so ONLY the target word fits. NO AMBIGUITY.
+    ③ ABSURD DISTRACTORS: The 3 wrong options in 'o' MUST be completely absurd or categorically unrelated to the blank. NEVER use words that could logically fit!
     ④ JSON only: [{"idx":0,"a":"answer","s":"English sentence with ______","t":"完整繁體中文翻譯(必須將答案單字直接翻譯並寫入句子中，絕對不可有底線)","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH. Words:\n${wordsToGenerate.join('\n')}`;
@@ -488,7 +488,10 @@ TASK:
 
                                     let rawOptions = Array.isArray(q.o) ? q.o : (Array.isArray(q.options) ? q.options : []);
                                     let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ans.toLowerCase());
-                                    if (distractors.length < 3) distractors = [...distractors, ...window.generateVocabOptions(ans, activeDB).filter(o=>o!==ans)];
+                                    if (distractors.length < 3) {
+                                        const absurdFallbackPool = ["apple", "jumped", "blue", "cars", "happily", "water", "desks", "running", "sunny", "books", "elephant", "quickly", "pencil", "sleeps", "pizza"];
+                                        distractors = [...distractors, ...window.shuffleArray(absurdFallbackPool).filter(o=>o.toLowerCase()!==ans.toLowerCase())];
+                                    }
                                     let safeOptions = window.shuffleArray([ans, ...distractors.slice(0, 3)]);
 
                                     const objPronouns = ['him', 'her', 'them', 'us', 'me', 'he', 'she', 'they', 'it', 'i', 'you'];
@@ -1094,7 +1097,20 @@ TASK:
   const isLayout2 = uiLayout === 'layout2'; const isLayout3 = uiLayout === 'layout3';
   
   let currentAns = String(answers[i]||"");
-  let hintMask = mainMenu === 'grammar' ? '______' : (window.SYSTEM_ENGINE.createHintMask(safeAnswerStr) || '______'); 
+  
+  let hintMask = String(safeAnswerStr).split(' ').map(w => {
+      let res = "";
+      let firstLetterFound = false;
+      for(let j=0; j<w.length; j++) {
+          if(/[a-zA-Z]/.test(w[j])) {
+              if(!firstLetterFound) { res += w[j]; firstLetterFound = true; }
+              else { res += '_'; }
+          } else {
+              res += w[j];
+          }
+      }
+      return res;
+  }).join(' ');
   
   let cleanSentence = String(q.sentence||"").trim().replace(/\s+([.!?])/g, '$1').replace(/_{2,}/g, '______');
   if (cleanSentence && !/[.!?]$/.test(cleanSentence) && cleanSentence.indexOf('______') !== -1) {
@@ -1123,7 +1139,7 @@ TASK:
           <div className={`w-full flex flex-col ${isLayout2 ? 'items-start' : 'items-center'} relative z-10`}>
               <div className={`text-xl md:text-3xl font-bold leading-normal md:leading-relaxed break-words mt-2 ${!q.isAI ? 'text-[#8a847c]' : 'text-[#524d46]'} ${!isLayout2 && 'text-center'}`}>
                 <span>{window.SYSTEM_ENGINE.capitalize(p0)}</span>
-                <span className={`mx-1 inline-block ${!isLocked && hintMask.indexOf('_') !== -1 && mainMenu !== 'grammar' ? 'tracking-[0.2em]' : ''} ${isLocked ? (isFinallyCorrect ? "text-[#7a8575]" : "text-[#b5847e] line-through decoration-[#b5847e] decoration-[3px]") : (combo >= 3 ? "text-[#cca677]" : "text-[#8b9586]")} transition-colors duration-300`}>{isLocked ? (currentAns || '______') : hintMask}</span>
+                <span className={`mx-1 inline-block ${!isLocked && hintMask.indexOf('_') !== -1 ? 'tracking-[0.2em]' : ''} ${isLocked ? (isFinallyCorrect ? "text-[#7a8575]" : "text-[#b5847e] line-through decoration-[#b5847e] decoration-[3px]") : (combo >= 3 ? "text-[#cca677]" : "text-[#8b9586]")} transition-colors duration-300`}>{isLocked ? (currentAns || '______') : hintMask}</span>
                 <span>{p1}</span>
                 {mainMenu !== 'grammar' && ( <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className={`ml-3 inline-flex items-center justify-center p-2 rounded-full transition-all active:scale-90 align-middle ${isLocked ? 'bg-[#e6e9e4] text-[#6b7566]' : 'bg-[#f4ebd9] text-[#cca677]'}`}><Volume2 size={24}/></button> )}
               </div>
