@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (多選題庫版 v19)</title>
+    <title>Spelling Hero - 互動家教版 (排他性線索強化版 v20)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -444,16 +444,17 @@ TASK:
                             const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)}`);
                             systemPrompt = `ESL grammar fill-blank, 3rd grade. RULES:
     ① STRICT SUBJECT: Keep EXACT target answer & grammatical subject from pattern. Change ONLY the situation.
-    ② PRONOUN CONTEXT: If answer is pronoun, write specific name BEFORE the blank.
-    ③ OPTIONS: 'o' MUST have 4 items.
-    ④ JSON only: [{"idx":0,"a":"answer","s":"English sentence with ______","t":"完整繁體中文翻譯(必須將答案單字直接翻譯並寫入句子中，絕對不可有底線)","o":["opt1","opt2","opt3","opt4"]}]
+    ② EXCLUSIVE CLUES: Add an extra sentence with undeniable logical context so ONLY the target answer fits (e.g. if answer is "always", add "I do it 7 days a week!"). NO AMBIGUITY.
+    ③ PRONOUN CONTEXT: If answer is pronoun, write specific name BEFORE the blank.
+    ④ OPTIONS: 'o' MUST have 4 items.
+    ⑤ JSON only: [{"idx":0,"a":"answer","s":"English sentence with ______","t":"完整繁體中文翻譯(必須將答案單字直接翻譯並寫入句子中，絕對不可有底線)","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH. Patterns:\n${patterns.join('\n')}`;
                         } else {
                             const wordsToGenerate = chunkPending.map((s, idx) => `[IDX:${idx}] Target Word: "${s.answer}"`);
                             systemPrompt = `ESL vocab fill-blank, 3rd grade. RULES:
     ① Simple formal English. Blank=______(6 underscores).
-    ② CONTEXT: Sentence MUST contain clues.
+    ② EXCLUSIVE CONTEXT: Add an extra sentence with undeniable logical clues so ONLY the target word fits. NO AMBIGUITY (e.g., if answer is 'windy', add 'Hold onto your hat, it is blowing hard!').
     ③ OPTIONS: 'o' MUST have 4 items.
     ④ JSON only: [{"idx":0,"a":"answer","s":"English sentence with ______","t":"完整繁體中文翻譯(必須將答案單字直接翻譯並寫入句子中，絕對不可有底線)","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
