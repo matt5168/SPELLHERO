@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (下拉選單版 v14)</title>
+    <title>Spelling Hero - 互動家教版 (下拉選單版 v15)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -272,7 +272,6 @@ TASK:
               if (menu === 'review') generateAIBatch(storage.memory, ['All'], vocabMode, menu, activeGeminiModel, mistakePool); 
           };
           
-          // 🔥 替換為支援下拉選單事件，並新增 WTK 1~3 複合群組解析
           const handleNotebookChange = e => {
               const val = e.target.value;
               let newSelection;
@@ -358,6 +357,7 @@ TASK:
             while (selected.length < targetTotal && tempPool.length > 0) {
                 let pick = Math.floor(Math.random() * tempPool.length);
                 if (targetMenu !== 'review') {
+                    // 保留原有的錯題加權機制
                     let tw = 0; const ws = tempPool.map(q => { 
                         const safeAns = String(q.answer||"").trim().toLowerCase(); const s = m[safeAns] || 0; 
                         let w = s < 0 ? 25 : s > 2 ? 0.5 : 10; 
@@ -938,7 +938,7 @@ TASK:
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
                           <div className="flex items-center gap-1.5 font-black text-[#7a8575] text-[13px] min-w-max px-1"><BookOpen size={16}/> 題庫來源</div>
                           
-                          {/* 🔥 下拉選單改版區塊 */}
+                          {/* 🔥 下拉選單修復區塊 */}
                           <select
                               value={selectedNotebooks.length === 3 && selectedNotebooks.includes('Words to know 1') ? 'WTK1-3' : selectedNotebooks[0]}
                               onChange={handleNotebookChange}
@@ -946,13 +946,13 @@ TASK:
                               className={`w-full sm:w-auto px-3 py-2 rounded-lg font-bold text-xs md:text-sm outline-none transition-all shadow-sm flex-1 ${isGenerating ? 'opacity-50 cursor-not-allowed bg-[#ebe6df] text-[#8a847c]' : 'bg-[#e6e9e4] text-[#524d46] hover:bg-[#d5dcd3] border border-[#c4cec1]'}`}
                           >
                               {mainMenu === 'grammar' ? (
-                                  <>
+                                  <React.Fragment>
                                       <option value="All">全部混合</option>
                                       <option value="PB1 U2 句型庫">PB1 U2 句型庫</option>
                                       <option value="PB1 U5 句型庫">PB1 U5 句型庫</option>
-                                  </>
+                                  </React.Fragment>
                               ) : (
-                                  <>
+                                  <React.Fragment>
                                       <option value="All">全部混合</option>
                                       <option value="WTK1-3">Words to Know 1~3 (綜合)</option>
                                       <option value="Words to know 1">Words to know 1</option>
@@ -963,12 +963,7 @@ TASK:
                                       <option value="CHINGSHIN Kidboxs 3 U3">CHINGSHIN Kidboxs 3 U3</option>
                                       <option value="CHINGSHIN Kidboxs 3 U5">CHINGSHIN Kidboxs 3 U5</option>
                                       <option value="劍橋英檢 Movers">劍橋英檢 Movers</option>
-                                      <option value="WTK (A-E)">WTK (A-E)</option>
-                                      <option value="WTK (F-J)">WTK (F-J)</option>
-                                      <option value="WTK (K-O)">WTK (K-O)</option>
-                                      <option value="WTK (P-T)">WTK (P-T)</option>
-                                      <option value="WTK (U-Z)">WTK (U-Z)</option>
-                                  </>
+                                  </React.Fragment>
                               )}
                           </select>
                       </div>
