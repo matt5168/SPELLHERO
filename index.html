@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (引擎指定與v2移除版)</title>
+    <title>Spelling Hero - 互動家教版 (多選題庫版 v19)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     
-    <script src="database.js?v=5"></script>
+    <script src="database.js?v=7"></script>
     <script src="engine.js?v=4"></script>
 
     <style>
@@ -58,6 +58,7 @@
           const [isReview, setIsReview] = useState(false); const [config, setConfig] = useState({ accent: 'US', speed: 0.9, autoRead: true });
           
           const [selectedNotebooks, setSelectedNotebooks] = useState(['All']); 
+          const [isCustomMulti, setIsCustomMulti] = useState(false);
           const [vocabMode, setVocabMode] = useState('mixed'); 
           const [mainMenu, setMainMenu] = useState('vocab'); 
           const [storage, setStorage] = useState({ history: [], memory: {}, stats: {}, coins: 0, exp: 0, level: 1 });
@@ -282,24 +283,38 @@ TASK:
           const handleMainMenuChange = menu => { 
               setMainMenu(menu); setIsReview(menu === 'review'); 
               if (menu === 'grammar') setQuizMode('multiple_choice'); else setQuizMode('fill_in'); 
-              setSelectedNotebooks(['All']); setQuestions([]); setReady(false); overrideTriggeredRef.current = {};
+              setSelectedNotebooks(['All']); setIsCustomMulti(false); setQuestions([]); setReady(false); overrideTriggeredRef.current = {};
               if (menu === 'review') generateAIBatch(storage.memory, ['All'], vocabMode, menu, activeGeminiModel, mistakePool); 
           };
           
           const handleNotebookChange = e => {
               const val = e.target.value;
-              let newSelection;
-              if (val === 'All') {
-                  newSelection = ['All'];
-              } else if (val === 'WTK1-3') {
-                  newSelection = ['Words to know 1', 'Words to know 2', 'Words to know 3'];
+              if (val === 'CustomMulti') {
+                  setIsCustomMulti(true);
+                  setSelectedNotebooks([]);
               } else {
-                  newSelection = [val];
+                  setIsCustomMulti(false);
+                  let newSelection;
+                  if (val === 'All') newSelection = ['All'];
+                  else if (val === 'WTK1-3') newSelection = ['Words to know 1', 'Words to know 2', 'Words to know 3'];
+                  else newSelection = [val];
+                  setSelectedNotebooks(newSelection);
               }
-              setSelectedNotebooks(newSelection); setQuestions([]); setReady(false); readyRef.current = false; overrideTriggeredRef.current = {};
+              setQuestions([]); setReady(false); readyRef.current = false; overrideTriggeredRef.current = {};
+          };
+
+          const handleToggleNotebook = nb => {
+              setSelectedNotebooks(prev => {
+                  if (prev.includes(nb)) return prev.filter(n => n !== nb);
+                  return [...prev, nb];
+              });
+              setQuestions([]); setReady(false); readyRef.current = false; overrideTriggeredRef.current = {};
           };
 
           const handleModeChange = newMode => { setVocabMode(newMode); setQuestions([]); setReady(false); readyRef.current = false; overrideTriggeredRef.current = {}; };
+
+          const allGrammarBanks = ['PB1 U1 句型庫', 'PB1 U2 句型庫', 'PB1 U3 句型庫', 'PB1 U4 句型庫', 'PB1 U5 句型庫', 'PB1 U6 句型庫', 'PB1 U7 句型庫', 'PB1 U8 句型庫'];
+          const allVocabBanks = ['Words to know 1', 'Words to know 2', 'Words to know 3', 'CHINGSHIN Kidboxs 3 U1', 'CHINGSHIN Kidboxs 3 U2', 'CHINGSHIN Kidboxs 3 U3', 'CHINGSHIN Kidboxs 3 U4', 'CHINGSHIN Kidboxs 3 U5', 'CHINGSHIN Kidboxs 3 U6', 'CHINGSHIN Kidboxs 3 U7', 'CHINGSHIN Kidboxs 3 U8', '劍橋英檢 Movers'];
 
           const runSingleDiag = async (provider) => {
               if(!window.sharedAIClient) return;
@@ -974,37 +989,62 @@ TASK:
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
                           <div className="flex items-center gap-1.5 font-black text-[#7a8575] text-[13px] min-w-max px-1"><BookOpen size={16}/> 題庫來源</div>
                           
-                          <select
-                              value={selectedNotebooks.length === 3 && selectedNotebooks.includes('Words to know 1') ? 'WTK1-3' : selectedNotebooks[0]}
-                              onChange={handleNotebookChange}
-                              disabled={isGenerating}
-                              className={`w-full sm:w-auto px-3 py-2 rounded-lg font-bold text-xs md:text-sm outline-none transition-all shadow-sm flex-1 ${isGenerating ? 'opacity-50 cursor-not-allowed bg-[#ebe6df] text-[#8a847c]' : 'bg-[#e6e9e4] text-[#524d46] hover:bg-[#d5dcd3] border border-[#c4cec1]'}`}
-                          >
-                              {mainMenu === 'grammar' ? (
-                                  <React.Fragment>
-                                      <option value="All">全部混合</option>
-                                      <option value="PB1 U2 句型庫">PB1 U2 句型庫</option>
-                                      <option value="PB1 U5 句型庫">PB1 U5 句型庫</option>
-                                  </React.Fragment>
-                              ) : (
-                                  <React.Fragment>
-                                      <option value="All">全部混合</option>
-                                      <option value="WTK1-3">Words to Know 1~3 (綜合)</option>
-                                      <option value="Words to know 1">Words to know 1</option>
-                                      <option value="Words to know 2">Words to know 2</option>
-                                      <option value="Words to know 3">Words to know 3</option>
-                                      <option value="CHINGSHIN Kidboxs 3 U1">CHINGSHIN Kidboxs 3 U1</option>
-                                      <option value="CHINGSHIN Kidboxs 3 U2">CHINGSHIN Kidboxs 3 U2</option>
-                                      <option value="CHINGSHIN Kidboxs 3 U3">CHINGSHIN Kidboxs 3 U3</option>
-                                      <option value="CHINGSHIN Kidboxs 3 U5">CHINGSHIN Kidboxs 3 U5</option>
-                                      <option value="劍橋英檢 Movers">劍橋英檢 Movers</option>
-                                  </React.Fragment>
-                              )}
-                          </select>
+                          <div className="flex-1 w-full sm:w-auto flex flex-col gap-2">
+                              <select
+                                  value={isCustomMulti ? 'CustomMulti' : (selectedNotebooks.length === 3 && selectedNotebooks.includes('Words to know 1') ? 'WTK1-3' : selectedNotebooks[0] || 'All')}
+                                  onChange={handleNotebookChange}
+                                  disabled={isGenerating}
+                                  className={`w-full px-3 py-2 rounded-lg font-bold text-xs md:text-sm outline-none transition-all shadow-sm ${isGenerating ? 'opacity-50 cursor-not-allowed bg-[#ebe6df] text-[#8a847c]' : 'bg-[#e6e9e4] text-[#524d46] hover:bg-[#d5dcd3] border border-[#c4cec1]'}`}
+                              >
+                                  {mainMenu === 'grammar' ? (
+                                      <React.Fragment>
+                                          <option value="All">全部混合</option>
+                                          <option value="CustomMulti">自行多選 ⚙️</option>
+                                          <option value="PB1 U1 句型庫">PB1 U1 句型庫</option>
+                                          <option value="PB1 U2 句型庫">PB1 U2 句型庫</option>
+                                          <option value="PB1 U3 句型庫">PB1 U3 句型庫</option>
+                                          <option value="PB1 U4 句型庫">PB1 U4 句型庫</option>
+                                          <option value="PB1 U5 句型庫">PB1 U5 句型庫</option>
+                                          <option value="PB1 U6 句型庫">PB1 U6 句型庫</option>
+                                          <option value="PB1 U7 句型庫">PB1 U7 句型庫</option>
+                                          <option value="PB1 U8 句型庫">PB1 U8 句型庫</option>
+                                      </React.Fragment>
+                                  ) : (
+                                      <React.Fragment>
+                                          <option value="All">全部混合</option>
+                                          <option value="CustomMulti">自行多選 ⚙️</option>
+                                          <option value="WTK1-3">Words to Know 1~3 (綜合)</option>
+                                          <option value="Words to know 1">Words to know 1</option>
+                                          <option value="Words to know 2">Words to know 2</option>
+                                          <option value="Words to know 3">Words to know 3</option>
+                                          <option value="CHINGSHIN Kidboxs 3 U1">CHINGSHIN Kidboxs 3 U1</option>
+                                          <option value="CHINGSHIN Kidboxs 3 U2">CHINGSHIN Kidboxs 3 U2</option>
+                                          <option value="CHINGSHIN Kidboxs 3 U3">CHINGSHIN Kidboxs 3 U3</option>
+                                          <option value="CHINGSHIN Kidboxs 3 U4">CHINGSHIN Kidboxs 3 U4</option>
+                                          <option value="CHINGSHIN Kidboxs 3 U5">CHINGSHIN Kidboxs 3 U5</option>
+                                          <option value="CHINGSHIN Kidboxs 3 U6">CHINGSHIN Kidboxs 3 U6</option>
+                                          <option value="CHINGSHIN Kidboxs 3 U7">CHINGSHIN Kidboxs 3 U7</option>
+                                          <option value="CHINGSHIN Kidboxs 3 U8">CHINGSHIN Kidboxs 3 U8</option>
+                                          <option value="劍橋英檢 Movers">劍橋英檢 Movers</option>
+                                      </React.Fragment>
+                                  )}
+                              </select>
+                          </div>
                       </div>
-                      <button onClick={() => generateAIBatch(storage.memory, selectedNotebooks, vocabMode, mainMenu, activeGeminiModel, mistakePool)} disabled={isGenerating} className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-black text-sm text-white shadow-sm transition-all flex items-center justify-center gap-2 flex-shrink-0 border-b-4 ${isGenerating ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed' : 'bg-[#cca677] hover:bg-[#b89063] border-[#a68258] active:scale-95'}`}>{isGenerating ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18} fill="currentColor"/>}<span>開始測驗</span></button>
+                      <button onClick={() => generateAIBatch(storage.memory, selectedNotebooks, vocabMode, mainMenu, activeGeminiModel, mistakePool)} disabled={isGenerating || (isCustomMulti && selectedNotebooks.length === 0)} className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-black text-sm text-white shadow-sm transition-all flex items-center justify-center gap-2 flex-shrink-0 border-b-4 ${(isGenerating || (isCustomMulti && selectedNotebooks.length === 0)) ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed' : 'bg-[#cca677] hover:bg-[#b89063] border-[#a68258] active:scale-95'}`}>{isGenerating ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18} fill="currentColor"/>}<span>開始測驗</span></button>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 border-t border-[#d6cfc5] pt-3">
+                  
+                  {isCustomMulti && (
+                      <div className="w-full mt-1 p-3 bg-white border border-[#d6cfc5] rounded-xl flex flex-wrap gap-2 shadow-inner animate-in slide-in-from-top-2">
+                          {(mainMenu === 'grammar' ? allGrammarBanks : allVocabBanks).map(nb => (
+                              <button key={nb} onClick={() => handleToggleNotebook(nb)} disabled={isGenerating} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${selectedNotebooks.includes(nb) ? 'bg-[#cca677] text-white border-[#a68258] shadow-sm' : 'bg-[#f4f1ea] text-[#8a847c] border-[#d6cfc5] hover:bg-[#ebe6df]'}`}>
+                                  {nb} {selectedNotebooks.includes(nb) && <CheckCircle size={12} className="ml-1 inline"/>}
+                              </button>
+                          ))}
+                      </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 border-t border-[#d6cfc5] pt-3 mt-1">
                       <div className="flex flex-wrap items-center gap-1 flex-1 sm:flex-none justify-center sm:justify-start">
                           <div className="flex items-center bg-[#ebe6df] rounded-lg p-1 border border-[#d6cfc5]">
                               <span className="text-[11px] font-black text-[#7a8575] px-2 flex items-center"><Target size={14} className="mr-1"/>題型</span>
@@ -1232,7 +1272,7 @@ TASK:
                 {questions.length > 0 && (
                   <div className="mt-10 mb-20 text-center">
                     {!submitted ? (
-                      <button onClick={handleGradeAll} disabled={isGenerating} className={`w-full bg-[#8b9586] hover:bg-[#7a8575] text-white px-8 py-5 md:py-6 rounded-3xl text-2xl md:text-4xl font-black shadow-[0_8px_0_#6b7566] active:translate-y-2 flex justify-center items-center gap-3 ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}><CheckCircle size={36} className="hidden sm:block" /> {isGenerating ? '等待 AI 準備中...' : '檢查我的答案！'}</button>
+                      <button onClick={handleGradeAll} disabled={isGenerating || (isCustomMulti && selectedNotebooks.length === 0)} className={`w-full bg-[#8b9586] hover:bg-[#7a8575] text-white px-8 py-5 md:py-6 rounded-3xl text-2xl md:text-4xl font-black shadow-[0_8px_0_#6b7566] active:translate-y-2 flex justify-center items-center gap-3 ${isGenerating || (isCustomMulti && selectedNotebooks.length === 0) ? 'opacity-50 cursor-not-allowed' : ''}`}><CheckCircle size={36} className="hidden sm:block" /> {isGenerating ? '等待 AI 準備中...' : '檢查我的答案！'}</button>
                     ) : (
                       <div className="space-y-8 animate-in zoom-in text-center">
                         <div className="bg-[#f4ebd9] p-8 rounded-[3rem] border-[8px] border-white shadow-xl relative w-full text-center">
