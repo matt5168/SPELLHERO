@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (浮動日誌版 v17)</title>
+    <title>Spelling Hero - 互動家教版 (引擎指定與v2移除版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     
     <script src="database.js?v=5"></script>
-    <script src="engine.js?v=3"></script>
+    <script src="engine.js?v=4"></script>
 
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: manipulation; }
@@ -82,6 +82,7 @@
           const [openRouterModel, setOpenRouterModel] = useState(localStorage.getItem('sh_or_model') || 'openrouter/auto');
           const [inputGroqKey, setInputGroqKey] = useState(getVal('getGroqKey', ''));
           const [groqModel, setGroqModel] = useState(localStorage.getItem('sh_groq_model') || 'llama-3.3-70b-versatile');
+          const [defaultTeacher, setDefaultTeacher] = useState(localStorage.getItem('sh_default_teacher') || 'openrouter');
           
           const [enginesEnabled, setEnginesEnabled] = useState({
               groq: localStorage.getItem('sh_enable_groq') !== 'false',
@@ -97,7 +98,14 @@
               });
           };
 
-          const [promptMode, setPromptMode] = useState(localStorage.getItem('sh_prompt_mode') || 'v1');
+          const [promptMode, setPromptMode] = useState(() => {
+              let m = localStorage.getItem('sh_prompt_mode') || 'v1';
+              if (m === 'v2') {
+                  m = 'v1';
+                  try { localStorage.setItem('sh_prompt_mode', 'v1'); } catch(e) {}
+              }
+              return m;
+          });
           const defaultCustomPrompt = `You are an English tutor for a child in Taiwan.
 Question: "{q.sentence}"
 Target Answer: "{safeAnswerStr}"
@@ -161,7 +169,7 @@ TASK:
                       orModel: localStorage.getItem('sh_or_model')||'openrouter/auto', groqModel: localStorage.getItem('sh_groq_model')||'llama-3.3-70b-versatile',
                       geminiKey: localStorage.getItem('gemini_api_key')||'', orKey: localStorage.getItem('openrouter_api_key')||'', groqKey: localStorage.getItem('groq_api_key')||'', openAITtsKey: localStorage.getItem('sh_openai_tts_key')||'', routingMode: localStorage.getItem('sh_routing_mode')||'dynamic',
                       enableGroq: localStorage.getItem('sh_enable_groq'), enableGoogle: localStorage.getItem('sh_enable_google'), enableOr: localStorage.getItem('sh_enable_or'), enableOpenAI: localStorage.getItem('sh_enable_openai'),
-                      promptMode: localStorage.getItem('sh_prompt_mode')||'v1', customPrompt: localStorage.getItem('sh_custom_prompt')||defaultCustomPrompt
+                      promptMode: localStorage.getItem('sh_prompt_mode')||'v1', customPrompt: localStorage.getItem('sh_custom_prompt')||defaultCustomPrompt, defaultTeacher: localStorage.getItem('sh_default_teacher')||'openrouter'
                   }
               };
               const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob);
@@ -184,7 +192,12 @@ TASK:
                           if (s.geminiKey) localStorage.setItem('gemini_api_key', s.geminiKey); if (s.orKey) localStorage.setItem('openrouter_api_key', s.orKey); if (s.groqKey) localStorage.setItem('groq_api_key', s.groqKey); if (s.openAITtsKey) localStorage.setItem('sh_openai_tts_key', s.openAITtsKey);
                           if (s.routingMode) localStorage.setItem('sh_routing_mode', s.routingMode);
                           if (s.enableGroq) localStorage.setItem('sh_enable_groq', s.enableGroq); if (s.enableGoogle) localStorage.setItem('sh_enable_google', s.enableGoogle); if (s.enableOr) localStorage.setItem('sh_enable_or', s.enableOr); if (s.enableOpenAI) localStorage.setItem('sh_enable_openai', s.enableOpenAI);
-                          if (s.promptMode) localStorage.setItem('sh_prompt_mode', s.promptMode); if (s.customPrompt) localStorage.setItem('sh_custom_prompt', s.customPrompt);
+                          if (s.promptMode) {
+                              let m = s.promptMode;
+                              if (m === 'v2') m = 'v1';
+                              localStorage.setItem('sh_prompt_mode', m);
+                          }
+                          if (s.customPrompt) localStorage.setItem('sh_custom_prompt', s.customPrompt); if (s.defaultTeacher) localStorage.setItem('sh_default_teacher', s.defaultTeacher);
                       }
                       setTimeout(() => window.location.reload(), 1500);
                   } catch(err) { showAlert('❌ 解析失敗：' + err.message); }
@@ -254,6 +267,7 @@ TASK:
                   
                   localStorage.setItem('sh_prompt_mode', promptMode);
                   localStorage.setItem('sh_custom_prompt', customPromptText);
+                  localStorage.setItem('sh_default_teacher', defaultTeacher);
 
                   setDiagMsg("✅ 金鑰與設定已儲存！"); 
                   if(window.sharedAIClient) {
@@ -573,8 +587,6 @@ TASK:
               
               if (mode === 'v1') {
                   return `You are a friendly English tutor for an elementary school student in Taiwan.\nQuestion: "${qSentence}"\nTarget Answer: "${safeAns}"\nStudent's Answer: "${studentAns}"\n${baseTask}MUST be extremely simple, brief, and easy for a 10-year-old child to understand. Avoid complex grammar terms. Maximum 3 sentences per section.\n${baseFormat}`;
-              } else if (mode === 'v2') {
-                  return `You are an enthusiastic English teacher for kids in Taiwan.\nQuestion: "${qSentence}"\nTarget Answer: "${safeAns}"\nStudent's Answer: "${studentAns}"\n${baseTask}Talk like you are chatting with a 3rd grader. Keep it short and use fun analogies if possible. NO hard grammar jargon.\n${baseFormat}`;
               } else if (mode === 'v3') {
                   return `You are a clear and concise English tutor for elementary students in Taiwan.\nQuestion: "${qSentence}"\nTarget Answer: "${safeAns}"\nStudent's Answer: "${studentAns}"\n${baseTask}Keep it absolutely brief and conversational. Use bullet points if necessary. Do not use advanced linguistic terms.\n${baseFormat}`;
               } else {
@@ -614,7 +626,10 @@ TASK:
                   };
                   
                   let providersToTry = ['groq', 'google', 'openrouter', 'openai'].filter(p => enginesEnabled[p]);
-                  if (type === 'exp') { providersToTry = ['groq', 'google', 'openrouter'].filter(p => enginesEnabled[p]); }
+                  if (type === 'exp') { 
+                      const others = ['groq', 'google', 'openrouter', 'openai'].filter(p => p !== defaultTeacher);
+                      providersToTry = [defaultTeacher, ...others].filter(p => enginesEnabled[p]); 
+                  }
 
                   if (targetProvider) {
                       providersToTry = [targetProvider].filter(p => enginesEnabled[p]);
@@ -653,10 +668,10 @@ TASK:
           };
 
           const cyclePromptMode = (currentIndex) => {
-              const modes = ['v1', 'v2', 'v3', 'custom'];
+              const modes = ['v1', 'v3', 'custom'];
               const current = qPromptModes[currentIndex] || promptMode;
               let nextIdx = modes.indexOf(current) + 1;
-              if (nextIdx >= modes.length) nextIdx = 0;
+              if (nextIdx >= modes.length || nextIdx < 0) nextIdx = 0;
               return modes[nextIdx];
           };
 
@@ -859,18 +874,27 @@ TASK:
                                         <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><Edit3 size={16}/> AI 老師解說風格：</span>
                                         <select value={promptMode} onChange={(e) => {setPromptMode(e.target.value); localStorage.setItem('sh_prompt_mode', e.target.value);}} className="w-full bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono">
                                             <option value="v1">v1 極簡口訣版</option>
-                                            <option value="v2">v2 生動比喻版</option>
                                             <option value="v3">v3 重點條列版</option>
                                             <option value="custom">⚙️ 自訂專屬指令</option>
                                         </select>
                                     </div>
-                                    {promptMode === 'custom' && (
-                                        <div className="flex flex-col gap-2 animate-in fade-in">
-                                            <div className="text-[#cca677] text-[10px] font-bold px-1 leading-tight">⚠️ 警告：請勿刪除 [OVERRIDE_CORRECT] 相關指令，以免破壞計分。變數支援：{`{q.sentence}`}, {`{safeAnswerStr}`}, {`{studentAns}`}</div>
-                                            <textarea value={customPromptText} onChange={e => {setCustomPromptText(e.target.value); localStorage.setItem('sh_custom_prompt', e.target.value);}} className="w-full h-40 bg-[#3d3935] border border-[#2d2a26] rounded-lg p-3 text-xs text-white font-mono placeholder-[#6b655f] outline-none shadow-inner" spellCheck="false"></textarea>
-                                        </div>
-                                    )}
+                                    <div className="flex flex-col gap-2">
+                                        <span className="text-[#e6e9e4] font-bold text-sm">👩‍🏫 預設解說老師：</span>
+                                        <select value={defaultTeacher} onChange={e => {setDefaultTeacher(e.target.value); localStorage.setItem('sh_default_teacher', e.target.value);}} className="w-full bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono">
+                                            <option value="openrouter">OpenRouter</option>
+                                            <option value="groq">Groq</option>
+                                            <option value="google">Gemini</option>
+                                            <option value="openai">OpenAI</option>
+                                        </select>
+                                    </div>
                                 </div>
+
+                                {promptMode === 'custom' && (
+                                    <div className="flex flex-col gap-2 animate-in fade-in pt-2">
+                                        <div className="text-[#cca677] text-[10px] font-bold px-1 leading-tight">⚠️ 警告：請勿刪除 [OVERRIDE_CORRECT] 相關指令，以免破壞計分。變數支援：{`{q.sentence}`}, {`{safeAnswerStr}`}, {`{studentAns}`}</div>
+                                        <textarea value={customPromptText} onChange={e => {setCustomPromptText(e.target.value); localStorage.setItem('sh_custom_prompt', e.target.value);}} className="w-full h-40 bg-[#3d3935] border border-[#2d2a26] rounded-lg p-3 text-xs text-white font-mono placeholder-[#6b655f] outline-none shadow-inner" spellCheck="false"></textarea>
+                                    </div>
+                                )}
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#7a8575] pt-4">
                                     <div className="flex flex-col gap-2">
@@ -1181,7 +1205,7 @@ TASK:
                                           <div className={`text-[#524d46] text-sm md:text-base mb-3 leading-relaxed ${dynamicContent[`exp_${i}`].includes('重試') ? 'font-bold text-[#cca677] animate-pulse' : ''}`}>{renderFormattedText(dynamicContent[`exp_${i}`])}</div>
                                           {!dynamicContent[`exp_${i}`].includes('重試') && (
                                           <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#d6cfc5] pt-3 mt-1">
-                                              <button onClick={() => { const nextM = cyclePromptMode(i); handleOnDemand(i, 'exp', true, 0, nextM, true, dynamicProviders[`exp_${i}`]); }} className="text-sm font-bold text-[#b5847e] bg-[#f2e7e6] px-3 py-1.5 rounded-lg border border-[#dcb5b0] flex items-center gap-1.5 shadow-sm active:scale-95 hover:bg-[#e8d5d3] transition-colors"><RefreshCcw size={16}/> 查看新解釋 ({qPromptModes[i] === 'v1' ? '極簡' : qPromptModes[i] === 'v2' ? '比喻' : qPromptModes[i] === 'v3' ? '條列' : qPromptModes[i] === 'custom' ? '自訂' : '切換'})</button>
+                                              <button onClick={() => { const nextM = cyclePromptMode(i); handleOnDemand(i, 'exp', true, 0, nextM, true, dynamicProviders[`exp_${i}`]); }} className="text-sm font-bold text-[#b5847e] bg-[#f2e7e6] px-3 py-1.5 rounded-lg border border-[#dcb5b0] flex items-center gap-1.5 shadow-sm active:scale-95 hover:bg-[#e8d5d3] transition-colors"><RefreshCcw size={16}/> 查看新解釋 ({qPromptModes[i] === 'v1' ? '極簡' : qPromptModes[i] === 'v3' ? '條列' : qPromptModes[i] === 'custom' ? '自訂' : '切換'})</button>
                                           </div>
                                           )}
                                       </div>
