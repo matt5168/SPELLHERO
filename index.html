@@ -193,7 +193,7 @@ TASK:
           };
           
           const handleClearPoolCache = () => {
-              if (window.confirm("確定要清空預載池？")) { try { localStorage.removeItem('sh_qpool_v33'); setPoolStats(p => ({ ...p, size: 0 })); addLog("🗑️ 已清空預載快取"); } catch(e) {} }
+              if (window.confirm("確定要清空預載池？")) { try { localStorage.removeItem('sh_qpool_v34'); setPoolStats(p => ({ ...p, size: 0 })); addLog("🗑️ 已清空預載快取"); } catch(e) {} }
           };
 
           const logScrollRef = useRef(null);
@@ -228,7 +228,8 @@ TASK:
                 
                 setStorage({ history: h, memory: m, stats: s, coins: c, exp: exp, level: lvl }); setMistakePool(mist); setApiUsage(apiU); 
                 
-                const currentPool = JSON.parse(localStorage.getItem('sh_qpool_v33') || '{}'); let sz = 0; Object.values(currentPool).forEach(arr => sz += arr.length); setPoolStats(p => ({...p, size: sz}));
+                // 強制升級快取版號 v34
+                const currentPool = JSON.parse(localStorage.getItem('sh_qpool_v34') || '{}'); let sz = 0; Object.values(currentPool).forEach(arr => sz += arr.length); setPoolStats(p => ({...p, size: sz}));
 
                 if (window.sharedAIClient) {
                     window.sharedAIClient.updateKeys(inputKey || window.getGeminiKey(), inputOrKey || window.getOpenRouterKey(), inputGroqKey || window.getGroqKey(), openAITtsKey || window.getOpenAITtsKey());
@@ -338,7 +339,7 @@ TASK:
             readyRef.current = false; overrideTriggeredRef.current = {};
             
             setDynamicContent({}); setLoadingStates({}); setDynamicModels({}); setDynamicProviders({});
-            const currentPool = JSON.parse(localStorage.getItem('sh_qpool_v33') || '{}');
+            const currentPool = JSON.parse(localStorage.getItem('sh_qpool_v34') || '{}');
             clearLogs(); setStreamCount(0); setAiStatus("初始化連線...");
             
             let activeDB = [];
@@ -379,7 +380,7 @@ TASK:
                 } else { needed.push({...item, poolKey: key}); }
             });
 
-            try { localStorage.setItem('sh_qpool_v33', JSON.stringify(currentPool)); } catch(e){}
+            try { localStorage.setItem('sh_qpool_v34', JSON.stringify(currentPool)); } catch(e){}
             let requestItems = needed.map((item, idx) => ({ ...item, reqUid: `req_${idx}_${Math.random()}` }));
             let newSz = 0; Object.values(currentPool).forEach(arr => newSz += arr.length); setPoolStats({ cached: readyQs.length, fetched: requestItems.length, size: newSz });
 
@@ -409,14 +410,14 @@ TASK:
                         if (loopGuard > 1) { const delay = Math.pow(2, loopGuard - 1) * 1000 + Math.floor(Math.random() * 1000); addLog(`[防護] 冷卻 ${(delay/1000).toFixed(1)}s...`); await new Promise(r => setTimeout(r, delay)); }
                         
                         let systemPrompt = ""; let userQuery = "";
-                        // 🔥 升級：強制 AI 輸出完整翻譯，嚴禁挖洞
+                        // 🔥 全新防呆 Prompt：嚴禁 AI 挖洞，並強制翻譯答案
                         if (targetMenu === 'grammar') {
                             const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)}`);
                             systemPrompt = `ESL grammar fill-blank, 3rd grade. RULES:
     ① STRICT SUBJECT: Keep EXACT target answer & grammatical subject from pattern. Change ONLY the situation.
     ② PRONOUN CONTEXT: If answer is pronoun, write specific name BEFORE the blank.
     ③ OPTIONS: 'o' MUST have 4 items.
-    ④ JSON only: [{"idx":0,"a":"answer","s":"English sentence with ______","t":"Full Chinese translation (MUST include the meaning of the answer word. NO blanks.)","o":["opt1","opt2","opt3","opt4"]}]
+    ④ JSON only: [{"idx":0,"a":"answer","s":"English sentence with ______","t":"完整繁體中文翻譯(必須將答案單字直接翻譯並寫入句子中，絕對不可有底線)","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH. Patterns:\n${patterns.join('\n')}`;
                         } else {
@@ -425,7 +426,7 @@ TASK:
     ① Simple formal English. Blank=______(6 underscores).
     ② CONTEXT: Sentence MUST contain clues.
     ③ OPTIONS: 'o' MUST have 4 items.
-    ④ JSON only: [{"idx":0,"a":"answer","s":"English sentence with ______","t":"Full Chinese translation (MUST include the meaning of the answer word. NO blanks.)","h":"","o":["opt1","opt2","opt3","opt4"]}]
+    ④ JSON only: [{"idx":0,"a":"answer","s":"English sentence with ______","t":"完整繁體中文翻譯(必須將答案單字直接翻譯並寫入句子中，絕對不可有底線)","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH. Words:\n${wordsToGenerate.join('\n')}`;
                         }
@@ -438,7 +439,7 @@ TASK:
                             const parsedObjects = window.SYSTEM_ENGINE.extractJSONObjects(currentFullText);
                             if (parsedObjects.length > lastParsedCount) {
                                 const newObjs = parsedObjects.slice(lastParsedCount); lastParsedCount = parsedObjects.length;
-                                let addedToUI = false; let latestPool = JSON.parse(localStorage.getItem('sh_qpool_v33') || '{}'); let hasUpdates = false;
+                                let addedToUI = false; let latestPool = JSON.parse(localStorage.getItem('sh_qpool_v34') || '{}'); let hasUpdates = false;
 
                                 newObjs.forEach((rawQ, idx) => {
                                     if (!rawQ) return; const q = {}; Object.keys(rawQ).forEach(k => { q[k.toLowerCase()] = rawQ[k]; });
@@ -448,14 +449,13 @@ TASK:
                                         let ansStr = String(q.a || q.answer || "").trim().toLowerCase();
                                         expectedItem = chunkPending.find(item => String(item.answer||"").trim().toLowerCase() === ansStr);
                                     }
-                                    
-                                    // 防護：確保答案永遠不會變成空字串
+
                                     let ans = String(q.a || q.answer || (expectedItem ? expectedItem.answer : "")).trim();
                                     if (!ans) ans = "UNKNOWN";
-
+                                    
                                     let reqUid = expectedItem ? expectedItem.reqUid : `req_${Math.random()}`; 
                                     let refKey = expectedItem ? expectedItem.poolKey : `word_${ans}`;
-                                    
+
                                     let rawOptions = Array.isArray(q.o) ? q.o : (Array.isArray(q.options) ? q.options : []);
                                     let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ans.toLowerCase());
                                     if (distractors.length < 3) distractors = [...distractors, ...window.generateVocabOptions(ans, activeDB).filter(o=>o!==ans)];
@@ -475,7 +475,6 @@ TASK:
 
                                     let sentence = (q.s || q.sentence) ? String(q.s || q.sentence) : "";
                                     sentence = sentence.replace(/[a-zA-Z]*_{2,}[a-zA-Z]*/g, '______');
-                                    // 防護：如果 AI 忘記加底線，強制將答案替換為底線
                                     if (sentence.indexOf('______') === -1) { 
                                         const reg = new RegExp('\\b' + window.escapeRegExp(ans) + '\\b', 'gi'); 
                                         sentence = sentence.replace(reg, '______'); 
@@ -485,10 +484,9 @@ TASK:
                                     let finalHint = "無提示";
                                     if (targetMenu !== 'grammar') { const dictHint = window.SH_DICTIONARY && window.SH_DICTIONARY[ans.toLowerCase()]; if (dictHint) finalHint = dictHint; }
                                     
-                                    let cleanTrans = (q.t || q.translation) || ""; 
-                                    cleanTrans = cleanTrans.replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').trim();
-                                    const dictWord = (window.SH_DICTIONARY && window.SH_DICTIONARY[ans.toLowerCase()]) ? window.SH_DICTIONARY[ans.toLowerCase()].split(/[;；]/)[0] : ans;
-                                    cleanTrans = cleanTrans.replace(/[_＿]{2,}/g, dictWord);
+                                    // 更強韌的翻譯解析
+                                    let rawT = q.t || q.translation || q.trans || q.chinese || q.c || "";
+                                    let cleanTrans = String(rawT).replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').trim();
 
                                     const finalQ = { id: "ai_" + Math.random(), poolKey: refKey, runtimeId: Math.random(), answer: ans, sentence: sentence, translation: cleanTrans, hint: finalHint, explanation: q.e || q.explanation || "", options: safeOptions, isAI: true, modelName: cardModelName };
 
@@ -499,7 +497,7 @@ TASK:
                                     }
                                 });
 
-                                if (hasUpdates) { try { localStorage.setItem('sh_qpool_v33', JSON.stringify(latestPool)); } catch(e){} let finalSz = 0; Object.values(latestPool).forEach(arr => finalSz += arr.length); setPoolStats(p => ({...p, size: finalSz})); }
+                                if (hasUpdates) { try { localStorage.setItem('sh_qpool_v34', JSON.stringify(latestPool)); } catch(e){} let finalSz = 0; Object.values(latestPool).forEach(arr => finalSz += arr.length); setPoolStats(p => ({...p, size: finalSz})); }
                                 if (addedToUI) {
                                     setQuestions([...currentUIQs]); setAnswers(p => { const n = [...p]; while(n.length<currentUIQs.length) n.push(''); return n; });
                                     setHints(p => { const n = [...p]; while(n.length<currentUIQs.length) n.push(false); return n; });
@@ -1063,17 +1061,18 @@ TASK:
                               <div className="absolute -top-10 bg-[#b5847e] text-white px-4 py-1.5 rounded-full font-black shadow-md border-2 border-white flex items-center gap-2"><XCircle size={16}/> 拼字錯誤</div>
                               <span className="text-sm font-bold text-[#a6a198] mt-2 mb-1">正確答案</span>
                               <div className="text-4xl md:text-5xl font-black text-[#524d46] tracking-[0.1em] my-2" onClick={() => playTTS(safeAnswerStr, false)}>
-                                  {safeAnswerStr || <span className="text-red-500">系統缺漏</span>}
+                                  {safeAnswerStr || <span className="text-[#b5847e]">系統缺漏</span>}
                               </div>
                               {mainMenu !== 'grammar' && ( <button onClick={() => playTTS(safeAnswerStr, false)} className="mt-4 bg-white text-[#8c6b44] px-5 py-2.5 rounded-full font-black shadow-sm border border-[#e0c9aa] active:scale-95 flex items-center gap-2"><Megaphone size={18}/> 聆聽發音</button> )}
                           </div>
                       )}
                       
+                      {/* 🔥 無敵中英對照區塊 */}
                       <div className="mt-5 w-full bg-white/60 p-4 md:p-5 rounded-2xl border border-[#c4cec1] shadow-sm text-left">
                           <div className="text-xs font-black text-[#7a8575] mb-2 flex items-center gap-1 uppercase tracking-widest"><BookOpen size={14}/> 完整中英對照</div>
                           
                           <div className="text-lg md:text-xl font-black text-[#524d46] mb-2 leading-relaxed">
-                              {String(q.sentence||"").split(/_{2,}/).map((part, idx, arr) => (
+                              {String(q.sentence||"").replace(/_{2,}/g, '______').split('______').map((part, idx, arr) => (
                                   <span key={idx}>
                                       {part}
                                       {idx < arr.length - 1 && <span className="text-[#cca677] border-b-[3px] border-[#cca677] mx-1 px-1 pb-0.5">{safeAnswerStr || "???"}</span>}
@@ -1085,7 +1084,7 @@ TASK:
                               {String(q.translation || "目前尚無翻譯").split(/[_＿]{2,}/).map((part, idx, arr) => (
                                   <span key={idx}>
                                       {part}
-                                      {idx < arr.length - 1 && <span className="text-[#cca677] mx-1">{ (window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) ? window.SH_DICTIONARY[safeAnswerStr.toLowerCase()].split(/[;；]/)[0] : safeAnswerStr }</span>}
+                                      {idx < arr.length - 1 && <span className="text-[#cca677] mx-1">{ (window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) ? window.SH_DICTIONARY[safeAnswerStr.toLowerCase()].split(/[;；]/)[0] : "???" }</span>}
                                   </span>
                               ))}
                           </div>
