@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (下拉選單版 v15)</title>
+    <title>Spelling Hero - 互動家教版 (選單優化版 v16)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -357,7 +357,6 @@ TASK:
             while (selected.length < targetTotal && tempPool.length > 0) {
                 let pick = Math.floor(Math.random() * tempPool.length);
                 if (targetMenu !== 'review') {
-                    // 保留原有的錯題加權機制
                     let tw = 0; const ws = tempPool.map(q => { 
                         const safeAns = String(q.answer||"").trim().toLowerCase(); const s = m[safeAns] || 0; 
                         let w = s < 0 ? 25 : s > 2 ? 0.5 : 10; 
@@ -813,7 +812,10 @@ TASK:
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="flex flex-col gap-2">
                                         <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><Activity size={16}/> 路由模式：</span>
-                                        <div className="flex gap-1 bg-[#6b7566] p-1 rounded-lg"><button onClick={() => handleRoutingModeChange('dynamic')} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${routingMode === 'dynamic' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>🚦 動態</button><button onClick={() => handleRoutingModeChange('sequential')} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${routingMode === 'sequential' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>➡️ 順序</button></div>
+                                        <select value={routingMode} onChange={(e) => handleRoutingModeChange(e.target.value)} className="w-full bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono">
+                                            <option value="dynamic">🚦 動態 (自動跳過故障)</option>
+                                            <option value="sequential">➡️ 順序 (嚴格依照備援順位)</option>
+                                        </select>
                                     </div>
                                     <div className="flex flex-col gap-2 animate-in fade-in">
                                         <span className="text-[#e6e9e4] font-bold text-sm">{routingMode === 'dynamic' ? '🚦 即時狀態：' : '🤖 備援順序：'}</span>
@@ -838,12 +840,12 @@ TASK:
                                 <div className="grid grid-cols-1 gap-4 border-t border-[#7a8575] pt-4">
                                     <div className="flex flex-col gap-2">
                                         <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><Edit3 size={16}/> AI 老師解說風格：</span>
-                                        <div className="flex flex-wrap gap-1 w-full bg-[#6b7566] p-1 rounded-lg">
-                                            <button onClick={() => {setPromptMode('v1'); localStorage.setItem('sh_prompt_mode', 'v1');}} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${promptMode === 'v1' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>v1 極簡</button>
-                                            <button onClick={() => {setPromptMode('v2'); localStorage.setItem('sh_prompt_mode', 'v2');}} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${promptMode === 'v2' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>v2 比喻</button>
-                                            <button onClick={() => {setPromptMode('v3'); localStorage.setItem('sh_prompt_mode', 'v3');}} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${promptMode === 'v3' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>v3 條列</button>
-                                            <button onClick={() => {setPromptMode('custom'); localStorage.setItem('sh_prompt_mode', 'custom');}} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${promptMode === 'custom' ? 'bg-[#cca677] text-white shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>⚙️ 自訂</button>
-                                        </div>
+                                        <select value={promptMode} onChange={(e) => {setPromptMode(e.target.value); localStorage.setItem('sh_prompt_mode', e.target.value);}} className="w-full bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono">
+                                            <option value="v1">v1 極簡口訣版</option>
+                                            <option value="v2">v2 生動比喻版</option>
+                                            <option value="v3">v3 重點條列版</option>
+                                            <option value="custom">⚙️ 自訂專屬指令</option>
+                                        </select>
                                     </div>
                                     {promptMode === 'custom' && (
                                         <div className="flex flex-col gap-2 animate-in fade-in">
@@ -870,7 +872,11 @@ TASK:
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#7a8575] pt-4">
                                     <div className="flex flex-col gap-2">
                                         <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><Layout size={16}/> 畫面排版：</span>
-                                        <div className="flex gap-1 w-full bg-[#6b7566] p-1 rounded-lg"><button onClick={() => handleUiLayoutChange('layout1')} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout1' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>置中</button><button onClick={() => handleUiLayoutChange('layout2')} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout2' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>分流</button><button onClick={() => handleUiLayoutChange('layout3')} className={`flex-1 px-2 py-1.5 rounded-md text-xs font-bold transition-all ${uiLayout === 'layout3' ? 'bg-white text-[#524d46] shadow-sm' : 'text-[#c4cec1] hover:text-white'}`}>卡片</button></div>
+                                        <select value={uiLayout} onChange={e => handleUiLayoutChange(e.target.value)} className="w-full bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono">
+                                            <option value="layout1">置中對齊 (適合手機)</option>
+                                            <option value="layout2">左右分流 (適合平板/電腦)</option>
+                                            <option value="layout3">卡片凸顯 (沉浸式閱讀)</option>
+                                        </select>
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><Volume2 size={16}/> 發音引擎：</span>
@@ -938,7 +944,6 @@ TASK:
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
                           <div className="flex items-center gap-1.5 font-black text-[#7a8575] text-[13px] min-w-max px-1"><BookOpen size={16}/> 題庫來源</div>
                           
-                          {/* 🔥 下拉選單修復區塊 */}
                           <select
                               value={selectedNotebooks.length === 3 && selectedNotebooks.includes('Words to know 1') ? 'WTK1-3' : selectedNotebooks[0]}
                               onChange={handleNotebookChange}
@@ -970,16 +975,24 @@ TASK:
                       <button onClick={() => generateAIBatch(storage.memory, selectedNotebooks, vocabMode, mainMenu, activeGeminiModel, mistakePool)} disabled={isGenerating} className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-black text-sm text-white shadow-sm transition-all flex items-center justify-center gap-2 flex-shrink-0 border-b-4 ${isGenerating ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed' : 'bg-[#cca677] hover:bg-[#b89063] border-[#a68258] active:scale-95'}`}>{isGenerating ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18} fill="currentColor"/>}<span>開始測驗</span></button>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3 border-t border-[#d6cfc5] pt-3">
-                      <div className="flex flex-wrap items-center gap-1 bg-[#ebe6df] rounded-lg p-1 border border-[#d6cfc5] flex-1 sm:flex-none justify-center sm:justify-start">
-                          <span className="text-[11px] font-black text-[#7a8575] px-2 hidden sm:flex items-center"><Target size={14} className="mr-1"/>題型</span>
-                          <button onClick={() => handleModeChange('mixed')} disabled={isGenerating} className={`px-3 py-1.5 rounded font-bold text-xs transition-all ${vocabMode==='mixed'?'bg-[#f4f1ea] shadow-sm text-[#5a6356] ring-1 ring-[#d6cfc5]':'text-[#8a847c] hover:text-[#524d46]'}`}>綜合</button>
-                          <button onClick={() => handleModeChange('word')} disabled={isGenerating} className={`px-3 py-1.5 rounded font-bold text-xs transition-all ${vocabMode==='word'?'bg-[#f4f1ea] shadow-sm text-[#5a6356] ring-1 ring-[#d6cfc5]':'text-[#8a847c] hover:text-[#524d46]'}`}>單字</button>
-                          <button onClick={() => handleModeChange('phrase')} disabled={isGenerating} className={`px-3 py-1.5 rounded font-bold text-xs transition-all ${vocabMode==='phrase'?'bg-[#f4f1ea] shadow-sm text-[#5a6356] ring-1 ring-[#d6cfc5]':'text-[#8a847c] hover:text-[#524d46]'}`}>片語</button>
+                      <div className="flex flex-wrap items-center gap-1 flex-1 sm:flex-none justify-center sm:justify-start">
+                          <div className="flex items-center bg-[#ebe6df] rounded-lg p-1 border border-[#d6cfc5]">
+                              <span className="text-[11px] font-black text-[#7a8575] px-2 flex items-center"><Target size={14} className="mr-1"/>題型</span>
+                              <select value={vocabMode} onChange={e => handleModeChange(e.target.value)} disabled={isGenerating} className="bg-[#f4f1ea] text-[#5a6356] font-bold text-xs px-2 py-1 rounded outline-none cursor-pointer border border-[#d6cfc5]">
+                                  <option value="mixed">綜合</option>
+                                  <option value="word">單字</option>
+                                  <option value="phrase">片語</option>
+                              </select>
+                          </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-1 bg-[#ebe6df] rounded-lg p-1 border border-[#d6cfc5] flex-1 sm:flex-none justify-center sm:justify-start">
-                          <span className="text-[11px] font-black text-[#a68258] px-2 hidden sm:flex items-center"><MousePointerClick size={14} className="mr-1"/>模式</span>
-                          <button onClick={() => setQuizMode('multiple_choice')} disabled={isGenerating} className={`px-3 py-1.5 rounded font-bold text-xs transition-all ${quizMode==='multiple_choice'?'bg-[#f4f1ea] shadow-sm text-[#8c6b44] ring-1 ring-[#d6cfc5]':'text-[#8a847c] hover:text-[#524d46]'}`}>選擇</button>
-                          <button onClick={() => setQuizMode('fill_in')} disabled={isGenerating} className={`px-3 py-1.5 rounded font-bold text-xs transition-all ${quizMode==='fill_in'?'bg-[#f4f1ea] shadow-sm text-[#8c6b44] ring-1 ring-[#d6cfc5]':'text-[#8a847c] hover:text-[#524d46]'}`}>鍵盤</button>
+                      <div className="flex flex-wrap items-center gap-1 flex-1 sm:flex-none justify-center sm:justify-start">
+                          <div className="flex items-center bg-[#ebe6df] rounded-lg p-1 border border-[#d6cfc5]">
+                              <span className="text-[11px] font-black text-[#a68258] px-2 flex items-center"><MousePointerClick size={14} className="mr-1"/>模式</span>
+                              <select value={quizMode} onChange={e => setQuizMode(e.target.value)} disabled={isGenerating} className="bg-[#f4f1ea] text-[#8c6b44] font-bold text-xs px-2 py-1 rounded outline-none cursor-pointer border border-[#d6cfc5]">
+                                  <option value="multiple_choice">選擇</option>
+                                  <option value="fill_in">鍵盤</option>
+                              </select>
+                          </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-3 bg-[#ebe6df] rounded-lg p-1.5 px-3 border border-[#d6cfc5] w-full sm:w-auto sm:ml-auto justify-between sm:justify-start">
                           <div className="flex items-center gap-2"><Volume2 size={16} className="text-[#8b9586]"/><div onClick={() => setConfig(p => ({...p,autoRead:!p.autoRead}))} className={`w-9 h-5 rounded-full p-0.5 cursor-pointer transition-colors flex items-center shadow-inner ${config.autoRead?'bg-[#8b9586]':'bg-[#c5bbae]'}`}><div className={`bg-[#f4f1ea] w-4 h-4 rounded-full shadow-sm transform transition-transform ${config.autoRead?'translate-x-4':''}`}/></div></div><div className="w-px h-4 bg-[#c5bbae] hidden sm:block"></div>
