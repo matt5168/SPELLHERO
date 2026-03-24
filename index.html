@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (完美標點版 v12)</title>
+    <title>Spelling Hero - 互動家教版 (下拉選單版 v14)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -272,13 +272,16 @@ TASK:
               if (menu === 'review') generateAIBatch(storage.memory, ['All'], vocabMode, menu, activeGeminiModel, mistakePool); 
           };
           
-          const handleNotebookChange = nb => {
+          // 🔥 替換為支援下拉選單事件，並新增 WTK 1~3 複合群組解析
+          const handleNotebookChange = e => {
+              const val = e.target.value;
               let newSelection;
-              if (nb === 'All') newSelection = ['All']; 
-              else {
-                  if (selectedNotebooks.includes('All')) newSelection = [nb]; 
-                  else if (selectedNotebooks.includes(nb)) { newSelection = selectedNotebooks.filter(n => n !== nb); if (newSelection.length === 0) newSelection = ['All']; } 
-                  else newSelection = [...selectedNotebooks, nb];
+              if (val === 'All') {
+                  newSelection = ['All'];
+              } else if (val === 'WTK1-3') {
+                  newSelection = ['Words to know 1', 'Words to know 2', 'Words to know 3'];
+              } else {
+                  newSelection = [val];
               }
               setSelectedNotebooks(newSelection); setQuestions([]); setReady(false); readyRef.current = false; overrideTriggeredRef.current = {};
           };
@@ -409,7 +412,6 @@ TASK:
                         if (loopGuard > 1) { const delay = Math.pow(2, loopGuard - 1) * 1000 + Math.floor(Math.random() * 1000); addLog(`[防護] 冷卻 ${(delay/1000).toFixed(1)}s...`); await new Promise(r => setTimeout(r, delay)); }
                         
                         let systemPrompt = ""; let userQuery = "";
-                        // 🔥 全新防呆 Prompt：嚴禁 AI 挖洞，並強制翻譯答案
                         if (targetMenu === 'grammar') {
                             const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)}`);
                             systemPrompt = `ESL grammar fill-blank, 3rd grade. RULES:
@@ -472,10 +474,9 @@ TASK:
                                         });
                                     }
 
-                                    // 🔥 標點符號與底線的終極清洗
                                     let sentence = (q.s || q.sentence) ? String(q.s || q.sentence).trim() : "";
-                                    sentence = sentence.replace(/\s+([.!?])/g, '$1'); // 清除懸空標點 (e.g. "____ .")
-                                    if (sentence && !/[.!?]$/.test(sentence)) sentence += "."; // 補齊遺漏的句號
+                                    sentence = sentence.replace(/\s+([.!?])/g, '$1');
+                                    if (sentence && !/[.!?]$/.test(sentence)) sentence += ".";
                                     
                                     sentence = sentence.replace(/[a-zA-Z]*_{2,}[a-zA-Z]*/g, '______');
                                     if (sentence.indexOf('______') === -1) { 
@@ -492,6 +493,8 @@ TASK:
                                     
                                     let rawT = q.t || q.translation || q.trans || q.chinese || q.c || "";
                                     let cleanTrans = String(rawT).replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').trim();
+                                    const dictWord = (window.SH_DICTIONARY && window.SH_DICTIONARY[ans.toLowerCase()]) ? window.SH_DICTIONARY[ans.toLowerCase()].split(/[;；]/)[0] : ans;
+                                    cleanTrans = cleanTrans.replace(/[_＿]{2,}/g, dictWord);
 
                                     const finalQ = { id: "ai_" + Math.random(), poolKey: refKey, runtimeId: Math.random(), answer: ans, sentence: sentence, translation: cleanTrans, hint: finalHint, explanation: q.e || q.explanation || "", options: safeOptions, isAI: true, modelName: cardModelName };
 
@@ -730,8 +733,6 @@ TASK:
           const currentActiveDB = mainMenu === 'grammar' ? window.getActiveGrammarDB(selectedNotebooks) : window.getActiveDB(selectedNotebooks, vocabMode);
           let displayModelName = String(aiModel).toUpperCase(); if (displayModelName.indexOf('OPENROUTER/AUTO') !== -1 || displayModelName.indexOf('OPENROUTER/FREE') !== -1 || displayModelName.indexOf('AUTO_FILTERED') !== -1) displayModelName = 'AUTO-ROUTER'; else if (displayModelName.indexOf('DEEPSEEK') !== -1) displayModelName = 'DEEPSEEK'; else if (displayModelName.indexOf('GEMINI-') !== -1) displayModelName = displayModelName.replace('GEMINI-', ''); else if (displayModelName.indexOf('/') !== -1) displayModelName = displayModelName.split('/')[1];
 
-          const availableNotebooks = mainMenu === 'grammar' ? ['All', 'PB1 U2 句型庫', 'PB1 U5 句型庫'] : ['All', 'Words to know 1', 'Words to know 2', 'Words to know 3', 'CHINGSHIN Kidboxs 3 U1', 'CHINGSHIN Kidboxs 3 U2', 'CHINGSHIN Kidboxs 3 U3', 'CHINGSHIN Kidboxs 3 U5', '劍橋英檢 Movers', 'WTK (A-E)', 'WTK (F-J)', 'WTK (K-O)', 'WTK (P-T)', 'WTK (U-Z)'];
-
           return (
             <div className="min-h-screen bg-[#ebe6df] font-sans text-[#524d46] pb-[40vh] overflow-x-hidden relative text-left">
               <nav className="bg-[#ebe6df] p-2 md:p-3 shadow-sm sticky top-0 z-[150] border-b border-[#d6cfc5] flex justify-center">
@@ -936,9 +937,40 @@ TASK:
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
                           <div className="flex items-center gap-1.5 font-black text-[#7a8575] text-[13px] min-w-max px-1"><BookOpen size={16}/> 題庫來源</div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {availableNotebooks.map(nb => ( <button key={nb} onClick={() => handleNotebookChange(nb)} disabled={isGenerating} className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''} ${selectedNotebooks.includes(nb) ? 'bg-[#e6e9e4] shadow-sm text-[#6b7566] ring-1 ring-[#c4cec1]' : 'bg-[#ebe6df] text-[#8a847c] hover:bg-[#dedad4] border border-[#d6cfc5]'}`}>{nb === 'All' ? '全部混合' : nb}</button> ))}
-                          </div>
+                          
+                          {/* 🔥 下拉選單改版區塊 */}
+                          <select
+                              value={selectedNotebooks.length === 3 && selectedNotebooks.includes('Words to know 1') ? 'WTK1-3' : selectedNotebooks[0]}
+                              onChange={handleNotebookChange}
+                              disabled={isGenerating}
+                              className={`w-full sm:w-auto px-3 py-2 rounded-lg font-bold text-xs md:text-sm outline-none transition-all shadow-sm flex-1 ${isGenerating ? 'opacity-50 cursor-not-allowed bg-[#ebe6df] text-[#8a847c]' : 'bg-[#e6e9e4] text-[#524d46] hover:bg-[#d5dcd3] border border-[#c4cec1]'}`}
+                          >
+                              {mainMenu === 'grammar' ? (
+                                  <>
+                                      <option value="All">全部混合</option>
+                                      <option value="PB1 U2 句型庫">PB1 U2 句型庫</option>
+                                      <option value="PB1 U5 句型庫">PB1 U5 句型庫</option>
+                                  </>
+                              ) : (
+                                  <>
+                                      <option value="All">全部混合</option>
+                                      <option value="WTK1-3">Words to Know 1~3 (綜合)</option>
+                                      <option value="Words to know 1">Words to know 1</option>
+                                      <option value="Words to know 2">Words to know 2</option>
+                                      <option value="Words to know 3">Words to know 3</option>
+                                      <option value="CHINGSHIN Kidboxs 3 U1">CHINGSHIN Kidboxs 3 U1</option>
+                                      <option value="CHINGSHIN Kidboxs 3 U2">CHINGSHIN Kidboxs 3 U2</option>
+                                      <option value="CHINGSHIN Kidboxs 3 U3">CHINGSHIN Kidboxs 3 U3</option>
+                                      <option value="CHINGSHIN Kidboxs 3 U5">CHINGSHIN Kidboxs 3 U5</option>
+                                      <option value="劍橋英檢 Movers">劍橋英檢 Movers</option>
+                                      <option value="WTK (A-E)">WTK (A-E)</option>
+                                      <option value="WTK (F-J)">WTK (F-J)</option>
+                                      <option value="WTK (K-O)">WTK (K-O)</option>
+                                      <option value="WTK (P-T)">WTK (P-T)</option>
+                                      <option value="WTK (U-Z)">WTK (U-Z)</option>
+                                  </>
+                              )}
+                          </select>
                       </div>
                       <button onClick={() => generateAIBatch(storage.memory, selectedNotebooks, vocabMode, mainMenu, activeGeminiModel, mistakePool)} disabled={isGenerating} className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-black text-sm text-white shadow-sm transition-all flex items-center justify-center gap-2 flex-shrink-0 border-b-4 ${isGenerating ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed' : 'bg-[#cca677] hover:bg-[#b89063] border-[#a68258] active:scale-95'}`}>{isGenerating ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18} fill="currentColor"/>}<span>開始測驗</span></button>
                   </div>
@@ -985,7 +1017,6 @@ TASK:
   let currentAns = String(answers[i]||"");
   let hintMask = mainMenu === 'grammar' ? '______' : (window.SYSTEM_ENGINE.createHintMask(safeAnswerStr) || '______'); 
   
-  // 🔥 新增：確保句子清理與標點符號邏輯一致 (消除懸空標點，補齊句號)
   let cleanSentence = String(q.sentence||"").trim().replace(/\s+([.!?])/g, '$1').replace(/_{2,}/g, '______');
   if (cleanSentence && !/[.!?]$/.test(cleanSentence) && cleanSentence.indexOf('______') !== -1) {
       cleanSentence += "."; 
@@ -1077,7 +1108,6 @@ TASK:
                           </div>
                       )}
                       
-                      {/* 🔥 無敵中英對照區塊 */}
                       <div className="mt-5 w-full bg-white/60 p-4 md:p-5 rounded-2xl border border-[#c4cec1] shadow-sm text-left">
                           <div className="text-xs font-black text-[#7a8575] mb-2 flex items-center gap-1 uppercase tracking-widest"><BookOpen size={14}/> 完整中英對照</div>
                           
