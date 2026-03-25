@@ -396,7 +396,13 @@ TASK:
                     let r = Math.random() * tw; pick = -1; for(let i=0; i<tempPool.length; i++) { r -= ws[i]; if(r<=0) { pick=i; break; } }
                     if (pick === -1) pick = 0;
                 }
-                const item = tempPool[pick]; if (!patternUsageCount[item.id]) patternUsageCount[item.id] = 0;
+                let item = tempPool[pick]; 
+                if (!patternUsageCount[item.id]) patternUsageCount[item.id] = 0;
+                
+                if (targetMenu === 'grammar' && window.resolveGrammarTags) {
+                    item = window.resolveGrammarTags(item);
+                }
+                
                 selected.push({ ...item, variationTag: targetMenu === 'grammar' ? GRAMMAR_VARIATIONS[patternUsageCount[item.id] % GRAMMAR_VARIATIONS.length] : "Keep simple" });
                 patternUsageCount[item.id]++; tempPool.splice(pick, 1);
                 if (tempPool.length === 0 && selected.length < targetTotal) tempPool = [...activeDB];
@@ -404,7 +410,9 @@ TASK:
 
             const readyQs = []; const needed = [];
             selected.forEach(item => {
-                const key = targetMenu === 'grammar' ? `gram_${item.id}` : `word_${String(item.answer||"").trim().toLowerCase()}`;
+                const dynamicSuffix = item.resolvedValues ? `_${item.resolvedValues}` : '';
+                const key = targetMenu === 'grammar' ? `gram_${item.id}${dynamicSuffix}` : `word_${String(item.answer||"").trim().toLowerCase()}`;
+                
                 if (currentPool[key] && currentPool[key].length > 0) {
                     const cachedQ = currentPool[key].shift(); readyQs.push({...cachedQ, isAI: true, modelName: cachedQ.modelName + " ⚡(快取)"});
                 } else { needed.push({...item, poolKey: key}); }
