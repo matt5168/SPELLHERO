@@ -525,8 +525,11 @@ TASK:
                                         }
                                     }
                                     
-                                    let finalHint = "無提示";
-                                    if (targetMenu !== 'grammar') { const dictHint = window.SH_DICTIONARY && window.SH_DICTIONARY[ans.toLowerCase()]; if (dictHint) finalHint = dictHint; }
+                                    let finalHint = expectedItem && expectedItem.hint ? expectedItem.hint : "無提示";
+                                    if (targetMenu !== 'grammar') { 
+                                        const dictHint = window.SH_DICTIONARY && window.SH_DICTIONARY[ans.toLowerCase()]; 
+                                        if (dictHint) finalHint = dictHint; 
+                                    }
                                     
                                     let rawT = q.t || q.translation || q.trans || q.chinese || q.c || "";
                                     let cleanTrans = String(rawT).replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').trim();
@@ -542,7 +545,20 @@ TASK:
                                     }
                                 });
 
-                                if (hasUpdates) { try { localStorage.setItem('sh_qpool_v34', JSON.stringify(latestPool)); } catch(e){} let finalSz = 0; Object.values(latestPool).forEach(arr => finalSz += arr.length); setPoolStats(p => ({...p, size: finalSz})); }
+                                if (hasUpdates) { 
+                                    try { 
+                                        let poolStr = JSON.stringify(latestPool);
+                                        if (poolStr.length > 3500000) { 
+                                            const keys = Object.keys(latestPool);
+                                            keys.slice(0, Math.floor(keys.length / 2)).forEach(k => delete latestPool[k]);
+                                            poolStr = JSON.stringify(latestPool);
+                                        }
+                                        localStorage.setItem('sh_qpool_v34', poolStr); 
+                                    } catch(e) { 
+                                        if (e.name === 'QuotaExceededError') { localStorage.removeItem('sh_qpool_v34'); latestPool = {}; }
+                                    } 
+                                    let finalSz = 0; Object.values(latestPool).forEach(arr => finalSz += arr.length); setPoolStats(p => ({...p, size: finalSz})); 
+                                }
                                 if (addedToUI) {
                                     setQuestions([...currentUIQs]); setAnswers(p => { const n = [...p]; while(n.length<currentUIQs.length) n.push(''); return n; });
                                     setHints(p => { const n = [...p]; while(n.length<currentUIQs.length) n.push(false); return n; });
@@ -1162,20 +1178,20 @@ TASK:
               {(!isLocked || (isLayout2 && isLocked)) && (!isLayout3 || !isLocked) && (
                   <div className={`flex flex-wrap gap-3 w-full ${isLayout2 ? 'justify-end' : 'justify-center'} ${quizMode==='multiple_choice' ? 'hidden md:flex' : ''}`}>
                     {mainMenu !== 'grammar' && ( <button onClick={() => playTTS(safeAnswerStr, false)} className="text-sm md:text-base font-black text-[#8c6b44] bg-[#f4ebd9] px-4 md:px-6 py-3 rounded-xl active:scale-95 border border-[#e0c9aa] flex items-center gap-2 shadow-sm hover:bg-[#eadecc]"><Megaphone size={20} /> 單字發音</button> )}
-                    {mainMenu !== 'grammar' && (
+                    {q.hint && q.hint !== "無提示" && (
                         <button onClick={() => { 
                             const nh=[...hints]; nh[i]=!nh[i]; setHints(nh); 
                             const hasLocalHint = window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()];
-                            if (nh[i] && !hasLocalHint && !dynamicContent[`hint_${i}`]) handleOnDemand(i, 'hint'); 
+                            if (nh[i] && !hasLocalHint && !dynamicContent[`hint_${i}`] && mainMenu !== 'grammar') handleOnDemand(i, 'hint'); 
                         }} className="text-sm md:text-base font-black text-[#7a8575] bg-[#e6e9e4] px-4 md:px-6 py-3 rounded-xl active:scale-95 border border-[#c4cec1] flex items-center gap-2 shadow-sm hover:bg-[#d5dcd3]"><Lightbulb size={20} className={hints[i]?"text-[#cca677]":""}/> 中文提示</button>
                     )}
                   </div>
               )}
 
-              {hints[i] && mainMenu !== 'grammar' && !isLocked && (
+              {hints[i] && !isLocked && (
                   <div className={`p-4 bg-[#f4ebd9]/80 rounded-xl border-2 border-dashed border-[#e0c9aa] mt-4 shadow-sm w-full ${isLayout2 ? 'max-w-sm' : 'max-w-md'} animate-in zoom-in`}>
                       <div className="text-base md:text-lg font-bold text-[#8c6b44] leading-relaxed text-center">
-                          💡 {(window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) ? renderFormattedText(window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) : (dynamicContent[`hint_${i}`] || loadingStates[`hint_${i}`] ? (loadingStates[`hint_${i}`] && !dynamicContent[`hint_${i}`] ? <span className="animate-pulse inline-flex items-center gap-2"><Loader2 className="animate-spin" size={16}/> AI 救援翻譯中...</span> : renderFormattedText(dynamicContent[`hint_${i}`])) : renderFormattedText(q.hint && q.hint !== "無提示" ? q.hint : "AI 救援翻譯中..."))}
+                          💡 {mainMenu === 'grammar' ? renderFormattedText(q.hint) : ((window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) ? renderFormattedText(window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) : (dynamicContent[`hint_${i}`] || loadingStates[`hint_${i}`] ? (loadingStates[`hint_${i}`] && !dynamicContent[`hint_${i}`] ? <span className="animate-pulse inline-flex items-center gap-2"><Loader2 className="animate-spin" size={16}/> AI 救援翻譯中...</span> : renderFormattedText(dynamicContent[`hint_${i}`])) : renderFormattedText(q.hint && q.hint !== "無提示" ? q.hint : "AI 救援翻譯中...")))}
                       </div>
                   </div>
               )}
