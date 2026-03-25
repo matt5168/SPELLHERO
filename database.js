@@ -16,6 +16,19 @@ window.TAG_POOLS = {
     "TREATMENT": ["stay in bed", "go to bed"]
 };
 
+// 新增：各文法單元的專屬文法標的清單，用於克漏字與改錯題的嚴格限制
+window.GRAMMAR_TARGETS = {
+    "PB1 U1 句型庫": ["do", "does", "is", "are", "am"],
+    "PB1 U2 句型庫": ["do", "does", "in", "on", "at", "above", "below"],
+    "PB1 U3 句型庫": ["do", "does", "always", "sometimes", "never"],
+    "PB1 U4 句型庫": ["is", "are", "do", "does", "in front of", "behind"],
+    "PB1 U5 句型庫": ["have", "has", "him", "her", "them", "he", "she", "they", "must"],
+    "PB1 U6 句型庫": ["do", "does", "want", "wants", "should"],
+    "PB1 U7 句型庫": ["is", "are", "isn't", "aren't", "than"],
+    "PB1 U8 句型庫": ["is", "are", "was", "were", "wasn't", "weren't"],
+    "DEFAULT": ["is", "are", "was", "were", "do", "does", "have", "has"]
+};
+
 window.GRAMMAR_NOTEBOOKS = {
     "PB1 U1 句型庫": [
         {id:"g_u1_1", answer:"[ACTION_ING_1]", sentence:"Do you enjoy ______?", hint:"[ACTION_ING_1_HINT]"},
