@@ -265,3 +265,51 @@ class PersistentAIClient {
     }
 }
 window.sharedAIClient = new PersistentAIClient();
+
+window.resolveGrammarTags = function(qObj) {
+    if (!qObj || (!qObj.answer && !qObj.sentence)) return qObj;
+    let newQ = JSON.parse(JSON.stringify(qObj));
+    let memory = {};
+
+    const tagRegex = /\[([A-Z_]+)_(\d+)\]/g;
+    const replaceTag = (match, tagClass, tagId) => {
+        const memKey = `${tagClass}_${tagId}`;
+        if (!memory[memKey]) {
+            const pool = window.TAG_POOLS && window.TAG_POOLS[tagClass];
+            if (pool && Array.isArray(pool) && pool.length > 0) {
+                memory[memKey] = pool[Math.floor(Math.random() * pool.length)];
+            } else {
+                memory[memKey] = match; 
+            }
+        }
+        return memory[memKey];
+    };
+
+    newQ.answer = String(newQ.answer || "").replace(tagRegex, replaceTag);
+    newQ.sentence = String(newQ.sentence || "").replace(tagRegex, replaceTag);
+
+    const hintRegex = /\[([A-Z_]+)_(\d+)_HINT\]/g;
+    newQ.hint = String(newQ.hint || "").replace(hintRegex, (match, tagClass, tagId) => {
+        const memKey = `${tagClass}_${tagId}`;
+        const word = memory[memKey];
+        if (word) {
+            const dictEntry = window.SH_DICTIONARY && window.SH_DICTIONARY[word.toLowerCase()];
+            return dictEntry ? dictEntry.split(/[;；]/)[0] : word; 
+        }
+        return match;
+    });
+
+    const fixArticles = (str) => {
+        return str.replace(/\b([Aa])\s+([aeiouAEIOU])/g, (m, article, vowel) => {
+            return (article === 'A' ? 'An ' : 'an ') + vowel;
+        }).replace(/\b([Aa])n\s+([^aeiouAEIOU])/g, (m, article, consonant) => {
+            return (article === 'A' ? 'A ' : 'a ') + consonant;
+        });
+    };
+
+    newQ.answer = fixArticles(newQ.answer);
+    newQ.sentence = fixArticles(newQ.sentence);
+    
+    newQ.resolvedValues = Object.values(memory).join('_').replace(/\s+/g, '');
+    return newQ;
+};
