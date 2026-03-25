@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (多重文法題型 v24)</title>
+    <title>Spelling Hero - 互動家教版 (多重文法題型 v24 修正版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -60,7 +60,7 @@
           const [selectedNotebooks, setSelectedNotebooks] = useState(['All']); 
           const [isCustomMulti, setIsCustomMulti] = useState(false);
           const [vocabMode, setVocabMode] = useState('mixed'); 
-          const [grammarMode, setGrammarMode] = useState('mixed'); // 新增文法題型狀態
+          const [grammarMode, setGrammarMode] = useState('mixed'); 
           const [mainMenu, setMainMenu] = useState('vocab'); 
           const [storage, setStorage] = useState({ history: [], memory: {}, stats: {}, coins: 0, exp: 0, level: 1 });
           const [dash, setDash] = useState(false); const [earnedCoins, setEarnedCoins] = useState(0); 
@@ -1295,9 +1295,9 @@
                               <div className="text-xl md:text-3xl font-black text-[#524d46] tracking-wide my-2 break-all" onClick={() => playTTS(safeAnswerStr, false)}>
                                   {q.qType === 'correction' ? (
                                       <div className="flex items-center justify-center gap-2">
-                                          <span className="line-through text-[#b5847e]">{q.rawAnswerObj?.wrong || '???'}</span>
+                                          <span className="line-through text-[#b5847e]">{(q.rawAnswerObj && q.rawAnswerObj.wrong) || '???'}</span>
                                           <span className="text-[#8a847c]">➔</span>
-                                          <span className="text-[#8b9586]">{q.rawAnswerObj?.right || '???'}</span>
+                                          <span className="text-[#8b9586]">{(q.rawAnswerObj && q.rawAnswerObj.right) || '???'}</span>
                                       </div>
                                   ) : q.qType === 'cloze' ? (
                                       <span className="text-[#8b9586]">{Array.isArray(q.rawAnswerObj) ? q.rawAnswerObj.join(', ') : safeAnswerStr}</span>
@@ -1314,7 +1314,7 @@
                           
                           <div className="text-lg md:text-xl font-black text-[#524d46] mb-2 leading-relaxed">
                               {q.qType === 'correction' ? (
-                                  <span>{cleanSentence.replace(new RegExp('\\b' + window.escapeRegExp(q.rawAnswerObj?.wrong || '') + '\\b', 'gi'), q.rawAnswerObj?.right || '???')}</span>
+                                  <span>{cleanSentence.replace(new RegExp('\\b' + window.escapeRegExp((q.rawAnswerObj && q.rawAnswerObj.wrong) || '') + '\\b', 'gi'), (q.rawAnswerObj && q.rawAnswerObj.right) || '???')}</span>
                               ) : q.qType === 'reorder' ? (
                                   <span>{safeAnswerStr}</span>
                               ) : q.qType === 'cloze' ? (
