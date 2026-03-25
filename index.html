@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (多重文法題型 v24 修正版)</title>
+    <title>Spelling Hero - 互動家教版 (多重文法題型 v25 介面強化版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -316,7 +316,16 @@
                 const key = targetMenu === 'grammar' ? `gram_${item.id}${dynamicSuffix}` : `word_${String(item.answer||"").trim().toLowerCase()}`;
                 
                 if (currentPool[key] && currentPool[key].length > 0) {
-                    const cachedQ = currentPool[key].shift(); readyQs.push({...cachedQ, isAI: true, modelName: cachedQ.modelName + " ⚡(快取)"});
+                    const cachedQ = currentPool[key].shift(); 
+                    // 針對歷史快取資料的自癒機制 (防呆：補上缺漏的 qType 與重組題打亂)
+                    if (!cachedQ.qType) cachedQ.qType = 'fill';
+                    if (cachedQ.qType === 'reorder') {
+                        let ansStr = typeof cachedQ.rawAnswerObj === 'string' ? cachedQ.rawAnswerObj : (cachedQ.answer || "");
+                        let words = ansStr.trim().split(/\s+/).filter(w => w.length > 0);
+                        if (words.length < 2 && typeof cachedQ.sentence === 'string') words = cachedQ.sentence.split('/').map(w=>w.trim()).filter(w=>w.length>0);
+                        cachedQ.options = window.shuffleArray(words);
+                    }
+                    readyQs.push({...cachedQ, isAI: true, modelName: cachedQ.modelName + " ⚡(快取)"});
                 } else { needed.push({...item, poolKey: key}); }
             });
 
@@ -1138,9 +1147,8 @@
   
   if (!/[a-zA-Z]/.test(p0) && firstBlankIdx !== -1 && typeof currentAns === 'string') { hintMask = window.SYSTEM_ENGINE.capitalize(hintMask); currentAns = window.SYSTEM_ENGINE.capitalize(currentAns); }
   
-  // 安全提取 rawAnswerObj 的屬性
-  const rawWrong = q.rawAnswerObj && q.rawAnswerObj.wrong ? q.rawAnswerObj.wrong : '';
-  const rawRight = q.rawAnswerObj && q.rawAnswerObj.right ? q.rawAnswerObj.right : '???';
+  const rawWrong = (q.rawAnswerObj && q.rawAnswerObj.wrong) ? q.rawAnswerObj.wrong : '';
+  const rawRight = (q.rawAnswerObj && q.rawAnswerObj.right) ? q.rawAnswerObj.right : '???';
 
   return (
     <div key={q.runtimeId} className={`bg-[#f4f1ea] rounded-[2rem] border-[3px] shadow-sm transition-all relative overflow-hidden ${isReview ? 'border-[#dcb5b0]' : 'border-[#e6e9e4] hover:border-[#c4cec1]'} ${isLayout2 ? 'p-5 md:p-8' : 'p-5 md:p-8 flex flex-col items-center'}`}>
@@ -1151,14 +1159,16 @@
         <div className="flex flex-wrap gap-2 flex-1 justify-end">
             {q.qType && <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#576b5d] bg-[#c4d1c8] px-2 py-1 rounded-lg border border-[#9fb3a6] shadow-sm uppercase tracking-wider">{q.qType}</div>}
             {q.isAI ? <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#a68258] bg-[#f4ebd9] px-2 py-1 rounded-lg border border-[#e0c9aa] shadow-sm"><Sparkles size={14}/> {q.modelName || 'AI MODEL'}</div> : <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#8a847c] bg-[#ebe6df] px-2 py-1 rounded-lg border border-[#d6cfc5] shadow-sm"><BookOpen size={14}/> OFFLINE</div>}
-            {mainMenu !== 'grammar' && ( <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className="px-3 py-1.5 md:px-4 md:py-2 bg-[#e6e9e4] text-[#6b7566] rounded-xl active:scale-95 border border-[#c4cec1] flex items-center gap-1.5 font-bold text-sm shadow-sm transition-all hover:bg-[#d5dcd3]"><Megaphone size={18}/> <span>英文語音</span></button> )}
+            {mainMenu !== 'grammar' && !(q.qType === 'reorder' && !isLocked) && ( <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className="px-3 py-1.5 md:px-4 md:py-2 bg-[#e6e9e4] text-[#6b7566] rounded-xl active:scale-95 border border-[#c4cec1] flex items-center gap-1.5 font-bold text-sm shadow-sm transition-all hover:bg-[#d5dcd3]"><Megaphone size={18}/> <span>英文語音</span></button> )}
         </div>
       </div>
 
       <div className={isLayout2 ? 'grid grid-cols-1 md:grid-cols-2 gap-6 w-full' : 'w-full flex flex-col items-center'}>
           <div className={`w-full flex flex-col ${isLayout2 ? 'items-start' : 'items-center'} relative z-10`}>
               <div className={`text-xl md:text-3xl font-bold leading-normal md:leading-relaxed break-words mt-2 ${!q.isAI ? 'text-[#8a847c]' : 'text-[#524d46]'} ${!isLayout2 && 'text-center'} w-full`}>
-                {firstBlankIdx !== -1 && (q.qType === 'fill' || q.qType === undefined) ? (
+                {q.qType === 'reorder' && !isLocked ? (
+                    <span className="text-sm font-bold text-[#b5b0a8] italic">🧩 觀察下方亂序單字，依序點擊拼出完整句子。</span>
+                ) : firstBlankIdx !== -1 && (q.qType === 'fill' || q.qType === undefined) ? (
                     <React.Fragment>
                         <span>{window.SYSTEM_ENGINE.capitalize(p0)}</span>
                         <span className={`mx-1 inline-block ${!isLocked && hintMask.indexOf('_') !== -1 && mainMenu !== 'grammar' ? 'tracking-[0.2em]' : ''} ${isLocked ? (isFinallyCorrect ? "text-[#7a8575]" : "text-[#b5847e] line-through decoration-[#b5847e] decoration-[3px]") : (combo >= 3 ? "text-[#cca677]" : "text-[#8b9586]")} transition-colors duration-300`}>{isLocked ? (currentAns || '______') : hintMask}</span>
@@ -1167,7 +1177,7 @@
                 ) : (
                     <span>{q.qType === 'reorder' && isLocked ? (isFinallyCorrect ? answers[i].join(' ') : safeAnswerStr) : cleanSentence}</span>
                 )}
-                {mainMenu !== 'grammar' && ( <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className={`ml-3 inline-flex items-center justify-center p-2 rounded-full transition-all active:scale-90 align-middle ${isLocked ? 'bg-[#e6e9e4] text-[#6b7566]' : 'bg-[#f4ebd9] text-[#cca677]'}`}><Volume2 size={24}/></button> )}
+                {mainMenu !== 'grammar' && !(q.qType === 'reorder' && !isLocked) && ( <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className={`ml-3 inline-flex items-center justify-center p-2 rounded-full transition-all active:scale-90 align-middle ${isLocked ? 'bg-[#e6e9e4] text-[#6b7566]' : 'bg-[#f4ebd9] text-[#cca677]'}`}><Volume2 size={24}/></button> )}
               </div>
 
               {(!isLocked || (isLocked && !isLayout3)) && (
@@ -1194,7 +1204,7 @@
                           const currentArr = Array.isArray(answers[i]) ? answers[i] : [];
                           let tempUsed = [...currentArr];
                           return (
-                              <div className="flex flex-col gap-4 w-full">
+                              <div className="flex flex-col gap-4 w-full mt-2">
                                   <div className="min-h-[60px] bg-white border-b-4 border-[#d6cfc5] rounded-xl p-3 flex flex-wrap gap-2 items-center shadow-inner cursor-pointer" onClick={() => { if(currentArr.length > 0) { const n=[...answers]; n[i].pop(); setAnswers(n); } }}>
                                       {currentArr.length === 0 && <span className="text-[#b8b3aa] text-sm italic w-full text-center">依序點擊下方單字排列句子...</span>}
                                       {currentArr.map((word, wIdx) => (
@@ -1202,7 +1212,7 @@
                                       ))}
                                   </div>
                                   <div className="flex flex-wrap gap-2 justify-center">
-                                      {(q.options && q.options.length > 0 ? q.options : (typeof safeAnswerStr === 'string' ? window.shuffleArray(safeAnswerStr.split(' ')) : [])).map((opt, optIdx) => {
+                                      {(q.options && q.options.length > 0 ? q.options : []).map((opt, optIdx) => {
                                           const usedIdx = tempUsed.indexOf(opt);
                                           if (usedIdx !== -1) { tempUsed.splice(usedIdx, 1); return <div key={optIdx} className="px-3 py-1.5 rounded-lg bg-[#ebe6df] text-transparent border border-[#d6cfc5] select-none text-lg md:text-xl">{opt}</div>; }
                                           return <button key={optIdx} onClick={() => { const n=[...answers]; n[i]=[...currentArr, opt]; setAnswers(n); }} className="bg-white text-[#524d46] px-3 py-1.5 rounded-lg font-bold shadow-sm border-2 border-[#d6cfc5] hover:border-[#8b9586] active:scale-95 text-lg md:text-xl">{opt}</button>;
@@ -1322,7 +1332,7 @@
                           
                           <div className="text-lg md:text-xl font-black text-[#524d46] mb-2 leading-relaxed">
                               {q.qType === 'correction' ? (
-                                  <span>{cleanSentence.replace(new RegExp('\\b' + window.escapeRegExp(rawWrong) + '\\b', 'gi'), rawRight)}</span>
+                                  <span>{rawWrong ? cleanSentence.replace(new RegExp('\\b' + window.escapeRegExp(rawWrong) + '\\b', 'gi'), rawRight) : cleanSentence}</span>
                               ) : q.qType === 'reorder' ? (
                                   <span>{safeAnswerStr}</span>
                               ) : q.qType === 'cloze' ? (
