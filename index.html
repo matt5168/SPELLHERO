@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (荒謬選項版 v22)</title>
+    <title>Spelling Hero - 互動家教版 (混合題型準備版 v23)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     
-    <script src="database.js?v=7"></script>
+    <script src="database.js?v=8"></script>
     <script src="engine.js?v=4"></script>
 
     <style>
@@ -360,7 +360,7 @@ TASK:
             } catch (e) { setDiagStatus('error'); setDiagMsg(`❌ ${e.message}`); setShowLogsPanel(true); }
           };
 
-          const generateAIBatch = async (m, nbs, mode, targetMenu, forceGeminiModel, currentMistakes) => {
+          const generateAIBatch = async (m, nbs, mode, targetMenu, forceGeminiModel, currentMistakes, grammarQType = 'mixed') => {
             if (isGeneratingRef.current || !window.sharedAIClient) return;
             isGeneratingRef.current = true; setIsGenerating(true);
             
@@ -449,7 +449,6 @@ TASK:
                         
                         let systemPrompt = ""; let userQuery = "";
                         if (targetMenu === 'grammar') {
-                            // 動態映射對應的單元單字庫
                             let targetVocabBanks = [];
                             let checkNbs = nbs.includes('All') ? Object.keys(window.GRAMMAR_NOTEBOOKS) : nbs;
                             checkNbs.forEach(nb => {
@@ -458,23 +457,33 @@ TASK:
                             });
                             if (targetVocabBanks.length === 0) targetVocabBanks = ['All'];
                             
-                            // 取得該單元的限制單字清單
                             const allowedVocabItems = window.getActiveDB(targetVocabBanks, 'word');
                             const allowedDistractors = allowedVocabItems.map(v => String(v.answer).toLowerCase());
                             const uniqueDistractors = [...new Set(allowedDistractors)];
                             const distractorStr = uniqueDistractors.length > 0 ? `\nALLOWED_DISTRACTORS_LIST: [${uniqueDistractors.join(', ')}]` : "";
 
-                            const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)}`);
+                            const nbKey = nbs.includes('All') ? "DEFAULT" : nbs[0];
+                            const gTargets = (window.GRAMMAR_TARGETS && window.GRAMMAR_TARGETS[nbKey]) ? window.GRAMMAR_TARGETS[nbKey] : ["is", "are", "was", "were"];
                             
-                            systemPrompt = `ESL grammar fill-blank, Taiwanese 3rd grade level. RULES:
-    ① STRICT SUBJECT: Keep EXACT target answer & grammatical subject from pattern. Change ONLY the situation.
-    ② EVERYDAY REALITY: The context and extra sentences MUST describe ordinary, realistic daily life for a 9-year-old child in Taiwan (e.g., school, family, park, supermarket). STRICTLY FORBIDDEN: Sci-fi, fantasy, magic, absurd situations (like jumping on the moon, talking animals), or overly complex events.
-    ③ EXCLUSIVE CLUES: Add an extra sentence with undeniable realistic context so ONLY the target answer fits. NO AMBIGUITY.
-    ④ PRONOUN CONTEXT: If answer is pronoun, write specific name BEFORE the blank.
-    ⑤ DISTRACTORS: The 3 incorrect options in 'o' array MUST be chosen ONLY from the ALLOWED_DISTRACTORS_LIST below. They must be grammatically incorrect or completely nonsensical for the blank's everyday reality, but MUST be real words from the list. If no matching part of speech exists, use basic words, but prefer the list.
-    ⑥ JSON only: [{"idx":0,"a":"answer","s":"English sentence with ______","t":"完整繁體中文翻譯(必須將答案單字直接翻譯並寫入句子中，絕對不可有底線)","o":["opt1","opt2","opt3","opt4"]}]
+                            const validTypes = ['fill', 'reorder', 'cloze', 'correction'];
+                            const patterns = chunkPending.map((s, idx) => {
+                                const assignedType = grammarQType === 'mixed' ? validTypes[Math.floor(Math.random() * validTypes.length)] : grammarQType;
+                                s.assignedType = assignedType;
+                                return `[IDX:${idx}] [Type: ${assignedType}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)}`;
+                            });
+                            
+                            systemPrompt = `ESL grammar practice, Taiwanese 3rd grade level. RULES:
+    ① EVERYDAY REALITY: Context MUST describe realistic daily life for a 9-year-old in Taiwan. STRICTLY FORBIDDEN: Sci-fi, fantasy, magic, absurd physics (e.g., jumping on the moon).
+    ② GRAMMAR_TARGETS: [${gTargets.join(', ')}]. Use these specific words for cloze answers or correction errors.
+    ③ Output JSON array ONLY. Format depends strictly on [Type]:
+       - If Type=fill: {"idx":0, "qType":"fill", "a":"answer", "s":"Sentence with one ______.", "o":["opt1","opt2","opt3"]} (Pick 'o' from ALLOWED_DISTRACTORS_LIST)
+       - If Type=reorder: {"idx":0, "qType":"reorder", "a":"Exact correct full sentence.", "s":"scrambled / words / separated / by / slashes"} (Keep punctuation and capitalization in 'a')
+       - If Type=cloze: {"idx":0, "qType":"cloze", "a":["ans1", "ans2"], "s":"Sentence with two ______.", "o":["opt1","opt2","opt3","opt4"]} (Use GRAMMAR_TARGETS for 'a' and 'o')
+       - If Type=correction: {"idx":0, "qType":"correction", "a":{"wrong":"wrong word", "right":"correct word"}, "s":"Sentence containing the grammar error."} (Make an error based on GRAMMAR_TARGETS)
+    ④ EXCLUSIVE CLUES: For 'fill' and 'cloze', add an undeniable context sentence so ONLY the target fits.
+    ⑤ Translation: Always include "t":"Traditional Chinese translation of the correct sentence."
     Output EXACTLY 2 items per IDX.${distractorStr}`;
-                            userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH. Patterns:\n${patterns.join('\n')}`;
+                            userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH.\n${patterns.join('\n')}`;
                         } else {
                             const wordsToGenerate = chunkPending.map((s, idx) => `[IDX:${idx}] Target Word: "${s.answer}"`);
                             systemPrompt = `ESL vocab fill-blank, Taiwanese 3rd grade level. RULES:
@@ -502,58 +511,85 @@ TASK:
                                     let aiIdx = q.idx !== undefined ? parseInt(q.idx) : -1;
                                     let expectedItem = chunkPending[aiIdx];
                                     if (!expectedItem) {
-                                        let ansStr = String(q.a || q.answer || "").trim().toLowerCase();
+                                        let ansStr = typeof q.a === 'string' ? q.a.trim().toLowerCase() : (typeof q.answer === 'string' ? q.answer.trim().toLowerCase() : "");
                                         expectedItem = chunkPending.find(item => String(item.answer||"").trim().toLowerCase() === ansStr);
                                     }
 
-                                    let ans = String(q.a || q.answer || (expectedItem ? expectedItem.answer : "")).trim();
-                                    if (!ans) ans = "UNKNOWN";
-                                    
+                                    let parsedAns = q.a !== undefined ? q.a : (q.answer !== undefined ? q.answer : (expectedItem ? expectedItem.answer : ""));
+                                    let parsedQType = q.qtype || q.type || (expectedItem ? expectedItem.assignedType : 'fill');
+                                    let ansStrForOptions = typeof parsedAns === 'string' ? parsedAns.trim() : (Array.isArray(parsedAns) ? String(parsedAns[0]).trim() : (parsedAns.right ? String(parsedAns.right).trim() : "UNKNOWN"));
+                                    if (!ansStrForOptions) ansStrForOptions = "UNKNOWN";
+
                                     let reqUid = expectedItem ? expectedItem.reqUid : `req_${Math.random()}`; 
-                                    let refKey = expectedItem ? expectedItem.poolKey : `word_${ans}`;
+                                    let refKey = expectedItem ? expectedItem.poolKey : `word_${ansStrForOptions}`;
 
                                     let rawOptions = Array.isArray(q.o) ? q.o : (Array.isArray(q.options) ? q.options : []);
-                                    let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ans.toLowerCase());
-                                    if (distractors.length < 3) distractors = [...distractors, ...window.generateVocabOptions(ans, activeDB).filter(o=>o!==ans)];
-                                    let safeOptions = window.shuffleArray([ans, ...distractors.slice(0, 3)]);
-
-                                    const objPronouns = ['him', 'her', 'them', 'us', 'me', 'he', 'she', 'they', 'it', 'i', 'you'];
-                                    if (objPronouns.includes(ans.toLowerCase())) {
-                                        const safePool = window.generateVocabOptions(ans, activeDB).filter(o => !objPronouns.includes(String(o).toLowerCase()));
-                                        let rIdx = 0;
-                                        safeOptions = safeOptions.map(opt => {
-                                            if (opt.toLowerCase() !== ans.toLowerCase() && objPronouns.includes(opt.toLowerCase())) {
-                                                return safePool[rIdx++] || "apple";
+                                    let safeOptions = [];
+                                    
+                                    if (parsedQType === 'fill' || parsedQType === 'cloze') {
+                                        let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ansStrForOptions.toLowerCase());
+                                        if (distractors.length < 3 && typeof parsedAns === 'string') { 
+                                            distractors = [...distractors, ...window.generateVocabOptions(ansStrForOptions, activeDB).filter(o=>o!==ansStrForOptions)]; 
+                                        }
+                                        if (parsedQType === 'cloze') {
+                                            safeOptions = window.shuffleArray([...rawOptions]);
+                                        } else {
+                                            safeOptions = window.shuffleArray([ansStrForOptions, ...distractors.slice(0, 3)]);
+                                            const objPronouns = ['him', 'her', 'them', 'us', 'me', 'he', 'she', 'they', 'it', 'i', 'you'];
+                                            if (objPronouns.includes(ansStrForOptions.toLowerCase())) {
+                                                const safePool = window.generateVocabOptions(ansStrForOptions, activeDB).filter(o => !objPronouns.includes(String(o).toLowerCase()));
+                                                let rIdx = 0;
+                                                safeOptions = safeOptions.map(opt => {
+                                                    if (opt.toLowerCase() !== ansStrForOptions.toLowerCase() && objPronouns.includes(opt.toLowerCase())) {
+                                                        return safePool[rIdx++] || "apple";
+                                                    }
+                                                    return opt;
+                                                });
                                             }
-                                            return opt;
-                                        });
+                                        }
                                     }
 
                                     let sentence = (q.s || q.sentence) ? String(q.s || q.sentence).trim() : "";
                                     sentence = sentence.replace(/\s+([.!?])/g, '$1');
                                     if (sentence && !/[.!?]$/.test(sentence)) sentence += ".";
                                     
-                                    sentence = sentence.replace(/[a-zA-Z]*_{2,}[a-zA-Z]*/g, '______');
-                                    if (sentence.indexOf('______') === -1) { 
-                                        const reg = new RegExp('\\b' + window.escapeRegExp(ans) + '\\b', 'gi'); 
-                                        sentence = sentence.replace(reg, '______'); 
+                                    if (parsedQType === 'fill' || parsedQType === 'cloze') {
+                                        sentence = sentence.replace(/[a-zA-Z]*_{2,}[a-zA-Z]*/g, '______');
+                                        if (sentence.indexOf('______') === -1 && typeof parsedAns === 'string') { 
+                                            const reg = new RegExp('\\b' + window.escapeRegExp(parsedAns) + '\\b', 'gi'); 
+                                            sentence = sentence.replace(reg, '______'); 
+                                        }
+                                        if (sentence.indexOf('______') === -1) return; 
                                     }
-                                    
-                                    // 丟棄無法正確產生底線的錯誤題目，交由批次重試機制處理
-                                    if (sentence.indexOf('______') === -1) return; 
                                     
                                     let finalHint = expectedItem && expectedItem.hint ? expectedItem.hint : "無提示";
                                     if (targetMenu !== 'grammar') { 
-                                        const dictHint = window.SH_DICTIONARY && window.SH_DICTIONARY[ans.toLowerCase()]; 
+                                        const dictHint = window.SH_DICTIONARY && window.SH_DICTIONARY[ansStrForOptions.toLowerCase()]; 
                                         if (dictHint) finalHint = dictHint; 
                                     }
                                     
                                     let rawT = q.t || q.translation || q.trans || q.chinese || q.c || "";
                                     let cleanTrans = String(rawT).replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').trim();
-                                    const dictWord = (window.SH_DICTIONARY && window.SH_DICTIONARY[ans.toLowerCase()]) ? window.SH_DICTIONARY[ans.toLowerCase()].split(/[;；]/)[0] : ans;
+                                    const dictWord = (window.SH_DICTIONARY && window.SH_DICTIONARY[ansStrForOptions.toLowerCase()]) ? window.SH_DICTIONARY[ansStrForOptions.toLowerCase()].split(/[;；]/)[0] : ansStrForOptions;
                                     cleanTrans = cleanTrans.replace(/[_＿]{2,}/g, dictWord);
 
-                                    const finalQ = { id: "ai_" + Math.random(), poolKey: refKey, runtimeId: Math.random(), answer: ans, sentence: sentence, translation: cleanTrans, hint: finalHint, explanation: q.e || q.explanation || "", options: safeOptions, isAI: true, modelName: cardModelName };
+                                    let stringifiedAns = typeof parsedAns === 'object' ? JSON.stringify(parsedAns) : String(parsedAns).trim();
+
+                                    const finalQ = { 
+                                        id: "ai_" + Math.random(), 
+                                        poolKey: refKey, 
+                                        runtimeId: Math.random(), 
+                                        answer: stringifiedAns, 
+                                        rawAnswerObj: parsedAns, 
+                                        qType: parsedQType, 
+                                        sentence: sentence, 
+                                        translation: cleanTrans, 
+                                        hint: finalHint, 
+                                        explanation: q.e || q.explanation || "", 
+                                        options: safeOptions, 
+                                        isAI: true, 
+                                        modelName: cardModelName 
+                                    };
 
                                     if (currentUIQs.length < targetTotal && !uiPoolKeys.has(refKey)) {
                                         currentUIQs.push(finalQ); uiPoolKeys.add(refKey); fulfilledReqUids.add(reqUid); addedToUI = true;
@@ -1073,7 +1109,7 @@ TASK:
                               </select>
                           </div>
                       </div>
-                      <button onClick={() => generateAIBatch(storage.memory, selectedNotebooks, vocabMode, mainMenu, activeGeminiModel, mistakePool)} disabled={isGenerating || (isCustomMulti && selectedNotebooks.length === 0)} className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-black text-sm text-white shadow-sm transition-all flex items-center justify-center gap-2 flex-shrink-0 border-b-4 ${(isGenerating || (isCustomMulti && selectedNotebooks.length === 0)) ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed' : 'bg-[#cca677] hover:bg-[#b89063] border-[#a68258] active:scale-95'}`}>{isGenerating ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18} fill="currentColor"/>}<span>開始測驗</span></button>
+                      <button onClick={() => generateAIBatch(storage.memory, selectedNotebooks, vocabMode, mainMenu, activeGeminiModel, mistakePool, 'mixed')} disabled={isGenerating || (isCustomMulti && selectedNotebooks.length === 0)} className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-black text-sm text-white shadow-sm transition-all flex items-center justify-center gap-2 flex-shrink-0 border-b-4 ${(isGenerating || (isCustomMulti && selectedNotebooks.length === 0)) ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed' : 'bg-[#cca677] hover:bg-[#b89063] border-[#a68258] active:scale-95'}`}>{isGenerating ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18} fill="currentColor"/>}<span>開始測驗</span></button>
                   </div>
                   
                   {isCustomMulti && (
@@ -1129,7 +1165,7 @@ TASK:
                 
                 <div className="space-y-6 md:space-y-8">
                 {questions.map((q, i) => {
-  const safeAnswerStr = String(q.answer||""); 
+  const safeAnswerStr = typeof q.answer === 'string' ? String(q.answer||"") : String(q.rawAnswerObj||""); 
   const isFinallyCorrect = window.SYSTEM_ENGINE.isCorrect(answers[i], safeAnswerStr); 
   const isLocked = qStatus[i] !== null || submitted;
   const isLayout2 = uiLayout === 'layout2'; const isLayout3 = uiLayout === 'layout3';
@@ -1146,7 +1182,7 @@ TASK:
   let p0 = cleanSentence; let p1 = "";
   if (firstBlankIdx !== -1) { p0 = cleanSentence.substring(0, firstBlankIdx); p1 = cleanSentence.substring(firstBlankIdx + 6); }
   
-  if (!/[a-zA-Z]/.test(p0)) { hintMask = window.SYSTEM_ENGINE.capitalize(hintMask); currentAns = window.SYSTEM_ENGINE.capitalize(currentAns); }
+  if (!/[a-zA-Z]/.test(p0) && firstBlankIdx !== -1) { hintMask = window.SYSTEM_ENGINE.capitalize(hintMask); currentAns = window.SYSTEM_ENGINE.capitalize(currentAns); }
   
   return (
     <div key={q.runtimeId} className={`bg-[#f4f1ea] rounded-[2rem] border-[3px] shadow-sm transition-all relative overflow-hidden ${isReview ? 'border-[#dcb5b0]' : 'border-[#e6e9e4] hover:border-[#c4cec1]'} ${isLayout2 ? 'p-5 md:p-8' : 'p-5 md:p-8 flex flex-col items-center'}`}>
@@ -1155,6 +1191,7 @@ TASK:
       <div className={`flex w-full items-start md:items-center justify-between mb-4 border-b-2 border-[#ebe6df] pb-3 relative z-10 text-[#524d46] gap-2 flex-wrap`}>
         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-black text-xs flex-shrink-0 ${q.isAI ? 'bg-[#cca677]' : (isReview ? 'bg-[#b5847e]' : 'bg-[#8b9586]')}`}>{i+1}</div>
         <div className="flex flex-wrap gap-2 flex-1 justify-end">
+            {q.qType && <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#576b5d] bg-[#c4d1c8] px-2 py-1 rounded-lg border border-[#9fb3a6] shadow-sm uppercase tracking-wider">{q.qType}</div>}
             {q.isAI ? <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#a68258] bg-[#f4ebd9] px-2 py-1 rounded-lg border border-[#e0c9aa] shadow-sm"><Sparkles size={14}/> {q.modelName || 'AI MODEL'}</div> : <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#8a847c] bg-[#ebe6df] px-2 py-1 rounded-lg border border-[#d6cfc5] shadow-sm"><BookOpen size={14}/> OFFLINE</div>}
             {mainMenu !== 'grammar' && ( <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className="px-3 py-1.5 md:px-4 md:py-2 bg-[#e6e9e4] text-[#6b7566] rounded-xl active:scale-95 border border-[#c4cec1] flex items-center gap-1.5 font-bold text-sm shadow-sm transition-all hover:bg-[#d5dcd3]"><Megaphone size={18}/> <span>英文語音</span></button> )}
         </div>
@@ -1163,9 +1200,15 @@ TASK:
       <div className={isLayout2 ? 'grid grid-cols-1 md:grid-cols-2 gap-6 w-full' : 'w-full flex flex-col items-center'}>
           <div className={`w-full flex flex-col ${isLayout2 ? 'items-start' : 'items-center'} relative z-10`}>
               <div className={`text-xl md:text-3xl font-bold leading-normal md:leading-relaxed break-words mt-2 ${!q.isAI ? 'text-[#8a847c]' : 'text-[#524d46]'} ${!isLayout2 && 'text-center'}`}>
-                <span>{window.SYSTEM_ENGINE.capitalize(p0)}</span>
-                <span className={`mx-1 inline-block ${!isLocked && hintMask.indexOf('_') !== -1 && mainMenu !== 'grammar' ? 'tracking-[0.2em]' : ''} ${isLocked ? (isFinallyCorrect ? "text-[#7a8575]" : "text-[#b5847e] line-through decoration-[#b5847e] decoration-[3px]") : (combo >= 3 ? "text-[#cca677]" : "text-[#8b9586]")} transition-colors duration-300`}>{isLocked ? (currentAns || '______') : hintMask}</span>
-                <span>{p1}</span>
+                {firstBlankIdx !== -1 ? (
+                    <React.Fragment>
+                        <span>{window.SYSTEM_ENGINE.capitalize(p0)}</span>
+                        <span className={`mx-1 inline-block ${!isLocked && hintMask.indexOf('_') !== -1 && mainMenu !== 'grammar' ? 'tracking-[0.2em]' : ''} ${isLocked ? (isFinallyCorrect ? "text-[#7a8575]" : "text-[#b5847e] line-through decoration-[#b5847e] decoration-[3px]") : (combo >= 3 ? "text-[#cca677]" : "text-[#8b9586]")} transition-colors duration-300`}>{isLocked ? (currentAns || '______') : hintMask}</span>
+                        <span>{p1}</span>
+                    </React.Fragment>
+                ) : (
+                    <span>{cleanSentence}</span>
+                )}
                 {mainMenu !== 'grammar' && ( <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className={`ml-3 inline-flex items-center justify-center p-2 rounded-full transition-all active:scale-90 align-middle ${isLocked ? 'bg-[#e6e9e4] text-[#6b7566]' : 'bg-[#f4ebd9] text-[#cca677]'}`}><Volume2 size={24}/></button> )}
               </div>
 
@@ -1219,9 +1262,9 @@ TASK:
                           <div className="flex flex-col items-center justify-center text-center py-4"><CheckCircle size={48} className="text-[#8b9586] mb-3 drop-shadow-sm animate-bounce"/><div className="text-2xl md:text-3xl font-black text-[#6b7566]">答對了！</div>{mainMenu !== 'grammar' && ( <button onClick={() => playTTS(safeAnswerStr, false)} className="mt-4 text-[#8b9586] font-bold flex items-center gap-1"><Volume2 size={16}/> 聽聽發音</button> )}</div>
                       ) : (
                           <div className="flex flex-col items-center text-center relative w-full">
-                              <div className="absolute -top-10 bg-[#b5847e] text-white px-4 py-1.5 rounded-full font-black shadow-md border-2 border-white flex items-center gap-2"><XCircle size={16}/> 拼字錯誤</div>
+                              <div className="absolute -top-10 bg-[#b5847e] text-white px-4 py-1.5 rounded-full font-black shadow-md border-2 border-white flex items-center gap-2"><XCircle size={16}/> {q.qType === 'reorder' ? '語序錯誤' : q.qType === 'correction' ? '文法盲點' : '拼字錯誤'}</div>
                               <span className="text-sm font-bold text-[#a6a198] mt-2 mb-1">正確答案</span>
-                              <div className="text-4xl md:text-5xl font-black text-[#524d46] tracking-[0.1em] my-2" onClick={() => playTTS(safeAnswerStr, false)}>
+                              <div className="text-xl md:text-3xl font-black text-[#524d46] tracking-wide my-2 break-all" onClick={() => playTTS(safeAnswerStr, false)}>
                                   {safeAnswerStr || <span className="text-[#b5847e]">系統缺漏</span>}
                               </div>
                               {mainMenu !== 'grammar' && ( <button onClick={() => playTTS(safeAnswerStr, false)} className="mt-4 bg-white text-[#8c6b44] px-5 py-2.5 rounded-full font-black shadow-sm border border-[#e0c9aa] active:scale-95 flex items-center gap-2"><Megaphone size={18}/> 聆聽發音</button> )}
@@ -1232,12 +1275,14 @@ TASK:
                           <div className="text-xs font-black text-[#7a8575] mb-2 flex items-center gap-1 uppercase tracking-widest"><BookOpen size={14}/> 完整中英對照</div>
                           
                           <div className="text-lg md:text-xl font-black text-[#524d46] mb-2 leading-relaxed">
-                              {cleanSentence.split('______').map((part, idx, arr) => (
+                              {firstBlankIdx !== -1 ? cleanSentence.split('______').map((part, idx, arr) => (
                                   <span key={idx}>
                                       {part}
                                       {idx < arr.length - 1 && <span className="text-[#cca677] border-b-[3px] border-[#cca677] mx-1 px-1 pb-0.5">{safeAnswerStr || "???"}</span>}
                                   </span>
-                              ))}
+                              )) : (
+                                  <span>{q.qType === 'reorder' ? safeAnswerStr : cleanSentence}</span>
+                              )}
                           </div>
                           
                           <div className="text-base font-bold text-[#8b9586] leading-relaxed">
