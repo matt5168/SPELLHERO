@@ -458,7 +458,12 @@
                                             }
                                         }
                                     } else if (parsedQType === 'reorder') {
-                                        safeOptions = window.shuffleArray((typeof parsedAns === 'string' ? parsedAns : "").split(' '));
+                                        let ansStr = typeof parsedAns === 'string' ? parsedAns : "";
+                                        let words = ansStr.trim().split(/\s+/).filter(w => w.length > 0);
+                                        if (words.length === 0 && typeof q.s === 'string') {
+                                            words = q.s.split('/').map(w => w.trim()).filter(w => w.length > 0);
+                                        }
+                                        safeOptions = window.shuffleArray(words);
                                     }
 
                                     let sentence = (q.s || q.sentence) ? String(q.s || q.sentence).trim() : "";
@@ -712,7 +717,6 @@
             if (forcedAnswer !== undefined && forcedAnswer !== null) { finalAnswer = forcedAnswer; const newAns = [...answers]; newAns[index] = forcedAnswer; setAnswers(newAns); }
             if (finalAnswer === '' || (Array.isArray(finalAnswer) && finalAnswer.length === 0) || (finalAnswer && typeof finalAnswer === 'object' && !finalAnswer.right)) return; 
             
-            // 呼叫支援浮點數比對的新版 isCorrect
             const scoreVal = window.SYSTEM_ENGINE.isCorrect(finalAnswer, questions[index].rawAnswerObj || questions[index].answer, questions[index].qType);
             const isCorr = scoreVal === 1;
             const isPartial = scoreVal > 0 && scoreVal < 1;
@@ -721,7 +725,7 @@
                 const nc = combo + 1; setCombo(nc); if (nc > maxCombo) setMaxCombo(nc); 
                 if (nc >= 3) { window.SOUND_ENGINE.playCombo(); setShowComboAnim(true); setTimeout(() => setShowComboAnim(false), 1000); } else window.SOUND_ENGINE.playCorrect(); 
             } else if (isPartial) {
-                setCombo(0); window.SOUND_ENGINE.playCorrect(); // 部分答對給予正面音效但斷 combo
+                setCombo(0); window.SOUND_ENGINE.playCorrect(); 
             } else { 
                 setCombo(0); window.SOUND_ENGINE.playWrong(); 
                 if (mainMenu === 'grammar') { setTimeout(() => handleOnDemand(index, 'exp'), 100); } 
@@ -1134,6 +1138,10 @@
   
   if (!/[a-zA-Z]/.test(p0) && firstBlankIdx !== -1 && typeof currentAns === 'string') { hintMask = window.SYSTEM_ENGINE.capitalize(hintMask); currentAns = window.SYSTEM_ENGINE.capitalize(currentAns); }
   
+  // 安全提取 rawAnswerObj 的屬性
+  const rawWrong = q.rawAnswerObj && q.rawAnswerObj.wrong ? q.rawAnswerObj.wrong : '';
+  const rawRight = q.rawAnswerObj && q.rawAnswerObj.right ? q.rawAnswerObj.right : '???';
+
   return (
     <div key={q.runtimeId} className={`bg-[#f4f1ea] rounded-[2rem] border-[3px] shadow-sm transition-all relative overflow-hidden ${isReview ? 'border-[#dcb5b0]' : 'border-[#e6e9e4] hover:border-[#c4cec1]'} ${isLayout2 ? 'p-5 md:p-8' : 'p-5 md:p-8 flex flex-col items-center'}`}>
       {!isLocked && combo >= 3 && <div className="absolute inset-0 bg-[#cca677]/10 pointer-events-none animate-pulse border-4 border-[#cca677] rounded-[2rem]"></div>}
@@ -1194,7 +1202,7 @@
                                       ))}
                                   </div>
                                   <div className="flex flex-wrap gap-2 justify-center">
-                                      {(q.options||[]).map((opt, optIdx) => {
+                                      {(q.options && q.options.length > 0 ? q.options : (typeof safeAnswerStr === 'string' ? window.shuffleArray(safeAnswerStr.split(' ')) : [])).map((opt, optIdx) => {
                                           const usedIdx = tempUsed.indexOf(opt);
                                           if (usedIdx !== -1) { tempUsed.splice(usedIdx, 1); return <div key={optIdx} className="px-3 py-1.5 rounded-lg bg-[#ebe6df] text-transparent border border-[#d6cfc5] select-none text-lg md:text-xl">{opt}</div>; }
                                           return <button key={optIdx} onClick={() => { const n=[...answers]; n[i]=[...currentArr, opt]; setAnswers(n); }} className="bg-white text-[#524d46] px-3 py-1.5 rounded-lg font-bold shadow-sm border-2 border-[#d6cfc5] hover:border-[#8b9586] active:scale-95 text-lg md:text-xl">{opt}</button>;
@@ -1295,9 +1303,9 @@
                               <div className="text-xl md:text-3xl font-black text-[#524d46] tracking-wide my-2 break-all" onClick={() => playTTS(safeAnswerStr, false)}>
                                   {q.qType === 'correction' ? (
                                       <div className="flex items-center justify-center gap-2">
-                                          <span className="line-through text-[#b5847e]">{(q.rawAnswerObj && q.rawAnswerObj.wrong) || '???'}</span>
+                                          <span className="line-through text-[#b5847e]">{rawWrong || '???'}</span>
                                           <span className="text-[#8a847c]">➔</span>
-                                          <span className="text-[#8b9586]">{(q.rawAnswerObj && q.rawAnswerObj.right) || '???'}</span>
+                                          <span className="text-[#8b9586]">{rawRight}</span>
                                       </div>
                                   ) : q.qType === 'cloze' ? (
                                       <span className="text-[#8b9586]">{Array.isArray(q.rawAnswerObj) ? q.rawAnswerObj.join(', ') : safeAnswerStr}</span>
@@ -1314,7 +1322,7 @@
                           
                           <div className="text-lg md:text-xl font-black text-[#524d46] mb-2 leading-relaxed">
                               {q.qType === 'correction' ? (
-                                  <span>{cleanSentence.replace(new RegExp('\\b' + window.escapeRegExp((q.rawAnswerObj && q.rawAnswerObj.wrong) || '') + '\\b', 'gi'), (q.rawAnswerObj && q.rawAnswerObj.right) || '???')}</span>
+                                  <span>{cleanSentence.replace(new RegExp('\\b' + window.escapeRegExp(rawWrong) + '\\b', 'gi'), rawRight)}</span>
                               ) : q.qType === 'reorder' ? (
                                   <span>{safeAnswerStr}</span>
                               ) : q.qType === 'cloze' ? (
