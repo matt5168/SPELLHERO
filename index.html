@@ -339,7 +339,7 @@
                 const n = [];
                 for(let i=0; i<readyQs.length; i++) {
                     const qt = readyQs[i].qType || 'fill';
-                    if (qt === 'cloze' || qt === 'reorder') n.push([]);
+                    if (qt === 'reorder') n.push([]);
                     else if (qt === 'correction') n.push({wrong: null, right: ''});
                     else n.push('');
                 }
@@ -384,7 +384,7 @@
                             const nbKey = nbs.includes('All') ? "DEFAULT" : nbs[0];
                             const gTargets = (window.GRAMMAR_TARGETS && window.GRAMMAR_TARGETS[nbKey]) ? window.GRAMMAR_TARGETS[nbKey] : ["is", "are", "was", "were"];
                             
-                            const validTypes = ['fill', 'reorder', 'cloze', 'correction'];
+                            const validTypes = ['fill', 'reorder', 'correction'];
                             const patterns = chunkPending.map((s, idx) => {
                                 const assignedType = reqGrammarType === 'mixed' ? validTypes[Math.floor(Math.random() * validTypes.length)] : reqGrammarType;
                                 s.assignedType = assignedType;
@@ -397,9 +397,8 @@
     ③ Output JSON array ONLY. Format depends strictly on [Type]:
        - If Type=fill: {"idx":0, "qType":"fill", "a":"answer", "s":"Sentence with one ______.", "o":["opt1","opt2","opt3"]} (Pick 'o' from ALLOWED_DISTRACTORS_LIST)
        - If Type=reorder: {"idx":0, "qType":"reorder", "a":"Exact correct full sentence.", "s":"scrambled / words / separated / by / slashes"} (Keep punctuation and capitalization in 'a')
-       - If Type=cloze: {"idx":0, "qType":"cloze", "a":["ans1", "ans2"], "s":"Sentence with two ______.", "o":["opt1","opt2","opt3","opt4"]} (Use GRAMMAR_TARGETS for 'a' and 'o')
        - If Type=correction: {"idx":0, "qType":"correction", "a":{"wrong":"wrong word", "right":"correct word"}, "s":"Sentence containing the grammar error."} (Make an error based on GRAMMAR_TARGETS)
-    ④ EXCLUSIVE CLUES: For 'fill' and 'cloze', add an undeniable context sentence so ONLY the target fits.
+    ④ EXCLUSIVE CLUES: For 'fill', add an undeniable context sentence so ONLY the target fits.
     ⑤ Translation: Always include "t":"Traditional Chinese translation of the correct sentence."
     Output EXACTLY 2 items per IDX.${distractorStr}`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH.\n${patterns.join('\n')}`;
@@ -446,26 +445,22 @@
                                     let rawOptions = Array.isArray(q.o) ? q.o : (Array.isArray(q.options) ? q.options : []);
                                     let safeOptions = [];
                                     
-                                    if (parsedQType === 'fill' || parsedQType === 'cloze') {
+                                    if (parsedQType === 'fill') {
                                         let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ansStrForOptions.toLowerCase());
                                         if (distractors.length < 3 && typeof parsedAns === 'string') { 
                                             distractors = [...distractors, ...window.generateVocabOptions(ansStrForOptions, activeDB).filter(o=>o!==ansStrForOptions)]; 
                                         }
-                                        if (parsedQType === 'cloze') {
-                                            safeOptions = window.shuffleArray([...rawOptions]);
-                                        } else {
-                                            safeOptions = window.shuffleArray([ansStrForOptions, ...distractors.slice(0, 3)]);
-                                            const objPronouns = ['him', 'her', 'them', 'us', 'me', 'he', 'she', 'they', 'it', 'i', 'you'];
-                                            if (objPronouns.includes(ansStrForOptions.toLowerCase())) {
-                                                const safePool = window.generateVocabOptions(ansStrForOptions, activeDB).filter(o => !objPronouns.includes(String(o).toLowerCase()));
-                                                let rIdx = 0;
-                                                safeOptions = safeOptions.map(opt => {
-                                                    if (opt.toLowerCase() !== ansStrForOptions.toLowerCase() && objPronouns.includes(opt.toLowerCase())) {
-                                                        return safePool[rIdx++] || "apple";
-                                                    }
-                                                    return opt;
-                                                });
-                                            }
+                                        safeOptions = window.shuffleArray([ansStrForOptions, ...distractors.slice(0, 3)]);
+                                        const objPronouns = ['him', 'her', 'them', 'us', 'me', 'he', 'she', 'they', 'it', 'i', 'you'];
+                                        if (objPronouns.includes(ansStrForOptions.toLowerCase())) {
+                                            const safePool = window.generateVocabOptions(ansStrForOptions, activeDB).filter(o => !objPronouns.includes(String(o).toLowerCase()));
+                                            let rIdx = 0;
+                                            safeOptions = safeOptions.map(opt => {
+                                                if (opt.toLowerCase() !== ansStrForOptions.toLowerCase() && objPronouns.includes(opt.toLowerCase())) {
+                                                    return safePool[rIdx++] || "apple";
+                                                }
+                                                return opt;
+                                            });
                                         }
                                     } else if (parsedQType === 'reorder') {
                                         let ansStr = typeof parsedAns === 'string' ? parsedAns : "";
@@ -482,7 +477,7 @@
                                         if (sentence && !/[.!?]$/.test(sentence)) sentence += ".";
                                     }
                                     
-                                    if (parsedQType === 'fill' || parsedQType === 'cloze') {
+                                    if (parsedQType === 'fill') {
                                         sentence = sentence.replace(/[a-zA-Z]*_{2,}[a-zA-Z]*/g, '______');
                                         if (sentence.indexOf('______') === -1 && typeof parsedAns === 'string') { 
                                             const reg = new RegExp('\\b' + window.escapeRegExp(parsedAns) + '\\b', 'gi'); 
@@ -1098,7 +1093,6 @@
                                   <select value={grammarMode} onChange={e => handleGrammarModeChange(e.target.value)} disabled={isGenerating} className="bg-[#f4f1ea] text-[#5a6356] font-bold text-xs px-2 py-1 rounded outline-none cursor-pointer border border-[#d6cfc5]">
                                       <option value="mixed">綜合混合</option>
                                       <option value="fill">單字填空</option>
-                                      <option value="cloze">克漏字</option>
                                       <option value="reorder">句子重組</option>
                                       <option value="correction">挑錯字</option>
                                   </select>
