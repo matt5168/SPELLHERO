@@ -625,7 +625,7 @@
                                     setAnswers(p => { 
                                         const n = [...p]; 
                                         while(n.length < currentUIQs.length) {
-                                            const qt = currentUIQs[n.length]?.qType;
+                                            const qt = currentUIQs[n.length] ? currentUIQs[n.length].qType : undefined;
                                             if (qt === 'cloze' || qt === 'reorder') n.push([]);
                                             else if (qt === 'correction') n.push({wrong: null, right: ''});
                                             else n.push('');
@@ -691,7 +691,21 @@
                 } 
             } catch (fatalErr) { addLog(`[錯誤] ${fatalErr.message}`); } 
             finally { clearTimeout(batchTimeoutId); isGeneratingRef.current = false; setIsGenerating(false); setAiStatus("準備完成！"); }
-            if (currentUIQs.length < targetTotal) { setQuestions([...currentUIQs]); setAnswers(p => { const n = [...p]; while(n.length < currentUIQs.length) { const qt = currentUIQs[n.length]?.qType; if (qt === 'cloze' || qt === 'reorder') n.push([]); else if (qt === 'correction') n.push({wrong: null, right: ''}); else n.push(''); } return n; }); setHints(p => { const n = [...p]; while(n.length < currentUIQs.length) n.push(false); return n; }); setQStatus(p => { const n = [...p]; while(n.length < currentUIQs.length) n.push(null); return n; }); }
+            if (currentUIQs.length < targetTotal) { 
+                setQuestions([...currentUIQs]); 
+                setAnswers(p => { 
+                    const n = [...p]; 
+                    while(n.length < currentUIQs.length) { 
+                        const qt = currentUIQs[n.length] ? currentUIQs[n.length].qType : undefined; 
+                        if (qt === 'cloze' || qt === 'reorder') n.push([]); 
+                        else if (qt === 'correction') n.push({wrong: null, right: ''}); 
+                        else n.push(''); 
+                    } 
+                    return n; 
+                }); 
+                setHints(p => { const n = [...p]; while(n.length < currentUIQs.length) n.push(false); return n; }); 
+                setQStatus(p => { const n = [...p]; while(n.length < currentUIQs.length) n.push(null); return n; }); 
+            }
             if (!readyRef.current && currentUIQs.length > 0) { setReady(true); setTimeout(() => window.scrollTo(0, 0), 300); }
           };
 
@@ -810,7 +824,7 @@
               }
           };
 
-          const cyclePromptMode = (currentIndex) => { /* 保持不變 */
+          const cyclePromptMode = (currentIndex) => { 
               const modes = ['v1', 'v3', 'custom'];
               const current = qPromptModes[currentIndex] || promptMode;
               let nextIdx = modes.indexOf(current) + 1;
@@ -895,13 +909,13 @@
             }); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
           };
 
-          const handleRedeem = () => { /* 保持不變 */
+          const handleRedeem = () => { 
             const am = parseInt(redeemAmount); if (isNaN(am) || am <= 0 || am % 100 !== 0 || am > storage.coins) { setRedeemMessage("金幣不足或數量錯誤喔！"); return; }
             const nc = storage.coins - am; setStorage(p => { const ns = {...p, coins: nc}; try { localStorage.setItem('sh_coins_v28', nc.toString()); } catch(e){} return ns; });
             setRedeemMessage("🎉 成功兌換 NT$ " + ((am/100)*10) + " 元！"); setRedeemAmount(100); window.SOUND_ENGINE.playCoin();
           };
 
-          const playTTS = async (text, isS, a) => { /* 保持不變 */
+          const playTTS = async (text, isS, a) => { 
             if (isS === undefined) isS = true; if (a === undefined) a = '';
             const finalString = isS ? String(text).replace(/_+/g, a || '') : String(text);
             if (ttsEngine === 'openai' && openAITtsKey) { try { const response = await fetch('https://api.openai.com/v1/audio/speech', { method: 'POST', headers: { 'Authorization': `Bearer ${openAITtsKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'tts-1', input: finalString, voice: openAITtsVoice, speed: config.speed }) }); if (!response.ok) throw new Error('OpenAI API Exception'); const blob = await response.blob(); const audioUrl = URL.createObjectURL(blob); const audio = new Audio(audioUrl); audio.play(); return; } catch (e) { addLog(`⚠️ OpenAI TTS 播放失敗，自動降級 (${e.message})`); } }
@@ -975,7 +989,7 @@
                       <div className="ml-2 hidden sm:flex flex-col"><div className={`px-2 py-0.5 rounded-md text-[10px] md:text-xs font-black border flex items-center gap-1 shadow-sm ${currentLevelInfo.bg} ${currentLevelInfo.color} ${currentLevelInfo.border}`}><span>{currentLevelInfo.icon}</span> <span>Lv.{currentLevelInfo.level} {currentLevelInfo.title}</span></div>{nextLevel && (<div className="w-full h-1.5 bg-black/10 rounded-full mt-1 overflow-hidden"><div className="bg-white/80 h-full" style={{ width: `${expPercent}%` }}></div></div>)}</div>
                     </div>
                     <div className="flex items-center gap-2 mt-2 sm:ml-10 flex-wrap">
-                      <div className="text-[10px] font-black text-[#7a6b52] bg-[#e6dcc5]/80 px-1.5 py-0.5 rounded border border-[#d1c4aa]/50 text-left italic shadow-sm">{mainMenu === 'vocab' ? `純單字庫: ${currentActiveDB.length} 字` : mainMenu === 'review' ? `待特訓: ${mistakePool.length} 題` : `文法: ${Object.keys(GRAMMAR_NOTEBOOKS).reduce((a,b)=>a+(Array.isArray(GRAMMAR_NOTEBOOKS[b])?GRAMMAR_NOTEBOOKS[b].length:0),0)} 題`}</div>
+                      <div className="text-[10px] font-black text-[#7a6b52] bg-[#e6dcc5]/80 px-1.5 py-0.5 rounded border border-[#d1c4aa]/50 text-left italic shadow-sm">{mainMenu === 'vocab' ? `純單字庫: ${currentActiveDB.length} 字` : mainMenu === 'review' ? `待特訓: ${mistakePool.length} 題` : `文法: ${Object.keys(window.GRAMMAR_NOTEBOOKS).reduce((a,b)=>a+(Array.isArray(window.GRAMMAR_NOTEBOOKS[b])?window.GRAMMAR_NOTEBOOKS[b].length:0),0)} 題`}</div>
                       <div className="text-[10px] font-black text-[#576b5d] bg-[#c4d1c8]/80 px-1.5 py-0.5 rounded border border-[#9fb3a6]/50 flex items-center gap-1 text-left shadow-sm cursor-pointer hover:bg-[#b0c0b6]" onClick={() => setDash(true)}><Activity size={10} /> 引擎設定</div>
                       <div className="text-[10px] font-black text-[#7a6b52] bg-[#e6dcc5]/80 px-1.5 py-0.5 rounded border border-[#d1c4aa]/50 flex items-center gap-1 text-left shadow-sm cursor-pointer hover:bg-[#d1c4aa]" onClick={() => setDash(true)}><Database size={10} /> 快取: {poolStats.size} 題</div>
                       {isGenerating && ready && <div className="text-[10px] font-black text-[#cca677] bg-[#f4ebd9]/80 px-1.5 py-0.5 rounded border border-[#e0c9aa]/50 flex items-center gap-1 text-left shadow-sm animate-pulse"><Loader2 size={10} className="animate-spin" /> AI 湧泉產生中...</div>}
