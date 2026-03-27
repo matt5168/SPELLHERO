@@ -418,7 +418,7 @@
                 const n = [];
                 for(let i=0; i<readyQs.length; i++) {
                     const qt = readyQs[i].qType || 'fill';
-                    if (qt === 'cloze' || qt === 'reorder') n.push([]);
+                    if (qt === 'reorder') n.push([]);
                     else if (qt === 'correction') n.push({wrong: null, right: ''});
                     else n.push('');
                 }
@@ -463,7 +463,7 @@
                             const nbKey = nbs.includes('All') ? "DEFAULT" : nbs[0];
                             const gTargets = (window.GRAMMAR_TARGETS && window.GRAMMAR_TARGETS[nbKey]) ? window.GRAMMAR_TARGETS[nbKey] : ["is", "are", "was", "were"];
                             
-                            const validTypes = ['fill', 'reorder', 'cloze', 'correction'];
+                            const validTypes = ['fill', 'reorder', 'correction'];
                             const patterns = chunkPending.map((s, idx) => {
                                 const assignedType = reqGrammarType === 'mixed' ? validTypes[Math.floor(Math.random() * validTypes.length)] : reqGrammarType;
                                 s.assignedType = assignedType;
@@ -472,13 +472,12 @@
                             
                             systemPrompt = `ESL grammar practice, Taiwanese 3rd grade level. RULES:
     ① EVERYDAY REALITY: Context MUST describe realistic daily life for a 9-year-old in Taiwan. STRICTLY FORBIDDEN: Sci-fi, fantasy, magic, absurd physics (e.g., jumping on the moon).
-    ② GRAMMAR_TARGETS: [${gTargets.join(', ')}]. Use these specific words for cloze answers or correction errors.
+    ② GRAMMAR_TARGETS: [${gTargets.join(', ')}]. Use these specific words for correction errors.
     ③ Output JSON array ONLY. Format depends strictly on [Type]:
        - If Type=fill: {"idx":0, "qType":"fill", "a":"answer", "s":"Sentence with one ______.", "o":["opt1","opt2","opt3"]} (Pick 'o' from ALLOWED_DISTRACTORS_LIST)
        - If Type=reorder: {"idx":0, "qType":"reorder", "a":"Exact correct full sentence.", "s":"scrambled / words / separated / by / slashes"} (Keep punctuation and capitalization in 'a')
-       - If Type=cloze: {"idx":0, "qType":"cloze", "a":["ans1", "ans2"], "s":"Sentence with two ______.", "o":["opt1","opt2","opt3","opt4"]} (Use GRAMMAR_TARGETS for 'a' and 'o')
        - If Type=correction: {"idx":0, "qType":"correction", "a":{"wrong":"wrong word", "right":"correct word"}, "s":"Sentence containing the grammar error."} (Make an error based on GRAMMAR_TARGETS)
-    ④ EXCLUSIVE CLUES: For 'fill' and 'cloze', add an undeniable context sentence so ONLY the target fits.
+    ④ EXCLUSIVE CLUES: For 'fill', add an undeniable context sentence so ONLY the target fits.
     ⑤ Translation: Always include "t":"Traditional Chinese translation of the correct sentence."
     Output EXACTLY 2 items per IDX.${distractorStr}`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH.\n${patterns.join('\n')}`;
@@ -525,26 +524,22 @@
                                     let rawOptions = Array.isArray(q.o) ? q.o : (Array.isArray(q.options) ? q.options : []);
                                     let safeOptions = [];
                                     
-                                    if (parsedQType === 'fill' || parsedQType === 'cloze') {
+                                    if (parsedQType === 'fill') {
                                         let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ansStrForOptions.toLowerCase());
                                         if (distractors.length < 3 && typeof parsedAns === 'string') { 
                                             distractors = [...distractors, ...window.generateVocabOptions(ansStrForOptions, activeDB).filter(o=>o!==ansStrForOptions)]; 
                                         }
-                                        if (parsedQType === 'cloze') {
-                                            safeOptions = window.shuffleArray([...rawOptions]);
-                                        } else {
-                                            safeOptions = window.shuffleArray([ansStrForOptions, ...distractors.slice(0, 3)]);
-                                            const objPronouns = ['him', 'her', 'them', 'us', 'me', 'he', 'she', 'they', 'it', 'i', 'you'];
-                                            if (objPronouns.includes(ansStrForOptions.toLowerCase())) {
-                                                const safePool = window.generateVocabOptions(ansStrForOptions, activeDB).filter(o => !objPronouns.includes(String(o).toLowerCase()));
-                                                let rIdx = 0;
-                                                safeOptions = safeOptions.map(opt => {
-                                                    if (opt.toLowerCase() !== ansStrForOptions.toLowerCase() && objPronouns.includes(opt.toLowerCase())) {
-                                                        return safePool[rIdx++] || "apple";
-                                                    }
-                                                    return opt;
-                                                });
-                                            }
+                                        safeOptions = window.shuffleArray([ansStrForOptions, ...distractors.slice(0, 3)]);
+                                        const objPronouns = ['him', 'her', 'them', 'us', 'me', 'he', 'she', 'they', 'it', 'i', 'you'];
+                                        if (objPronouns.includes(ansStrForOptions.toLowerCase())) {
+                                            const safePool = window.generateVocabOptions(ansStrForOptions, activeDB).filter(o => !objPronouns.includes(String(o).toLowerCase()));
+                                            let rIdx = 0;
+                                            safeOptions = safeOptions.map(opt => {
+                                                if (opt.toLowerCase() !== ansStrForOptions.toLowerCase() && objPronouns.includes(opt.toLowerCase())) {
+                                                    return safePool[rIdx++] || "apple";
+                                                }
+                                                return opt;
+                                            });
                                         }
                                     } else if (parsedQType === 'reorder') {
                                         let ansStr = typeof parsedAns === 'string' ? parsedAns : "";
@@ -561,7 +556,7 @@
                                         if (sentence && !/[.!?]$/.test(sentence)) sentence += ".";
                                     }
                                     
-                                    if (parsedQType === 'fill' || parsedQType === 'cloze') {
+                                    if (parsedQType === 'fill') {
                                         sentence = sentence.replace(/[a-zA-Z]*_{2,}[a-zA-Z]*/g, '______');
                                         if (sentence.indexOf('______') === -1 && typeof parsedAns === 'string') { 
                                             const reg = new RegExp('\\b' + window.escapeRegExp(parsedAns) + '\\b', 'gi'); 
@@ -626,7 +621,7 @@
                                         const n = [...p]; 
                                         while(n.length < currentUIQs.length) {
                                             const qt = currentUIQs[n.length] ? currentUIQs[n.length].qType : undefined;
-                                            if (qt === 'cloze' || qt === 'reorder') n.push([]);
+                                            if (qt === 'reorder') n.push([]);
                                             else if (qt === 'correction') n.push({wrong: null, right: ''});
                                             else n.push('');
                                         }
@@ -697,7 +692,7 @@
                     const n = [...p]; 
                     while(n.length < currentUIQs.length) { 
                         const qt = currentUIQs[n.length] ? currentUIQs[n.length].qType : undefined; 
-                        if (qt === 'cloze' || qt === 'reorder') n.push([]); 
+                        if (qt === 'reorder') n.push([]); 
                         else if (qt === 'correction') n.push({wrong: null, right: ''}); 
                         else n.push(''); 
                     } 
@@ -864,9 +859,6 @@
             } else if (qType === 'reorder') {
                 const expectedLen = questions[index].options ? questions[index].options.length : 0;
                 if (!Array.isArray(finalAnswer) || finalAnswer.length === 0 || finalAnswer.length < expectedLen) return;
-            } else if (qType === 'cloze') {
-                const partsCount = (questions[index].sentence.match(/______/g) || []).length;
-                if (!Array.isArray(finalAnswer) || finalAnswer.length < partsCount || finalAnswer.some(a => !a || String(a).trim() === '')) return;
             } else if (qType === 'correction') {
                 if (!finalAnswer || typeof finalAnswer !== 'object' || !finalAnswer.wrong || !finalAnswer.right || String(finalAnswer.right).trim() === '') return;
             }
@@ -1242,7 +1234,6 @@
                                   <select value={grammarMode} onChange={e => handleGrammarModeChange(e.target.value)} disabled={isGenerating} className="bg-[#f4f1ea] text-[#5a6356] font-bold text-xs px-2 py-1 rounded outline-none cursor-pointer border border-[#d6cfc5]">
                                       <option value="mixed">綜合混合</option>
                                       <option value="fill">單字填空</option>
-                                      <option value="cloze">克漏字</option>
                                       <option value="reorder">句子重組</option>
                                       <option value="correction">挑錯字</option>
                                   </select>
@@ -1286,6 +1277,12 @@
       cleanSentence += "."; 
   }
   
+  const firstBlankIdx = cleanSentence.indexOf('______');
+  let p0 = cleanSentence; let p1 = "";
+  if (firstBlankIdx !== -1 && (q.qType === 'fill' || q.qType === undefined)) { p0 = cleanSentence.substring(0, firstBlankIdx); p1 = cleanSentence.substring(firstBlankIdx + 6); }
+  
+  if (!/[a-zA-Z]/.test(p0) && firstBlankIdx !== -1 && typeof currentAns === 'string') { hintMask = window.SYSTEM_ENGINE.capitalize(hintMask); currentAns = window.SYSTEM_ENGINE.capitalize(currentAns); }
+  
   const rawWrong = (q.rawAnswerObj && q.rawAnswerObj.wrong) ? q.rawAnswerObj.wrong : '';
   const rawRight = (q.rawAnswerObj && q.rawAnswerObj.right) ? q.rawAnswerObj.right : '???';
 
@@ -1307,77 +1304,27 @@
               <div className={`text-xl md:text-3xl font-bold leading-normal md:leading-relaxed break-words mt-2 ${!q.isAI ? 'text-[#8a847c]' : 'text-[#524d46]'} ${!isLayout2 && 'text-center'} w-full`}>
                 {q.qType === 'reorder' && !isLocked ? (
                     <span className="text-sm font-bold text-[#b5b0a8] italic">🧩 觀察下方亂序單字，依序點擊拼出完整句子。</span>
-                ) : (q.qType === 'fill' || q.qType === 'cloze' || q.qType === undefined) && cleanSentence.includes('______') ? (
-                    <span className="leading-[3.5rem] md:leading-[4rem]">
-                        {(() => {
-                            const rawParts = cleanSentence.split('______');
-                            const parts = rawParts.length > 1 ? rawParts : [cleanSentence, '']; 
-                            const expectedBlanks = parts.length - 1;
-                            const isCloze = q.qType === 'cloze';
-                            
-                            return parts.map((part, pIdx, arr) => {
-                                const isLast = pIdx === arr.length - 1;
-                                const currentVal = isCloze ? (Array.isArray(answers[i]) ? answers[i][pIdx] || '' : '') : (pIdx === 0 ? String(answers[i] || '') : '');
-                                
-                                return (
-                                    <React.Fragment key={pIdx}>
-                                        <span className="align-middle">{pIdx === 0 ? window.SYSTEM_ENGINE.capitalize(part) : part}</span>
-                                        {!isLast && (
-                                            quizMode === 'fill_in' && !isLocked ? (
-                                                <input 
-                                                    type="text" 
-                                                    value={currentVal} 
-                                                    onChange={e => { 
-                                                        const n = [...answers]; 
-                                                        if (isCloze) {
-                                                            const newArr = Array.isArray(n[i]) ? [...n[i]] : [];
-                                                            newArr[pIdx] = e.target.value.replace(/^\s+/, '');
-                                                            n[i] = newArr;
-                                                        } else {
-                                                            n[i] = e.target.value.replace(/^\s+/, '');
-                                                        }
-                                                        setAnswers(n); 
-                                                    }} 
-                                                    onKeyDown={e => {
-                                                        if(e.key === 'Enter') {
-                                                            const isComplete = isCloze 
-                                                                ? (Array.isArray(answers[i]) && answers[i].filter(a => a && String(a).trim() !== '').length >= expectedBlanks)
-                                                                : (String(answers[i]||'').trim() !== '');
-                                                            if (isComplete) handleCheckSingle(i);
-                                                        }
-                                                    }}
-                                                    autoComplete="off" spellCheck="false"
-                                                    className={`w-24 md:w-32 mx-1 appearance-none bg-white border-b-4 border-[#d6cfc5] focus:border-[#8b9586] text-[#524d46] text-lg md:text-xl font-mono font-black text-center p-1 rounded-lg outline-none shadow-sm align-middle inline-block ${combo>=3?'border-[#cca677] bg-[#f4ebd9] focus:bg-[#f4ebd9]':''}`} 
-                                                />
-                                            ) : (
-                                                <span className={`mx-1 inline-block px-2 pb-0.5 border-b-[3px] align-middle ${isLocked ? (isFinallyCorrect ? "text-[#7a8575] border-[#7a8575]" : "text-[#b5847e] border-[#b5847e] line-through") : "text-[#8b9586] border-[#8b9586]"}`}>
-                                                    {isLocked ? (currentVal || '______') : hintMask}
-                                                </span>
-                                            )
-                                        )}
-                                    </React.Fragment>
-                                );
-                            });
-                        })()}
-                        
-                        {quizMode === 'fill_in' && !isLocked && (() => {
-                            const rawParts = cleanSentence.split('______');
-                            const expectedBlanks = rawParts.length > 1 ? rawParts.length - 1 : 1;
-                            const isCloze = q.qType === 'cloze';
-                            const isComplete = isCloze 
-                                ? (Array.isArray(answers[i]) && answers[i].filter(a => a && String(a).trim() !== '').length >= expectedBlanks)
-                                : (String(answers[i]||'').trim() !== '');
-
+                ) : firstBlankIdx !== -1 && (q.qType === 'fill' || q.qType === undefined) ? (
+                    <React.Fragment>
+                        <span>{window.SYSTEM_ENGINE.capitalize(p0)}</span>
+                        <span className={`mx-1 inline-block ${!isLocked && hintMask.indexOf('_') !== -1 && mainMenu !== 'grammar' ? 'tracking-[0.2em]' : ''} ${isLocked ? (isFinallyCorrect ? "text-[#7a8575]" : "text-[#b5847e] line-through decoration-[#b5847e] decoration-[3px]") : (combo >= 3 ? "text-[#cca677]" : "text-[#8b9586]")} transition-colors duration-300`}>{isLocked ? (currentAns || '______') : hintMask}</span>
+                        <span>{p1}</span>
+                    </React.Fragment>
+                ) : q.qType === 'correction' && !isLocked ? (
+                    <div className="flex flex-wrap justify-center gap-1.5 md:gap-2 leading-relaxed">
+                        {cleanSentence.split(' ').map((word, wIdx) => {
+                            const cleanWord = word.replace(/[.,!?]+$/, '');
+                            const punctuation = word.match(/[.,!?]+$/) ? word.match(/[.,!?]+$/)[0] : '';
+                            const currentAnsObj = answers[i] || {wrong: null, right: ''};
+                            const isSelected = currentAnsObj.wrong === cleanWord;
                             return (
-                                <button 
-                                    onClick={() => handleCheckSingle(i)} 
-                                    disabled={!isComplete} 
-                                    className={`ml-3 inline-flex items-center justify-center text-white text-sm font-black w-12 h-10 md:w-14 md:h-12 rounded-xl active:scale-95 shadow transition-all align-middle border-b-4 ${!isComplete ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed opacity-50' : (combo>=3?'bg-[#cca677] border-[#a68258]':'bg-[#8b9586] border-[#6b7566]')}`}>
-                                    {combo>=3?<Flame size={20} className="animate-pulse"/>:<Send size={20}/>}
-                                </button>
+                                <span key={wIdx} className="flex items-center">
+                                    <button onClick={() => { const n=[...answers]; n[i]={...currentAnsObj, wrong: cleanWord}; setAnswers(n); }} className={`px-1.5 py-0.5 rounded transition-all active:scale-95 ${isSelected ? 'bg-[#b5847e] text-white shadow-inner line-through decoration-white/50' : 'text-[#524d46] hover:bg-[#e6e9e4] cursor-pointer'}`}>{cleanWord}</button>
+                                    {punctuation && <span className="text-[#524d46]">{punctuation}</span>}
+                                </span>
                             );
-                        })()}
-                    </span>
+                        })}
+                    </div>
                 ) : (
                     <span>{q.qType === 'reorder' && isLocked ? (isFinallyCorrect ? answers[i].join(' ') : safeAnswerStr) : cleanSentence}</span>
                 )}
@@ -1394,6 +1341,13 @@
                                       {mainMenu !== 'grammar' && ( <button onClick={e => { e.stopPropagation(); playTTS(opt, false, ''); }} className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-[#8a847c] hover:bg-[#c4cec1] rounded-full active:scale-90"><Megaphone size={18} /></button> )}
                                   </div>
                               ))}
+                          </div>
+                      )}
+                      
+                      {quizMode === 'fill_in' && !isLocked && (q.qType === 'fill' || q.qType === undefined) && (
+                          <div className={`flex flex-row items-center w-full gap-2 max-w-sm`}>
+                            <input type="text" value={String(answers[i] || "")} onChange={e => { const n = [...answers]; n[i] = e.target.value.replace(/^\s+/, ''); setAnswers(n); }} onKeyDown={e => {if(e.key==='Enter') handleCheckSingle(i);}} onFocus={e => { if(config.autoRead && mainMenu !== 'grammar') playTTS(q.sentence, true, safeAnswerStr); setTimeout(() => e.target.scrollIntoView({behavior:'smooth', block:'center'}), 300); }} autoComplete="off" spellCheck="false" placeholder="在此拼字..." className={`flex-1 min-w-0 appearance-none bg-white border-b-4 border-[#d6cfc5] focus:border-[#8b9586] text-[#524d46] text-xl md:text-2xl font-mono font-black text-center p-3 rounded-xl outline-none shadow-sm placeholder:text-[#b8b3aa] ${combo>=3?'border-[#cca677] bg-[#f4ebd9] focus:bg-[#f4ebd9]':''}`} />
+                            <button onClick={() => handleCheckSingle(i)} disabled={String(answers[i]||'').trim() === ''} className={`text-white text-lg md:text-xl font-black px-5 py-3 rounded-xl flex items-center justify-center gap-2 active:scale-95 shadow transition-all ${String(answers[i]||'').trim() === '' ? 'bg-[#a6a198] border-b-4 border-[#8a847c] cursor-not-allowed opacity-50' : (combo>=3?'bg-[#cca677] border-b-4 border-[#a68258]':'bg-[#8b9586] border-b-4 border-[#6b7566]')}`}>{combo>=3?<Flame size={20} className="animate-pulse"/>:<Send size={20}/>}</button>
                           </div>
                       )}
 
@@ -1424,24 +1378,10 @@
 
                       {!isLocked && q.qType === 'correction' && (() => {
                           const currentAnsObj = answers[i] || {wrong: null, right: ''};
-                          const words = cleanSentence.split(' ');
                           const isComplete = currentAnsObj.wrong && currentAnsObj.right && currentAnsObj.right.trim() !== '';
                           return (
                               <div className="flex flex-col gap-4 w-full items-center">
-                                  <div className="text-xs font-bold text-[#8a847c] bg-[#e6e9e4] px-3 py-1 rounded-full mb-1">👆 請點擊上方句子中的錯誤單字</div>
-                                  <div className="flex flex-wrap justify-center gap-1.5 mb-2">
-                                      {words.map((word, wIdx) => {
-                                          const cleanWord = word.replace(/[.,!?]+$/, '');
-                                          const punctuation = word.match(/[.,!?]+$/) ? word.match(/[.,!?]+$/)[0] : '';
-                                          const isSelected = currentAnsObj.wrong === cleanWord;
-                                          return (
-                                              <span key={wIdx} className="flex items-center">
-                                                  <button onClick={() => { const n=[...answers]; n[i]={...currentAnsObj, wrong: cleanWord}; setAnswers(n); }} className={`text-xl md:text-3xl font-bold px-1.5 py-0.5 rounded transition-all active:scale-95 ${isSelected ? 'bg-[#b5847e] text-white shadow-inner line-through decoration-white/50' : 'text-[#524d46] hover:bg-[#e6e9e4]'}`}>{cleanWord}</button>
-                                                  {punctuation && <span className="text-xl md:text-3xl font-bold text-[#524d46]">{punctuation}</span>}
-                                              </span>
-                                          );
-                                      })}
-                                  </div>
+                                  {!currentAnsObj.wrong && <div className="text-sm font-bold text-[#8a847c] bg-[#e6e9e4] px-4 py-2 rounded-full animate-pulse shadow-sm">👆 請點擊上方句子中的錯誤單字</div>}
                                   {currentAnsObj.wrong && (
                                       <div className="flex flex-row items-center w-full max-w-sm gap-3 animate-in fade-in zoom-in duration-300 bg-[#f4ebd9] p-3 rounded-xl border border-[#e0c9aa] shadow-sm">
                                           <div className="bg-[#b5847e] text-white font-bold px-4 py-2 rounded-lg line-through shadow-inner text-lg">{currentAnsObj.wrong}</div>
@@ -1497,8 +1437,6 @@
                                           <span className="text-[#8a847c]">➔</span>
                                           <span className="text-[#8b9586]">{rawRight}</span>
                                       </div>
-                                  ) : q.qType === 'cloze' ? (
-                                      <span className="text-[#8b9586]">{Array.isArray(q.rawAnswerObj) ? q.rawAnswerObj.join(', ') : safeAnswerStr}</span>
                                   ) : (
                                       <span>{safeAnswerStr || <span className="text-[#b5847e]">系統缺漏</span>}</span>
                                   )}
@@ -1515,13 +1453,6 @@
                                   <span>{rawWrong ? cleanSentence.replace(new RegExp('\\b' + window.escapeRegExp(rawWrong) + '\\b', 'gi'), rawRight) : cleanSentence}</span>
                               ) : q.qType === 'reorder' ? (
                                   <span>{safeAnswerStr}</span>
-                              ) : q.qType === 'cloze' ? (
-                                  cleanSentence.split('______').map((part, idx, arr) => (
-                                      <span key={idx}>
-                                          {part}
-                                          {idx < arr.length - 1 && <span className="text-[#cca677] border-b-[3px] border-[#cca677] mx-1 px-1 pb-0.5">{Array.isArray(q.rawAnswerObj) ? (q.rawAnswerObj[idx] || "???") : "???"}</span>}
-                                      </span>
-                                  ))
                               ) : firstBlankIdx !== -1 ? (
                                   cleanSentence.split('______').map((part, idx, arr) => (
                                       <span key={idx}>
