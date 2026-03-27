@@ -93,7 +93,6 @@ window.GRAMMAR_NOTEBOOKS = {
         {id:"g_u5_10", answer:"has to", sentence:"[SUBJ_DOES_1] ______ [TREATMENT_1].", hint:"必須(第三人稱單數)"},
         {id:"g_u5_11", answer:"[SUBJ_DOES_1]", sentence:"What does ______ have to do?", hint:"[SUBJ_DOES_1_HINT]"},
         {id:"g_u5_12", answer:"[SUBJ_DO_1]", sentence:"What do ______ have to do?", hint:"[SUBJ_DO_1_HINT]"},
-        // 完全鎖死符合照片課本句型的 must 系列
         {id:"g_u5_13", answer:"must", sentence:"When you have [ILLNESS_PHRASE_1], you ______ [TREATMENT_1].", hint:"必須"},
         {id:"g_u5_14", answer:"you", sentence:"When ______ have [ILLNESS_PHRASE_1], you must [TREATMENT_1].", hint:"你(主格)"},
         {id:"g_u5_15", answer:"[ILLNESS_PHRASE_1]", sentence:"When you have ______, you must [TREATMENT_1].", hint:"[ILLNESS_PHRASE_1_HINT]"},
