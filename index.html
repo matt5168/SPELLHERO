@@ -313,7 +313,7 @@
             const readyQs = []; const needed = [];
             selected.forEach(item => {
                 const dynamicSuffix = item.resolvedValues ? `_${item.resolvedValues}` : '';
-                const key = targetMenu === 'grammar' ? `gram_${item.id}${dynamicSuffix}` : `word_${String(item.answer||"").trim().toLowerCase()}`;
+                const key = targetMenu === 'grammar' ? `gram_${item.id}${dynamicSuffix}_${reqGrammarType}` : `word_${String(item.answer||"").trim().toLowerCase()}`;
                 
                 if (currentPool[key] && currentPool[key].length > 0) {
                     const cachedQ = currentPool[key].shift(); 
@@ -436,6 +436,7 @@
 
                                     let parsedAns = q.a !== undefined ? q.a : (q.answer !== undefined ? q.answer : (expectedItem ? expectedItem.answer : ""));
                                     let parsedQType = q.qtype || q.type || (expectedItem ? expectedItem.assignedType : 'fill');
+                                    if (targetMenu === 'grammar' && expectedItem && expectedItem.assignedType && parsedQType !== expectedItem.assignedType) return; 
                                     let ansStrForOptions = typeof parsedAns === 'string' ? parsedAns.trim() : (Array.isArray(parsedAns) ? String(parsedAns[0]).trim() : (parsedAns.right ? String(parsedAns.right).trim() : "UNKNOWN"));
                                     if (!ansStrForOptions) ansStrForOptions = "UNKNOWN";
 
