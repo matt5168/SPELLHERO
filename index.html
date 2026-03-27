@@ -724,7 +724,7 @@
           const handleCheckSingle = (index, forcedAnswer) => {
             if (qStatus[index] !== null || submitted) return; let finalAnswer = answers[index];
             if (forcedAnswer !== undefined && forcedAnswer !== null) { finalAnswer = forcedAnswer; const newAns = [...answers]; newAns[index] = forcedAnswer; setAnswers(newAns); }
-            if (finalAnswer === '' || (Array.isArray(finalAnswer) && finalAnswer.length === 0) || (finalAnswer && typeof finalAnswer === 'object' && !finalAnswer.right)) return; 
+            if (finalAnswer === '' || (Array.isArray(finalAnswer) && finalAnswer.length === 0) || (finalAnswer && typeof finalAnswer === 'object' && !Array.isArray(finalAnswer) && !finalAnswer.right)) return; 
             
             const scoreVal = window.SYSTEM_ENGINE.isCorrect(finalAnswer, questions[index].rawAnswerObj || questions[index].answer, questions[index].qType);
             const isCorr = scoreVal === 1;
