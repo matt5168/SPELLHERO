@@ -59,7 +59,7 @@ window.SYSTEM_ENGINE = {
       // 2. 排序題：陣列組合後嚴格比對 (不轉小寫，保留標點，回傳 0 或 1)
       if (qType === 'reorder') {
           if (!Array.isArray(ui)) return 0;
-          return ui.join(' ').trim() === String(ca||"").trim() ? 1 : 0;
+          return ui.join(' ').trim().toLowerCase() === String(ca||"").trim().toLowerCase() ? 1 : 0;
       }
       // 3. 克漏字填空：多重空格陣列比對 (回傳 0.0 ~ 1.0 的浮點數比例)
       if (qType === 'cloze') {
