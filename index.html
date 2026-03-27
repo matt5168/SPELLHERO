@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (多重文法題型 v25.1 邏輯修復版)</title>
+    <title>Spelling Hero - 互動家教版 (多重文法題型 v25.2 絕對真理判定版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -105,7 +105,7 @@
               if (m === 'v2') m = 'v1';
               return m;
           });
-          const defaultCustomPrompt = `You are an English tutor for a child in Taiwan.\nQuestion: "{q.sentence}"\nTarget Answer: "{safeAnswerStr}"\nStudent's Answer: "{studentAns}"\n\nTASK:\n1. If Target is grammatically WRONG for subject, OR Student is perfectly correct synonym, YOU MUST OVERRIDE. First word MUST be "[OVERRIDE_CORRECT]".\n2. Explain in TRADITIONAL CHINESE. Use very simple language.\n3. Format exactly as below:\n🔍 題目線索：[...]\n💡 文法秘訣：[...]\n🎯 答題結果：[...]`;
+          const defaultCustomPrompt = `You are an English tutor for a child in Taiwan.\nQuestion: "{q.sentence}"\nTarget Answer: "{safeAnswerStr}"\nStudent's Answer: "{studentAns}"\n\nTASK:\n1. CRITICAL: Analyze the combined Question + Target Answer. If the Target Answer creates a grammatically WRONG sentence (e.g., missing a verb like "has" before "a cold"), OR if the Student's Answer is actually the only grammatically correct option, YOU MUST OVERRIDE. To override, your VERY FIRST WORD must be "[OVERRIDE_CORRECT]". If the student's answer is ALSO wrong but you need to correct the Target Answer, output "[OVERRIDE_CORRECT: correct_answer]".\n2. Explain in TRADITIONAL CHINESE. Use very simple language.\n3. Format exactly as below:\n🔍 題目線索：[...]\n💡 文法秘訣：[...]\n🎯 答題結果：[...]`;
           const [customPromptText, setCustomPromptText] = useState(localStorage.getItem('sh_custom_prompt') || defaultCustomPrompt);
           const [qPromptModes, setQPromptModes] = useState({});
 
@@ -146,8 +146,47 @@
           const handleRoutingModeChange = (mode) => { setRoutingMode(mode); localStorage.setItem('sh_routing_mode', mode); };
 
           const importFileRef = useRef(null);
-          const handleExportData = () => { /* 儲存匯出格式處理 */ };
-          const handleImportData = (e) => { /* 讀取匯入格式處理 */ };
+          const handleExportData = () => {
+              const payload = {
+                  version: "SH_v2", exportedAt: new Date().toISOString(),
+                  history: JSON.parse(localStorage.getItem('sh_h_v28')||'[]'), memory: JSON.parse(localStorage.getItem('sh_m_v28')||'{}'), stats: JSON.parse(localStorage.getItem('sh_s_v28')||'{}'),
+                  coins: parseInt(localStorage.getItem('sh_coins_v28')||'0'), exp: parseInt(localStorage.getItem('sh_exp_v28')||'0'), level: parseInt(localStorage.getItem('sh_level_v28')||'1'),
+                  mistakes: JSON.parse(localStorage.getItem('sh_mistakes_v29')||'[]'), apiUsage: JSON.parse(localStorage.getItem('sh_api_usage_v29')||'{}'),
+                  settings: {
+                      uiLayout: localStorage.getItem('sh_ui_layout')||'layout1', ttsEngine: localStorage.getItem('sh_tts_engine')||'native', ttsVoice: localStorage.getItem('sh_openai_tts_voice')||'nova',
+                      orModel: localStorage.getItem('sh_or_model')||'openrouter/auto', groqModel: localStorage.getItem('sh_groq_model')||'llama-3.3-70b-versatile',
+                      geminiKey: localStorage.getItem('gemini_api_key')||'', orKey: localStorage.getItem('openrouter_api_key')||'', groqKey: localStorage.getItem('groq_api_key')||'', openAITtsKey: localStorage.getItem('sh_openai_tts_key')||'', routingMode: localStorage.getItem('sh_routing_mode')||'dynamic',
+                      enableGroq: localStorage.getItem('sh_enable_groq'), enableGoogle: localStorage.getItem('sh_enable_google'), enableOr: localStorage.getItem('sh_enable_or'), enableOpenAI: localStorage.getItem('sh_enable_openai'),
+                      promptMode: localStorage.getItem('sh_prompt_mode')||'v1', customPrompt: localStorage.getItem('sh_custom_prompt')||defaultCustomPrompt, defaultTeacher: localStorage.getItem('sh_default_teacher')||'openrouter'
+                  }
+              };
+              const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob);
+              const a = document.createElement('a'); a.href = url; a.download = 'spellhero_backup_' + new Date().toISOString().slice(0,10) + '.json'; a.click(); URL.revokeObjectURL(url);
+          };
+          const handleImportData = (e) => {
+              const file = e.target.files && e.target.files[0]; if (!file) return;
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                  try {
+                      const d = JSON.parse(ev.target.result); if (!d.version || !d.version.startsWith('SH_')) { showAlert('❌ 檔案格式錯誤'); return; }
+                      if (d.history) localStorage.setItem('sh_h_v28', JSON.stringify(d.history)); if (d.memory) localStorage.setItem('sh_m_v28', JSON.stringify(d.memory)); if (d.stats) localStorage.setItem('sh_s_v28', JSON.stringify(d.stats));
+                      if (d.coins !== undefined) localStorage.setItem('sh_coins_v28', String(d.coins)); if (d.exp !== undefined) localStorage.setItem('sh_exp_v28', String(d.exp)); if (d.level !== undefined) localStorage.setItem('sh_level_v28', String(d.level));
+                      if (d.mistakes) localStorage.setItem('sh_mistakes_v29', JSON.stringify(d.mistakes)); if (d.apiUsage) localStorage.setItem('sh_api_usage_v29', JSON.stringify(d.apiUsage));
+                      if (d.settings) {
+                          const s = d.settings;
+                          if (s.uiLayout) localStorage.setItem('sh_ui_layout', s.uiLayout); if (s.ttsEngine) localStorage.setItem('sh_tts_engine', s.ttsEngine); if (s.ttsVoice) localStorage.setItem('sh_openai_tts_voice', s.ttsVoice);
+                          if (s.orModel) localStorage.setItem('sh_or_model', s.orModel); if (s.groqModel) localStorage.setItem('sh_groq_model', s.groqModel);
+                          if (s.geminiKey) localStorage.setItem('gemini_api_key', s.geminiKey); if (s.orKey) localStorage.setItem('openrouter_api_key', s.orKey); if (s.groqKey) localStorage.setItem('groq_api_key', s.groqKey); if (s.openAITtsKey) localStorage.setItem('sh_openai_tts_key', s.openAITtsKey);
+                          if (s.routingMode) localStorage.setItem('sh_routing_mode', s.routingMode);
+                          if (s.enableGroq) localStorage.setItem('sh_enable_groq', s.enableGroq); if (s.enableGoogle) localStorage.setItem('sh_enable_google', s.enableGoogle); if (s.enableOr) localStorage.setItem('sh_enable_or', s.enableOr); if (s.enableOpenAI) localStorage.setItem('sh_enable_openai', s.enableOpenAI);
+                          if (s.promptMode) { let m = s.promptMode; if (m === 'v2') m = 'v1'; localStorage.setItem('sh_prompt_mode', m); }
+                          if (s.customPrompt) localStorage.setItem('sh_custom_prompt', s.customPrompt); if (s.defaultTeacher) localStorage.setItem('sh_default_teacher', s.defaultTeacher);
+                      }
+                      setTimeout(() => window.location.reload(), 1500);
+                  } catch(err) { showAlert('❌ 解析失敗：' + err.message); }
+              };
+              reader.readAsText(file); e.target.value = '';
+          };
           const handleClearPoolCache = () => {
               if (window.confirm("確定要清空預載池？")) { try { localStorage.removeItem('sh_qpool_v34'); setPoolStats(p => ({ ...p, size: 0 })); addLog("🗑️ 已清空預載快取"); } catch(e) {} }
           };
@@ -258,8 +297,49 @@
           const allGrammarBanks = ['PB1 U1 句型庫', 'PB1 U2 句型庫', 'PB1 U3 句型庫', 'PB1 U4 句型庫', 'PB1 U5 句型庫', 'PB1 U6 句型庫', 'PB1 U7 句型庫', 'PB1 U8 句型庫'];
           const allVocabBanks = ['Words to know 1', 'Words to know 2', 'Words to know 3', 'CHINGSHIN Kidboxs 3 U1', 'CHINGSHIN Kidboxs 3 U2', 'CHINGSHIN Kidboxs 3 U3', 'CHINGSHIN Kidboxs 3 U4', 'CHINGSHIN Kidboxs 3 U5', 'CHINGSHIN Kidboxs 3 U6', 'CHINGSHIN Kidboxs 3 U7', 'CHINGSHIN Kidboxs 3 U8', '劍橋英檢 Movers'];
 
-          const runSingleDiag = async (provider) => { /* ... */ };
-          const runDiagnostic = async () => { /* ... */ };
+          const runSingleDiag = async (provider) => {
+              if(!window.sharedAIClient) return;
+              setDiagStatus('testing'); setDiagMsg(`測試 ${provider.toUpperCase()}...`); clearLogs();
+              const testMsg = 'Reply exact JSON: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["a","b","c","d"]}]}';
+              const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 20000);
+              try {
+                  let result = null;
+                  if (provider === 'groq') result = await window.sharedAIClient.callGroq("Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, groqModel, 'micro');
+                  else if (provider === 'google') result = await window.sharedAIClient.callGemini(activeGeminiModel, "Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, 'micro');
+                  else if (provider === 'openrouter') result = await window.sharedAIClient.callOpenRouter("Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, openRouterModel, 'micro');
+                  else if (provider === 'openai') result = await window.sharedAIClient.callOpenAI("Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, 'gpt-4o-mini', 'micro');
+                  
+                  clearTimeout(timeoutId); setAiModel(result.modelName); setDiagStatus('success'); setDiagMsg(`✅ ${result.modelName} OK`); setShowLogsPanel(true);
+              } catch(e) { clearTimeout(timeoutId); setDiagStatus('error'); setDiagMsg(`❌ 失敗：${e.message}`); setShowLogsPanel(true); }
+          };
+
+          const runDiagnostic = async () => {
+            if(!window.sharedAIClient) return;
+            setDiagStatus('testing'); setDiagMsg(`測試已啟用之連線...`); clearLogs();
+            try {
+                const modelsRes = await window.sharedAIClient.checkAvailableModels();
+                if (modelsRes && modelsRes.gemini) setActiveGeminiModel(modelsRes.gemini);
+                const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 60000); 
+                const testMsg = 'Reply exact JSON: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["a","b","c","d"]}]}';
+                
+                const providersToTry = ['groq', 'google', 'openrouter', 'openai'].filter(p => enginesEnabled[p]);
+                if(providersToTry.length === 0) throw new Error("無啟用引擎");
+
+                let result = null;
+                for (let i = 0; i < providersToTry.length; i++) {
+                    const currentP = providersToTry[i];
+                    try {
+                        addLog(`測試 ${currentP.toUpperCase()}...`);
+                        if (currentP === 'groq') result = await window.sharedAIClient.callGroq("Diagnostic", testMsg, controller.signal, () => {}, addLog, groqModel, 'micro');
+                        else if (currentP === 'google') result = await window.sharedAIClient.callGemini(activeGeminiModel, "Diagnostic", testMsg, controller.signal, () => {}, addLog, 'micro');
+                        else if (currentP === 'openrouter') result = await window.sharedAIClient.callOpenRouter("Diagnostic", testMsg, controller.signal, () => {}, addLog, openRouterModel, 'micro');
+                        else if (currentP === 'openai') result = await window.sharedAIClient.callOpenAI("Diagnostic", testMsg, controller.signal, () => {}, addLog, 'gpt-4o-mini', 'micro');
+                        break;
+                    } catch (e) { addLog(`[錯誤] ${currentP.toUpperCase()}: ${e.message}`); if (i === providersToTry.length - 1) throw e; }
+                }
+                clearTimeout(timeoutId); setAiModel(result.modelName); setDiagStatus('success'); setDiagMsg("✅ 引擎運作正常"); setShowLogsPanel(true);
+            } catch (e) { setDiagStatus('error'); setDiagMsg(`❌ ${e.message}`); setShowLogsPanel(true); }
+          };
 
           // === AI 批次產生邏輯 ===
           const generateAIBatch = async (m, nbs, mode, targetMenu, forceGeminiModel, currentMistakes, reqGrammarType = 'mixed') => {
@@ -611,8 +691,8 @@
             if (!readyRef.current && currentUIQs.length > 0) { setReady(true); setTimeout(() => window.scrollTo(0, 0), 300); }
           };
 
-          const generateExpPrompt = (mode, qSentence, safeAns, studentAns, allowOverride = true) => { /* 保持不變 */
-              const overrideTask = allowOverride ? `1. If Target is grammatically WRONG for subject, OR Student is perfectly correct synonym, YOU MUST OVERRIDE. First word MUST be "[OVERRIDE_CORRECT]".\n2. Explain in TRADITIONAL CHINESE (繁體中文).\n` : `1. Explain in TRADITIONAL CHINESE (繁體中文).\n`;
+          const generateExpPrompt = (mode, qSentence, safeAns, studentAns, allowOverride = true) => { 
+              const overrideTask = allowOverride ? `1. CRITICAL: Analyze the combined Question + Target Answer. If the Target Answer creates a grammatically WRONG sentence (e.g., missing a verb like "has" before "a cold"), OR if the Student's Answer is actually the only grammatically correct option, YOU MUST OVERRIDE. To override, your VERY FIRST WORD must be "[OVERRIDE_CORRECT]". If the student's answer is ALSO wrong but you need to correct the Target Answer, output "[OVERRIDE_CORRECT: correct_answer]".\n2. Explain in TRADITIONAL CHINESE (繁體中文).\n` : `1. Explain in TRADITIONAL CHINESE (繁體中文).\n`;
               const baseTask = `TASK:\n${overrideTask}`;
               const baseFormat = `3. Format exactly as below:\n🔍 題目線索：[...]\n💡 文法秘訣：[...]\n🎯 答題結果：[...]`;
               
@@ -625,11 +705,12 @@
               }
           };
 
-          const handleOnDemand = async (index, type, isRetry = false, retryCount = 0, targetPromptMode = null, isManual = false, targetProvider = null) => {
+          const handleOnDemand = async (index, type, isRetry = false, retryCount = 0, targetPromptMode = null, isManual = false, targetProvider = null) => { 
               const key = `${type}_${index}`; if (loadingStates[key] && !isRetry) return;
               setLoadingStates(prev => ({...prev, [key]: true})); if (!isRetry) setDynamicContent(prev => ({...prev, [key]: ""}));
 
-              const q = questions[index]; const safeAnswerStr = String(q.answer||""); const studentAns = typeof answers[index] === 'object' ? JSON.stringify(answers[index]) : String(answers[index]||"[未作答]");
+              const q = questions[index]; const safeAnswerStr = typeof q.rawAnswerObj === 'string' ? q.rawAnswerObj : (typeof q.answer === 'string' ? q.answer : JSON.stringify(q.rawAnswerObj));
+              const studentAns = typeof answers[index] === 'object' ? JSON.stringify(answers[index]) : String(answers[index]||"[未作答]");
               
               let currentPMode = targetPromptMode || promptMode;
               if (type === 'exp') { setQPromptModes(prev => ({...prev, [index]: currentPMode})); }
@@ -642,23 +723,42 @@
                   let firstChunk = false;
                   const onChunk = (text, chunkModelName) => {
                       firstChunk = true; let clean = text.replace(/^["']|["']$/g, '');
-                      if (clean.includes('[OVERRIDE_CORRECT]')) {
-                          clean = clean.replace(/\[OVERRIDE_CORRECT\]/g, '').trim();
+                      
+                      const overrideRegex = /\[OVERRIDE_CORRECT(?::\s*([^\]]+))?\]/;
+                      const match = clean.match(overrideRegex);
+
+                      if (match) {
+                          let newCorrectAns = answers[index]; 
+                          let isStudentCorrect = true;
+                          
+                          if (match[1]) {
+                              newCorrectAns = match[1].trim();
+                              isStudentCorrect = false; 
+                          }
+                          
+                          clean = clean.replace(overrideRegex, '').trim();
+
                           if (!isManual && !overrideTriggeredRef.current[key]) {
                               overrideTriggeredRef.current[key] = true;
+                              
                               setQuestions(prev => { 
                                   const nq = [...prev]; 
                                   nq[index] = { 
                                       ...nq[index], 
-                                      answer: typeof answers[index] === 'object' ? JSON.stringify(answers[index]) : answers[index],
-                                      rawAnswerObj: answers[index] 
+                                      answer: typeof newCorrectAns === 'object' ? JSON.stringify(newCorrectAns) : newCorrectAns,
+                                      rawAnswerObj: newCorrectAns 
                                   }; 
                                   return nq; 
                               });
-                              setQStatus(prev => { const nqs = [...prev]; nqs[index] = 1; return nqs; });
-                              setCombo(prevCombo => { const nc = prevCombo + 1; setMaxCombo(max => nc > max ? nc : max); if (nc >= 3) { window.SOUND_ENGINE.playCombo(); setShowComboAnim(true); setTimeout(() => setShowComboAnim(false), 1000); } else window.SOUND_ENGINE.playCorrect(); return nc; });
-                              setStorage(prev => { const nextS = { ...prev.stats }; if (nextS[safeAnswerStr.toLowerCase()]) { nextS[safeAnswerStr.toLowerCase()].wrong = Math.max(0, nextS[safeAnswerStr.toLowerCase()].wrong - 1); const userAnsLower = typeof answers[index] === 'string' ? answers[index].toLowerCase() : 'multi_ans'; if (!nextS[userAnsLower]) nextS[userAnsLower] = { correct: 0, wrong: 0 }; nextS[userAnsLower].correct += 1; } return { ...prev, stats: nextS }; });
-                              setMistakePool(prev => prev.filter(w => w.toLowerCase() !== safeAnswerStr.toLowerCase()));
+                              
+                              if (isStudentCorrect) {
+                                  setQStatus(prev => { const nqs = [...prev]; nqs[index] = 1; return nqs; });
+                                  setCombo(prevCombo => { const nc = prevCombo + 1; setMaxCombo(max => nc > max ? nc : max); if (nc >= 3) { window.SOUND_ENGINE.playCombo(); setShowComboAnim(true); setTimeout(() => setShowComboAnim(false), 1000); } else window.SOUND_ENGINE.playCorrect(); return nc; });
+                                  setStorage(prev => { const nextS = { ...prev.stats }; if (nextS[safeAnswerStr.toLowerCase()]) { nextS[safeAnswerStr.toLowerCase()].wrong = Math.max(0, nextS[safeAnswerStr.toLowerCase()].wrong - 1); const userAnsLower = typeof answers[index] === 'string' ? answers[index].toLowerCase() : 'multi_ans'; if (!nextS[userAnsLower]) nextS[userAnsLower] = { correct: 0, wrong: 0 }; nextS[userAnsLower].correct += 1; } return { ...prev, stats: nextS }; });
+                                  setMistakePool(prev => prev.filter(w => w.toLowerCase() !== safeAnswerStr.toLowerCase()));
+                              } else {
+                                  setQStatus(prev => { const nqs = [...prev]; nqs[index] = 0; return nqs; });
+                              }
                           }
                       }
                       setDynamicContent(prev => ({...prev, [key]: clean})); if (chunkModelName) setDynamicModels(prev => ({...prev, [key]: chunkModelName.split('/').pop().toUpperCase()}));
@@ -730,31 +830,11 @@
           };
 
           const handleCheckSingle = (index, forcedAnswer) => {
-            if (qStatus[index] !== null || submitted) return; 
-            let finalAnswer = answers[index];
-            if (forcedAnswer !== undefined && forcedAnswer !== null) { 
-                finalAnswer = forcedAnswer; 
-                const newAns = [...answers]; 
-                newAns[index] = forcedAnswer; 
-                setAnswers(newAns); 
-            }
+            if (qStatus[index] !== null || submitted) return; let finalAnswer = answers[index];
+            if (forcedAnswer !== undefined && forcedAnswer !== null) { finalAnswer = forcedAnswer; const newAns = [...answers]; newAns[index] = forcedAnswer; setAnswers(newAns); }
+            if (finalAnswer === '' || (Array.isArray(finalAnswer) && finalAnswer.length === 0) || (finalAnswer && typeof finalAnswer === 'object' && !Array.isArray(finalAnswer) && !finalAnswer.right)) return; 
             
-            const qType = questions[index].qType || 'fill';
-            
-            // 精確防呆：確保各題型結構完整後才能送出評分
-            if (qType === 'fill' || qType === undefined) {
-                if (!finalAnswer || String(finalAnswer).trim() === '') return;
-            } else if (qType === 'reorder') {
-                const expectedLen = questions[index].options ? questions[index].options.length : 0;
-                if (!Array.isArray(finalAnswer) || finalAnswer.length === 0 || finalAnswer.length < expectedLen) return;
-            } else if (qType === 'cloze') {
-                const partsCount = (questions[index].sentence.match(/______/g) || []).length;
-                if (!Array.isArray(finalAnswer) || finalAnswer.length < partsCount || finalAnswer.some(a => !a || String(a).trim() === '')) return;
-            } else if (qType === 'correction') {
-                if (!finalAnswer || typeof finalAnswer !== 'object' || !finalAnswer.wrong || !finalAnswer.right || String(finalAnswer.right).trim() === '') return;
-            }
-            
-            const scoreVal = window.SYSTEM_ENGINE.isCorrect(finalAnswer, questions[index].rawAnswerObj || questions[index].answer, qType);
+            const scoreVal = window.SYSTEM_ENGINE.isCorrect(finalAnswer, questions[index].rawAnswerObj || questions[index].answer, questions[index].qType);
             const isCorr = scoreVal === 1;
             const isPartial = scoreVal > 0 && scoreVal < 1;
             
