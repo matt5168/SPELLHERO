@@ -16,7 +16,7 @@ window.TAG_POOLS = {
     "TREATMENT": ["stay in bed", "go to bed"]
 };
 
-// 新增：各文法單元的專屬文法標的清單，用於克漏字與改錯題的嚴格限制
+// 新增：各文法單元的專屬文法標的清單，用於改錯題的嚴格限制
 window.GRAMMAR_TARGETS = {
     "PB1 U1 句型庫": ["do", "does", "is", "are", "am"],
     "PB1 U2 句型庫": ["do", "does", "in", "on", "at", "above", "below"],
