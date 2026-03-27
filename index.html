@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (多重文法題型 v25.2 絕對真理判定版)</title>
+    <title>Spelling Hero - 互動家教版 (多重文法題型 v25.3 動態熔斷版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     
-    <script src="database.js?v=9"></script>
-    <script src="engine.js?v=5"></script>
+    <script src="database.js?v=10"></script>
+    <script src="engine.js?v=6"></script>
 
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: manipulation; }
@@ -658,7 +658,11 @@
                                     else if (currentP === 'openrouter') result = await attemptCall('openrouter', () => window.sharedAIClient.callOpenRouter(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, openRouterModel, 'batch'));
                                     else if (currentP === 'openai') result = await attemptCall('openai', () => window.sharedAIClient.callOpenAI(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'gpt-4o-mini', 'batch'));
                                     break; 
-                                } catch (err) { lastError = err; if (batchController.signal.aborted) throw err; }
+                                } catch (err) { 
+                                    lastError = err; 
+                                    logicFailedEngines.add(currentP);
+                                    if (batchController.signal.aborted) throw err; 
+                                }
                             }
                         } else {
                             const tryDynamicRoute = async () => {
@@ -830,11 +834,30 @@
           };
 
           const handleCheckSingle = (index, forcedAnswer) => {
-            if (qStatus[index] !== null || submitted) return; let finalAnswer = answers[index];
-            if (forcedAnswer !== undefined && forcedAnswer !== null) { finalAnswer = forcedAnswer; const newAns = [...answers]; newAns[index] = forcedAnswer; setAnswers(newAns); }
-            if (finalAnswer === '' || (Array.isArray(finalAnswer) && finalAnswer.length === 0) || (finalAnswer && typeof finalAnswer === 'object' && !Array.isArray(finalAnswer) && !finalAnswer.right)) return; 
+            if (qStatus[index] !== null || submitted) return; 
+            let finalAnswer = answers[index];
+            if (forcedAnswer !== undefined && forcedAnswer !== null) { 
+                finalAnswer = forcedAnswer; 
+                const newAns = [...answers]; 
+                newAns[index] = forcedAnswer; 
+                setAnswers(newAns); 
+            }
             
-            const scoreVal = window.SYSTEM_ENGINE.isCorrect(finalAnswer, questions[index].rawAnswerObj || questions[index].answer, questions[index].qType);
+            const qType = questions[index].qType || 'fill';
+            
+            if (qType === 'fill' || qType === undefined) {
+                if (!finalAnswer || String(finalAnswer).trim() === '') return;
+            } else if (qType === 'reorder') {
+                const expectedLen = questions[index].options ? questions[index].options.length : 0;
+                if (!Array.isArray(finalAnswer) || finalAnswer.length === 0 || finalAnswer.length < expectedLen) return;
+            } else if (qType === 'cloze') {
+                const partsCount = (questions[index].sentence.match(/______/g) || []).length;
+                if (!Array.isArray(finalAnswer) || finalAnswer.length < partsCount || finalAnswer.some(a => !a || String(a).trim() === '')) return;
+            } else if (qType === 'correction') {
+                if (!finalAnswer || typeof finalAnswer !== 'object' || !finalAnswer.wrong || !finalAnswer.right || String(finalAnswer.right).trim() === '') return;
+            }
+            
+            const scoreVal = window.SYSTEM_ENGINE.isCorrect(finalAnswer, questions[index].rawAnswerObj || questions[index].answer, qType);
             const isCorr = scoreVal === 1;
             const isPartial = scoreVal > 0 && scoreVal < 1;
             
