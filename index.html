@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (多重文法題型 v25 介面強化版)</title>
+    <title>Spelling Hero - 互動家教版 (多重文法題型 v25.1 邏輯修復版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -146,8 +146,8 @@
           const handleRoutingModeChange = (mode) => { setRoutingMode(mode); localStorage.setItem('sh_routing_mode', mode); };
 
           const importFileRef = useRef(null);
-          const handleExportData = () => { /* ...保持不變... */ };
-          const handleImportData = (e) => { /* ...保持不變... */ };
+          const handleExportData = () => { /* 儲存匯出格式處理 */ };
+          const handleImportData = (e) => { /* 讀取匯入格式處理 */ };
           const handleClearPoolCache = () => {
               if (window.confirm("確定要清空預載池？")) { try { localStorage.removeItem('sh_qpool_v34'); setPoolStats(p => ({ ...p, size: 0 })); addLog("🗑️ 已清空預載快取"); } catch(e) {} }
           };
@@ -258,8 +258,8 @@
           const allGrammarBanks = ['PB1 U1 句型庫', 'PB1 U2 句型庫', 'PB1 U3 句型庫', 'PB1 U4 句型庫', 'PB1 U5 句型庫', 'PB1 U6 句型庫', 'PB1 U7 句型庫', 'PB1 U8 句型庫'];
           const allVocabBanks = ['Words to know 1', 'Words to know 2', 'Words to know 3', 'CHINGSHIN Kidboxs 3 U1', 'CHINGSHIN Kidboxs 3 U2', 'CHINGSHIN Kidboxs 3 U3', 'CHINGSHIN Kidboxs 3 U4', 'CHINGSHIN Kidboxs 3 U5', 'CHINGSHIN Kidboxs 3 U6', 'CHINGSHIN Kidboxs 3 U7', 'CHINGSHIN Kidboxs 3 U8', '劍橋英檢 Movers'];
 
-          const runSingleDiag = async (provider) => { /* ...不變... */ };
-          const runDiagnostic = async () => { /* ...不變... */ };
+          const runSingleDiag = async (provider) => { /* ... */ };
+          const runDiagnostic = async () => { /* ... */ };
 
           // === AI 批次產生邏輯 ===
           const generateAIBatch = async (m, nbs, mode, targetMenu, forceGeminiModel, currentMistakes, reqGrammarType = 'mixed') => {
@@ -317,7 +317,6 @@
                 
                 if (currentPool[key] && currentPool[key].length > 0) {
                     const cachedQ = currentPool[key].shift(); 
-                    // 針對歷史快取資料的自癒機制 (防呆：補上缺漏的 qType 與重組題打亂)
                     if (!cachedQ.qType) cachedQ.qType = 'fill';
                     if (cachedQ.qType === 'reorder') {
                         let ansStr = typeof cachedQ.rawAnswerObj === 'string' ? cachedQ.rawAnswerObj : (cachedQ.answer || "");
@@ -339,7 +338,7 @@
                 const n = [];
                 for(let i=0; i<readyQs.length; i++) {
                     const qt = readyQs[i].qType || 'fill';
-                    if (qt === 'reorder') n.push([]);
+                    if (qt === 'cloze' || qt === 'reorder') n.push([]);
                     else if (qt === 'correction') n.push({wrong: null, right: ''});
                     else n.push('');
                 }
@@ -384,7 +383,7 @@
                             const nbKey = nbs.includes('All') ? "DEFAULT" : nbs[0];
                             const gTargets = (window.GRAMMAR_TARGETS && window.GRAMMAR_TARGETS[nbKey]) ? window.GRAMMAR_TARGETS[nbKey] : ["is", "are", "was", "were"];
                             
-                            const validTypes = ['fill', 'reorder', 'correction'];
+                            const validTypes = ['fill', 'reorder', 'cloze', 'correction'];
                             const patterns = chunkPending.map((s, idx) => {
                                 const assignedType = reqGrammarType === 'mixed' ? validTypes[Math.floor(Math.random() * validTypes.length)] : reqGrammarType;
                                 s.assignedType = assignedType;
@@ -397,8 +396,9 @@
     ③ Output JSON array ONLY. Format depends strictly on [Type]:
        - If Type=fill: {"idx":0, "qType":"fill", "a":"answer", "s":"Sentence with one ______.", "o":["opt1","opt2","opt3"]} (Pick 'o' from ALLOWED_DISTRACTORS_LIST)
        - If Type=reorder: {"idx":0, "qType":"reorder", "a":"Exact correct full sentence.", "s":"scrambled / words / separated / by / slashes"} (Keep punctuation and capitalization in 'a')
+       - If Type=cloze: {"idx":0, "qType":"cloze", "a":["ans1", "ans2"], "s":"Sentence with two ______.", "o":["opt1","opt2","opt3","opt4"]} (Use GRAMMAR_TARGETS for 'a' and 'o')
        - If Type=correction: {"idx":0, "qType":"correction", "a":{"wrong":"wrong word", "right":"correct word"}, "s":"Sentence containing the grammar error."} (Make an error based on GRAMMAR_TARGETS)
-    ④ EXCLUSIVE CLUES: For 'fill', add an undeniable context sentence so ONLY the target fits.
+    ④ EXCLUSIVE CLUES: For 'fill' and 'cloze', add an undeniable context sentence so ONLY the target fits.
     ⑤ Translation: Always include "t":"Traditional Chinese translation of the correct sentence."
     Output EXACTLY 2 items per IDX.${distractorStr}`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH.\n${patterns.join('\n')}`;
@@ -445,22 +445,26 @@
                                     let rawOptions = Array.isArray(q.o) ? q.o : (Array.isArray(q.options) ? q.options : []);
                                     let safeOptions = [];
                                     
-                                    if (parsedQType === 'fill') {
+                                    if (parsedQType === 'fill' || parsedQType === 'cloze') {
                                         let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ansStrForOptions.toLowerCase());
                                         if (distractors.length < 3 && typeof parsedAns === 'string') { 
                                             distractors = [...distractors, ...window.generateVocabOptions(ansStrForOptions, activeDB).filter(o=>o!==ansStrForOptions)]; 
                                         }
-                                        safeOptions = window.shuffleArray([ansStrForOptions, ...distractors.slice(0, 3)]);
-                                        const objPronouns = ['him', 'her', 'them', 'us', 'me', 'he', 'she', 'they', 'it', 'i', 'you'];
-                                        if (objPronouns.includes(ansStrForOptions.toLowerCase())) {
-                                            const safePool = window.generateVocabOptions(ansStrForOptions, activeDB).filter(o => !objPronouns.includes(String(o).toLowerCase()));
-                                            let rIdx = 0;
-                                            safeOptions = safeOptions.map(opt => {
-                                                if (opt.toLowerCase() !== ansStrForOptions.toLowerCase() && objPronouns.includes(opt.toLowerCase())) {
-                                                    return safePool[rIdx++] || "apple";
-                                                }
-                                                return opt;
-                                            });
+                                        if (parsedQType === 'cloze') {
+                                            safeOptions = window.shuffleArray([...rawOptions]);
+                                        } else {
+                                            safeOptions = window.shuffleArray([ansStrForOptions, ...distractors.slice(0, 3)]);
+                                            const objPronouns = ['him', 'her', 'them', 'us', 'me', 'he', 'she', 'they', 'it', 'i', 'you'];
+                                            if (objPronouns.includes(ansStrForOptions.toLowerCase())) {
+                                                const safePool = window.generateVocabOptions(ansStrForOptions, activeDB).filter(o => !objPronouns.includes(String(o).toLowerCase()));
+                                                let rIdx = 0;
+                                                safeOptions = safeOptions.map(opt => {
+                                                    if (opt.toLowerCase() !== ansStrForOptions.toLowerCase() && objPronouns.includes(opt.toLowerCase())) {
+                                                        return safePool[rIdx++] || "apple";
+                                                    }
+                                                    return opt;
+                                                });
+                                            }
                                         }
                                     } else if (parsedQType === 'reorder') {
                                         let ansStr = typeof parsedAns === 'string' ? parsedAns : "";
@@ -477,7 +481,7 @@
                                         if (sentence && !/[.!?]$/.test(sentence)) sentence += ".";
                                     }
                                     
-                                    if (parsedQType === 'fill') {
+                                    if (parsedQType === 'fill' || parsedQType === 'cloze') {
                                         sentence = sentence.replace(/[a-zA-Z]*_{2,}[a-zA-Z]*/g, '______');
                                         if (sentence.indexOf('______') === -1 && typeof parsedAns === 'string') { 
                                             const reg = new RegExp('\\b' + window.escapeRegExp(parsedAns) + '\\b', 'gi'); 
@@ -621,7 +625,7 @@
               }
           };
 
-          const handleOnDemand = async (index, type, isRetry = false, retryCount = 0, targetPromptMode = null, isManual = false, targetProvider = null) => { /* 保持不變 */
+          const handleOnDemand = async (index, type, isRetry = false, retryCount = 0, targetPromptMode = null, isManual = false, targetProvider = null) => {
               const key = `${type}_${index}`; if (loadingStates[key] && !isRetry) return;
               setLoadingStates(prev => ({...prev, [key]: true})); if (!isRetry) setDynamicContent(prev => ({...prev, [key]: ""}));
 
@@ -642,7 +646,15 @@
                           clean = clean.replace(/\[OVERRIDE_CORRECT\]/g, '').trim();
                           if (!isManual && !overrideTriggeredRef.current[key]) {
                               overrideTriggeredRef.current[key] = true;
-                              setQuestions(prev => { const nq = [...prev]; nq[index] = { ...nq[index], answer: answers[index] }; return nq; });
+                              setQuestions(prev => { 
+                                  const nq = [...prev]; 
+                                  nq[index] = { 
+                                      ...nq[index], 
+                                      answer: typeof answers[index] === 'object' ? JSON.stringify(answers[index]) : answers[index],
+                                      rawAnswerObj: answers[index] 
+                                  }; 
+                                  return nq; 
+                              });
                               setQStatus(prev => { const nqs = [...prev]; nqs[index] = 1; return nqs; });
                               setCombo(prevCombo => { const nc = prevCombo + 1; setMaxCombo(max => nc > max ? nc : max); if (nc >= 3) { window.SOUND_ENGINE.playCombo(); setShowComboAnim(true); setTimeout(() => setShowComboAnim(false), 1000); } else window.SOUND_ENGINE.playCorrect(); return nc; });
                               setStorage(prev => { const nextS = { ...prev.stats }; if (nextS[safeAnswerStr.toLowerCase()]) { nextS[safeAnswerStr.toLowerCase()].wrong = Math.max(0, nextS[safeAnswerStr.toLowerCase()].wrong - 1); const userAnsLower = typeof answers[index] === 'string' ? answers[index].toLowerCase() : 'multi_ans'; if (!nextS[userAnsLower]) nextS[userAnsLower] = { correct: 0, wrong: 0 }; nextS[userAnsLower].correct += 1; } return { ...prev, stats: nextS }; });
@@ -718,11 +730,31 @@
           };
 
           const handleCheckSingle = (index, forcedAnswer) => {
-            if (qStatus[index] !== null || submitted) return; let finalAnswer = answers[index];
-            if (forcedAnswer !== undefined && forcedAnswer !== null) { finalAnswer = forcedAnswer; const newAns = [...answers]; newAns[index] = forcedAnswer; setAnswers(newAns); }
-            if (finalAnswer === '' || (Array.isArray(finalAnswer) && finalAnswer.length === 0) || (finalAnswer && typeof finalAnswer === 'object' && !Array.isArray(finalAnswer) && !finalAnswer.right)) return; 
+            if (qStatus[index] !== null || submitted) return; 
+            let finalAnswer = answers[index];
+            if (forcedAnswer !== undefined && forcedAnswer !== null) { 
+                finalAnswer = forcedAnswer; 
+                const newAns = [...answers]; 
+                newAns[index] = forcedAnswer; 
+                setAnswers(newAns); 
+            }
             
-            const scoreVal = window.SYSTEM_ENGINE.isCorrect(finalAnswer, questions[index].rawAnswerObj || questions[index].answer, questions[index].qType);
+            const qType = questions[index].qType || 'fill';
+            
+            // 精確防呆：確保各題型結構完整後才能送出評分
+            if (qType === 'fill' || qType === undefined) {
+                if (!finalAnswer || String(finalAnswer).trim() === '') return;
+            } else if (qType === 'reorder') {
+                const expectedLen = questions[index].options ? questions[index].options.length : 0;
+                if (!Array.isArray(finalAnswer) || finalAnswer.length === 0 || finalAnswer.length < expectedLen) return;
+            } else if (qType === 'cloze') {
+                const partsCount = (questions[index].sentence.match(/______/g) || []).length;
+                if (!Array.isArray(finalAnswer) || finalAnswer.length < partsCount || finalAnswer.some(a => !a || String(a).trim() === '')) return;
+            } else if (qType === 'correction') {
+                if (!finalAnswer || typeof finalAnswer !== 'object' || !finalAnswer.wrong || !finalAnswer.right || String(finalAnswer.right).trim() === '') return;
+            }
+            
+            const scoreVal = window.SYSTEM_ENGINE.isCorrect(finalAnswer, questions[index].rawAnswerObj || questions[index].answer, qType);
             const isCorr = scoreVal === 1;
             const isPartial = scoreVal > 0 && scoreVal < 1;
             
@@ -1093,6 +1125,7 @@
                                   <select value={grammarMode} onChange={e => handleGrammarModeChange(e.target.value)} disabled={isGenerating} className="bg-[#f4f1ea] text-[#5a6356] font-bold text-xs px-2 py-1 rounded outline-none cursor-pointer border border-[#d6cfc5]">
                                       <option value="mixed">綜合混合</option>
                                       <option value="fill">單字填空</option>
+                                      <option value="cloze">克漏字</option>
                                       <option value="reorder">句子重組</option>
                                       <option value="correction">挑錯字</option>
                                   </select>
@@ -1191,13 +1224,15 @@
                       {quizMode === 'fill_in' && !isLocked && (q.qType === 'fill' || q.qType === undefined) && (
                           <div className={`flex flex-row items-center w-full gap-2 max-w-sm`}>
                             <input type="text" value={String(answers[i] || "")} onChange={e => { const n = [...answers]; n[i] = e.target.value.replace(/^\s+/, ''); setAnswers(n); }} onKeyDown={e => {if(e.key==='Enter') handleCheckSingle(i);}} onFocus={e => { if(config.autoRead && mainMenu !== 'grammar') playTTS(q.sentence, true, safeAnswerStr); setTimeout(() => e.target.scrollIntoView({behavior:'smooth', block:'center'}), 300); }} autoComplete="off" spellCheck="false" placeholder="在此拼字..." className={`flex-1 min-w-0 appearance-none bg-white border-b-4 border-[#d6cfc5] focus:border-[#8b9586] text-[#524d46] text-xl md:text-2xl font-mono font-black text-center p-3 rounded-xl outline-none shadow-sm placeholder:text-[#b8b3aa] ${combo>=3?'border-[#cca677] bg-[#f4ebd9] focus:bg-[#f4ebd9]':''}`} />
-                            <button onClick={() => handleCheckSingle(i)} className={`text-white text-lg md:text-xl font-black px-5 py-3 rounded-xl flex items-center justify-center gap-2 active:scale-95 shadow transition-all ${combo>=3?'bg-[#cca677] border-b-4 border-[#a68258]':'bg-[#8b9586] border-b-4 border-[#6b7566]'}`}>{combo>=3?<Flame size={20} className="animate-pulse"/>:<Send size={20}/>}</button>
+                            <button onClick={() => handleCheckSingle(i)} disabled={String(answers[i]||'').trim() === ''} className={`text-white text-lg md:text-xl font-black px-5 py-3 rounded-xl flex items-center justify-center gap-2 active:scale-95 shadow transition-all ${String(answers[i]||'').trim() === '' ? 'bg-[#a6a198] border-b-4 border-[#8a847c] cursor-not-allowed opacity-50' : (combo>=3?'bg-[#cca677] border-b-4 border-[#a68258]':'bg-[#8b9586] border-b-4 border-[#6b7566]')}`}>{combo>=3?<Flame size={20} className="animate-pulse"/>:<Send size={20}/>}</button>
                           </div>
                       )}
 
                       {!isLocked && q.qType === 'reorder' && (() => {
                           const currentArr = Array.isArray(answers[i]) ? answers[i] : [];
                           let tempUsed = [...currentArr];
+                          const expectedLen = q.options ? q.options.length : 0;
+                          const isComplete = currentArr.length > 0 && currentArr.length === expectedLen;
                           return (
                               <div className="flex flex-col gap-4 w-full mt-2">
                                   <div className="min-h-[60px] bg-white border-b-4 border-[#d6cfc5] rounded-xl p-3 flex flex-wrap gap-2 items-center shadow-inner cursor-pointer" onClick={() => { if(currentArr.length > 0) { const n=[...answers]; n[i].pop(); setAnswers(n); } }}>
@@ -1213,14 +1248,16 @@
                                           return <button key={optIdx} onClick={() => { const n=[...answers]; n[i]=[...currentArr, opt]; setAnswers(n); }} className="bg-white text-[#524d46] px-3 py-1.5 rounded-lg font-bold shadow-sm border-2 border-[#d6cfc5] hover:border-[#8b9586] active:scale-95 text-lg md:text-xl">{opt}</button>;
                                       })}
                                   </div>
-                                  {currentArr.length > 0 && <button onClick={() => handleCheckSingle(i)} className={`w-full max-w-sm self-center text-white text-lg font-black px-5 py-3 rounded-xl border-b-4 active:scale-95 shadow transition-all mt-2 ${combo>=3?'bg-[#cca677] border-[#a68258]':'bg-[#8b9586] border-[#6b7566]'}`}>送出答案</button>}
+                                  {currentArr.length > 0 && <button onClick={() => handleCheckSingle(i)} disabled={!isComplete} className={`w-full max-w-sm self-center text-white text-lg font-black px-5 py-3 rounded-xl border-b-4 active:scale-95 shadow transition-all mt-2 ${!isComplete ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed opacity-50' : (combo>=3?'bg-[#cca677] border-[#a68258]':'bg-[#8b9586] border-[#6b7566]')}`}>送出答案</button>}
                               </div>
                           );
                       })()}
 
                       {!isLocked && q.qType === 'cloze' && (() => {
                           const parts = cleanSentence.split('______');
+                          const partsCount = parts.length - 1;
                           const currentArr = Array.isArray(answers[i]) ? answers[i] : [];
+                          const isComplete = currentArr.length === partsCount && currentArr.every(a => a && a.trim() !== '');
                           return (
                               <div className="flex flex-col gap-4 w-full items-center">
                                   <div className="text-xl md:text-2xl font-bold text-[#524d46] leading-loose text-center flex flex-wrap items-center justify-center">
@@ -1228,12 +1265,12 @@
                                           <React.Fragment key={pIdx}>
                                               <span>{pIdx === 0 ? window.SYSTEM_ENGINE.capitalize(part) : part}</span>
                                               {pIdx < parts.length - 1 && (
-                                                  <input type="text" value={currentArr[pIdx] || ''} onChange={e => { const n=[...answers]; const newArr=[...currentArr]; newArr[pIdx]=e.target.value.replace(/^\s+/, ''); n[i]=newArr; setAnswers(n); }} onKeyDown={e => {if(e.key==='Enter' && pIdx === parts.length - 2) handleCheckSingle(i);}} className="w-24 mx-2 text-center bg-white border-b-4 border-[#d6cfc5] focus:border-[#8b9586] text-xl font-black p-1 rounded-lg outline-none shadow-sm" />
+                                                  <input type="text" value={currentArr[pIdx] || ''} onChange={e => { const n=[...answers]; const newArr=[...currentArr]; newArr[pIdx]=e.target.value.replace(/^\s+/, ''); n[i]=newArr; setAnswers(n); }} onKeyDown={e => {if(e.key==='Enter' && isComplete) handleCheckSingle(i);}} className="w-24 mx-2 text-center bg-white border-b-4 border-[#d6cfc5] focus:border-[#8b9586] text-xl font-black p-1 rounded-lg outline-none shadow-sm" />
                                               )}
                                           </React.Fragment>
                                       ))}
                                   </div>
-                                  <button onClick={() => handleCheckSingle(i)} className={`w-full max-w-sm text-white text-lg font-black px-5 py-3 rounded-xl border-b-4 active:scale-95 shadow transition-all mt-2 ${combo>=3?'bg-[#cca677] border-[#a68258]':'bg-[#8b9586] border-[#6b7566]'}`}>送出答案</button>
+                                  <button onClick={() => handleCheckSingle(i)} disabled={!isComplete} className={`w-full max-w-sm text-white text-lg font-black px-5 py-3 rounded-xl border-b-4 active:scale-95 shadow transition-all mt-2 ${!isComplete ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed opacity-50' : (combo>=3?'bg-[#cca677] border-[#a68258]':'bg-[#8b9586] border-[#6b7566]')}`}>送出答案</button>
                               </div>
                           );
                       })()}
@@ -1241,6 +1278,7 @@
                       {!isLocked && q.qType === 'correction' && (() => {
                           const currentAnsObj = answers[i] || {wrong: null, right: ''};
                           const words = cleanSentence.split(' ');
+                          const isComplete = currentAnsObj.wrong && currentAnsObj.right && currentAnsObj.right.trim() !== '';
                           return (
                               <div className="flex flex-col gap-4 w-full items-center">
                                   <div className="text-xs font-bold text-[#8a847c] bg-[#e6e9e4] px-3 py-1 rounded-full mb-1">👆 請點擊上方句子中的錯誤單字</div>
@@ -1261,10 +1299,10 @@
                                       <div className="flex flex-row items-center w-full max-w-sm gap-3 animate-in fade-in zoom-in duration-300 bg-[#f4ebd9] p-3 rounded-xl border border-[#e0c9aa] shadow-sm">
                                           <div className="bg-[#b5847e] text-white font-bold px-4 py-2 rounded-lg line-through shadow-inner text-lg">{currentAnsObj.wrong}</div>
                                           <span className="text-[#a68258] font-black">➔</span>
-                                          <input type="text" value={currentAnsObj.right || ''} onChange={e => { const n=[...answers]; n[i]={...currentAnsObj, right: e.target.value.replace(/^\s+/, '')}; setAnswers(n); }} onKeyDown={e => {if(e.key==='Enter') handleCheckSingle(i);}} placeholder="輸入正確單字" className="flex-1 min-w-0 bg-white border-b-4 border-[#d6cfc5] focus:border-[#8b9586] text-xl font-black text-center p-2 rounded-lg outline-none shadow-sm" />
+                                          <input type="text" value={currentAnsObj.right || ''} onChange={e => { const n=[...answers]; n[i]={...currentAnsObj, right: e.target.value.replace(/^\s+/, '')}; setAnswers(n); }} onKeyDown={e => {if(e.key==='Enter' && isComplete) handleCheckSingle(i);}} placeholder="輸入正確單字" className="flex-1 min-w-0 bg-white border-b-4 border-[#d6cfc5] focus:border-[#8b9586] text-xl font-black text-center p-2 rounded-lg outline-none shadow-sm" />
                                       </div>
                                   )}
-                                  {currentAnsObj.wrong && currentAnsObj.right && <button onClick={() => handleCheckSingle(i)} className={`w-full max-w-sm text-white text-lg font-black px-5 py-3 rounded-xl border-b-4 active:scale-95 shadow transition-all mt-2 ${combo>=3?'bg-[#cca677] border-[#a68258]':'bg-[#8b9586] border-[#6b7566]'}`}>確認修改</button>}
+                                  {currentAnsObj.wrong && <button onClick={() => handleCheckSingle(i)} disabled={!isComplete} className={`w-full max-w-sm text-white text-lg font-black px-5 py-3 rounded-xl border-b-4 active:scale-95 shadow transition-all mt-2 ${!isComplete ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed opacity-50' : (combo>=3?'bg-[#cca677] border-[#a68258]':'bg-[#8b9586] border-[#6b7566]')}`}>確認修改</button>}
                               </div>
                           );
                       })()}
