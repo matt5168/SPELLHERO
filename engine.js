@@ -1,4 +1,4 @@
-// engine.js - 核心邏輯與 API 引擎 (多重題型驗證版)
+// engine.js - 核心邏輯與 API 引擎 (瞬間熔斷動態路由版)
 
 window.LEVEL_DATA = [{level:1,reqExp:0,title:"新手學徒",icon:"🌱",color:"text-[#8b9586]",bg:"bg-[#e6e9e4]",border:"border-[#c4cec1]"},{level:2,reqExp:150,title:"拼字新手",icon:"🥉",color:"text-[#cca677]",bg:"bg-[#f4ebd9]",border:"border-[#e0c9aa]"},{level:3,reqExp:400,title:"熟練拼手",icon:"🥈",color:"text-[#8a847c]",bg:"bg-[#dedad4]",border:"border-[#b8b3aa]"},{level:4,reqExp:800,title:"單字達人",icon:"🥇",color:"text-[#c2b49a]",bg:"bg-[#f2efe6]",border:"border-[#d9cfbb]"},{level:5,reqExp:1500,title:"英語小將",icon:"🏅",color:"text-[#768e8b]",bg:"bg-[#e2eae8]",border:"border-[#b2cbc7]"},{level:6,reqExp:2500,title:"智慧神童",icon:"💡",color:"text-[#8b9586]",bg:"bg-[#e6e9e4]",border:"border-[#c4cec1]"},{level:7,reqExp:4000,title:"拼字菁英",icon:"💎",color:"text-[#6b8b9c]",bg:"bg-[#dfe8ef]",border:"border-[#abc8d9]"},{level:8,reqExp:6000,title:"詞彙大師",icon:"👑",color:"text-[#968b95]",bg:"bg-[#e9e6e8]",border:"border-[#cfc6ce]"},{level:9,reqExp:8500,title:"傳奇英雄",icon:"🐉",color:"text-[#b5847e]",bg:"bg-[#f2e7e6]",border:"border-[#dcb5b0]"},{level:10,reqExp:12000,title:"終極神人",icon:"🌌",color:"text-[#a67c52]",bg:"bg-[#f0e6d8]",border:"border-[#c9a785]"}];
 window.getCurrentLevelInfo = exp => { let c = window.LEVEL_DATA[0]; for(let i=0;i<window.LEVEL_DATA.length;i++) { if(exp>=window.LEVEL_DATA[i].reqExp) c=window.LEVEL_DATA[i]; else break; } return { current: c, nextLevel: window.LEVEL_DATA.find(l=>l.level===c.level+1)||null }; };
@@ -52,24 +52,29 @@ window.SOUND_ENGINE = {
 
 window.SYSTEM_ENGINE = {
   isCorrect: (ui, ca, qType) => {
-      // 1. 一般填空題：執行轉小寫與去除多餘空白的模糊比對 (回傳 0 或 1)
       if (!qType || qType === 'fill') {
           return String(ui||'').trim().toLowerCase().replace(/\s+/g, ' ') === String(ca||'').trim().toLowerCase().replace(/\s+/g, ' ') ? 1 : 0;
       }
-      // 2. 排序題：陣列組合後嚴格比對 (不轉小寫，保留標點，回傳 0 或 1)
       if (qType === 'reorder') {
           if (!Array.isArray(ui)) return 0;
-          return ui.join(' ').trim().toLowerCase() === String(ca||"").trim().toLowerCase() ? 1 : 0;
+          return ui.join(' ').trim() === String(ca||"").trim() ? 1 : 0;
       }
-      // 3. 改錯題：比對物件中的 wrong 與 right 屬性
+      if (qType === 'cloze') {
+          let targetArr = Array.isArray(ca) ? ca : [];
+          if (typeof ca === 'string') { try { targetArr = JSON.parse(ca); } catch(e) { targetArr = [ca]; } }
+          if (!Array.isArray(ui) || ui.length === 0 || targetArr.length === 0) return 0;
+          let correctCount = 0;
+          for (let i=0; i<targetArr.length; i++) {
+              if (String(ui[i]||'').trim().toLowerCase() === String(targetArr[i]||'').trim().toLowerCase()) correctCount++;
+          }
+          return correctCount / targetArr.length;
+      }
       if (qType === 'correction') {
           let targetObj = typeof ca === 'object' && ca !== null ? ca : {};
           if (typeof ca === 'string') { try { targetObj = JSON.parse(ca); } catch(e) {} }
           if (!ui || !targetObj || !targetObj.wrong || !targetObj.right) return 0;
           
-          // wrong: 忽略標點符號比對
           const wMatch = String(ui.wrong||'').trim().toLowerCase().replace(/[.,!?]/g, '') === String(targetObj.wrong||'').trim().toLowerCase().replace(/[.,!?]/g, '');
-          // right: 要求精確拼字
           const rMatch = String(ui.right||'').trim().toLowerCase() === String(targetObj.right||'').trim().toLowerCase();
           
           return (wMatch && rMatch) ? 1 : 0;
@@ -150,10 +155,13 @@ class PersistentAIClient {
             if (!res.ok) {
                 clearTimeout(ttftTimeout); let errBody = ""; try { errBody = await res.text(); } catch(e){} const errMsg = `HTTP ${res.status} ${errBody.substring(0, 100).replace(/\n/g, ' ')}`;
                 onLog && onLog(`📥 [Gemini] 異常: ${errMsg}`);
-                if (res.status === 429) {
-                    const retryAfter = res.headers.get('Retry-After') || res.headers.get('x-ratelimit-reset'); let delayMs = retryAfter ? (isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000)) : 0;
-                    this.recordFailure('google', Math.max(delayMs, 0)); throw new Error('RATELIMIT: ' + errMsg);
-                } else if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 404) { this.recordFailure('google', 60000); throw new Error('FATAL: ' + errMsg); }
+                if (res.status === 429 || res.status >= 500) {
+                    const retryAfter = res.headers.get('Retry-After'); let delayMs = retryAfter ? (isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000)) : 30000;
+                    this.recordFailure('google', Math.max(delayMs, 30000)); 
+                    throw new Error('FATAL_ROUTING: ' + errMsg);
+                } else if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 404) { 
+                    this.recordFailure('google', 60000); throw new Error('FATAL: ' + errMsg); 
+                }
                 this.recordFailure('google'); throw new Error(errMsg);
             }
             this.recordSuccess('google');
@@ -187,10 +195,13 @@ class PersistentAIClient {
             if (!res.ok) {
                 clearTimeout(ttftTimeout); let errBody = ""; try { errBody = await res.text(); } catch(e){} const errMsg = `HTTP ${res.status} ${errBody.substring(0, 100).replace(/\n/g, ' ')}`;
                 onLog && onLog(`📥 [OR] 異常: ${errMsg}`);
-                if (res.status === 429) {
-                    const retryAfter = res.headers.get('Retry-After'); let delayMs = retryAfter ? (isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000)) : 0;
-                    this.recordFailure('openrouter', Math.max(delayMs, 0)); throw new Error('RATELIMIT: ' + errMsg);
-                } else if (res.status === 400 || res.status === 401 || res.status === 402 || res.status === 403) { this.recordFailure('openrouter', 60000); throw new Error('FATAL: ' + errMsg); }
+                if (res.status === 429 || res.status >= 500) {
+                    const retryAfter = res.headers.get('Retry-After'); let delayMs = retryAfter ? (isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000)) : 30000;
+                    this.recordFailure('openrouter', Math.max(delayMs, 30000)); 
+                    throw new Error('FATAL_ROUTING: ' + errMsg);
+                } else if (res.status === 400 || res.status === 401 || res.status === 402 || res.status === 403) { 
+                    this.recordFailure('openrouter', 60000); throw new Error('FATAL: ' + errMsg); 
+                }
                 this.recordFailure('openrouter'); throw new Error(errMsg);
             }
             this.recordSuccess('openrouter');
@@ -225,10 +236,13 @@ class PersistentAIClient {
             if (!res.ok) {
                 clearTimeout(ttftTimeout); let errBody = ""; try { errBody = await res.text(); } catch(e){} const errMsg = `HTTP ${res.status} ${errBody.substring(0, 100).replace(/\n/g, ' ')}`;
                 onLog && onLog(`📥 [Groq] 異常: ${errMsg}`);
-                if (res.status === 429) {
-                    const retryAfter = res.headers.get('Retry-After') || res.headers.get('x-ratelimit-reset'); let delayMs = retryAfter ? (isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000)) : 0;
-                    this.recordFailure('groq', Math.max(delayMs, 0)); throw new Error('RATELIMIT: ' + errMsg);
-                } else if (res.status === 400 || res.status === 401 || res.status === 403) { this.recordFailure('groq', 60000); throw new Error('FATAL: ' + errMsg); }
+                if (res.status === 429 || res.status >= 500) {
+                    const retryAfter = res.headers.get('Retry-After') || res.headers.get('x-ratelimit-reset'); let delayMs = retryAfter ? (isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000)) : 30000;
+                    this.recordFailure('groq', Math.max(delayMs, 30000)); 
+                    throw new Error('FATAL_ROUTING: ' + errMsg);
+                } else if (res.status === 400 || res.status === 401 || res.status === 403) { 
+                    this.recordFailure('groq', 60000); throw new Error('FATAL: ' + errMsg); 
+                }
                 this.recordFailure('groq'); throw new Error(errMsg);
             }
             this.recordSuccess('groq');
@@ -263,10 +277,13 @@ class PersistentAIClient {
             if (!res.ok) {
                 clearTimeout(ttftTimeout); let errBody = ""; try { errBody = await res.text(); } catch(e){} const errMsg = `HTTP ${res.status} ${errBody.substring(0, 100).replace(/\n/g, ' ')}`;
                 onLog && onLog(`📥 [OpenAI] 異常: ${errMsg}`);
-                if (res.status === 429) {
-                    const retryAfter = res.headers.get('Retry-After'); let delayMs = retryAfter ? (isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000)) : 0;
-                    this.recordFailure('openai', Math.max(delayMs, 0)); throw new Error('RATELIMIT: ' + errMsg);
-                } else if (res.status === 400 || res.status === 401 || res.status === 403) { this.recordFailure('openai', 60000); throw new Error('FATAL: ' + errMsg); }
+                if (res.status === 429 || res.status >= 500) {
+                    const retryAfter = res.headers.get('Retry-After'); let delayMs = retryAfter ? (isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000)) : 30000;
+                    this.recordFailure('openai', Math.max(delayMs, 30000)); 
+                    throw new Error('FATAL_ROUTING: ' + errMsg);
+                } else if (res.status === 400 || res.status === 401 || res.status === 403) { 
+                    this.recordFailure('openai', 60000); throw new Error('FATAL: ' + errMsg); 
+                }
                 this.recordFailure('openai'); throw new Error(errMsg);
             }
             this.recordSuccess('openai');
