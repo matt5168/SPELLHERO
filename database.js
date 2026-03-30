@@ -28,6 +28,7 @@ window.GRAMMAR_TARGETS = {
     "PB1 U6 句型庫": ["do", "does", "want", "wants", "should"],
     "PB1 U7 句型庫": ["is", "are", "isn't", "aren't", "than"],
     "PB1 U8 句型庫": ["is", "are", "was", "were", "wasn't", "weren't"],
+    "CHINGSHIN Kidboxs 3 U5": ["must", "must not", "can", "can't", "have to", "has to", "when"],
     "DEFAULT": ["is", "are", "was", "were", "do", "does", "have", "has"]
 };
 
@@ -132,6 +133,18 @@ window.GRAMMAR_NOTEBOOKS = {
         {id:"g_u8_5", answer:"[WEATHER_PAIR_1]", sentence:"It was ______ yesterday.", hint:"[WEATHER_PAIR_1_HINT]"},
         {id:"g_u8_6", answer:"at home", sentence:"They are ______ today.", hint:"在家"},
         {id:"g_u8_7", answer:"at home", sentence:"They were ______ yesterday.", hint:"在家"}
+    ],
+    "CHINGSHIN Kidboxs 3 U5": [
+        {id:"kb3_u5_01", answer:"matter", sentence:"What's the ______ with you?", hint:"怎麼了 / 發生什麼事"},
+        {id:"kb3_u5_02", answer:"stomachache", sentence:"I'm not very well. I have a ______.", hint:"胃痛"},
+        {id:"kb3_u5_03", answer:"has", sentence:"He ______ an earache.", hint:"有 (第三人稱單數)"},
+        {id:"kb3_u5_04", answer:"does", sentence:"What ______ she have to do?", hint:"助動詞"},
+        {id:"kb3_u5_05", answer:"has to", sentence:"She ______ stay in bed.", hint:"必須 (第三人稱單數)"},
+        {id:"kb3_u5_06", answer:"must", sentence:"When you have a temperature, you ______ go to bed.", hint:"必須 (強烈義務)"},
+        {id:"kb3_u5_07", answer:"When", sentence:"______ you have a temperature, you must go to bed.", hint:"當...的時候"},
+        {id:"kb3_u5_08", answer:"must not", sentence:"You ______ jump on the bed when you are sick.", hint:"不可以 / 禁止"},
+        {id:"kb3_u5_09", answer:"can", sentence:"______ I go out to play?", hint:"可以 (詢問許可)"},
+        {id:"kb3_u5_10", answer:"can't", sentence:"No, you ______. You have a cold.", hint:"不行 (拒絕許可)"}
     ]
 };
 
@@ -171,7 +184,7 @@ window.RAW_NOTEBOOKS = {
     "CHINGSHIN Kidboxs 3 U2":["city","town","country","address","map","home","upstairs","downstairs","floor","stairs","above","below","between","move","want","balcony","basement","elevator","apartment","building","twenty","twenty-one","thirty","forty","forty-four","fifty-five","sixty","seventy","eighty","ninety","one hundred","laptop","tablet","cabin","cave home","houseboat","tree house","spiral","staircase","India","Norway","Singapore","Turkey","U.S.A."], 
     "CHINGSHIN Kidboxs 3 U3":["wake up","get up","get dressed","get undressed","put on","take off","make the bed","wash","take a shower","go to school","go to bed","catch a bus","catch the bus","have breakfast","have lunch","have dinner","do homework","come home","bedtime","before","after","o'clock","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","week","weekend","always","sometimes","never","every day","astronaut","clean","leggings","toilet","space","spacesuit","space station"], 
     "CHINGSHIN Kidboxs 3 U4":["bank", "banks", "bus station", "bus stations", "movie theater", "movie theaters", "library", "libraries", "market", "markets", "supermarket", "supermarkets", "sports center", "sports centers", "swimming pool", "swimming pools", "playground", "playgrounds", "parking lot", "parking lots", "circus", "circuses", "watch a movie", "watches a movie", "see a movie", "sees a movie", "play badminton", "plays badminton", "play tennis", "plays tennis", "play volleyball", "plays volleyball", "see a doctor", "sees a doctor", "across from", "behind", "money", "must", "can", "be", "United States", "coin", "coins", "dollar", "dollars", "cent", "cents", "cash", "count", "math", "hole", "holes", "middle", "robber", "robbers", "Denmark", "right", "left", "closet", "exciting", "dance", "comic book"],
-    "CHINGSHIN Kidboxs 3 U5":["cold","cough","stomachache","headache","toothache","backache","earache","temperature","hurt","take care of","stay in bed","back","healthy","running nose","flu","matter","have to","has to","illness","illnesses","daily routines","activity","action","jump","hop","climb","dance"],
+    "CHINGSHIN Kidboxs 3 U5":["cold","cough","stomachache","headache","toothache","backache","earache","temperature","hurt","take care of","stay in bed","back","healthy","matter","have to","has to","running nose","flu","illness","illnesses","daily routines","activity","action","jump","hop","climb","dance"],
     "CHINGSHIN Kidboxs 3 U6":["field", "fields", "forest", "forests", "grass", "river", "rivers", "lake", "lakes", "plant", "plants", "leaf", "leaves", "picnic", "picnics", "country", "countryside", "hungry", "thirsty", "loud", "quiet", "thin", "fat", "weak", "strong", "angry", "tired", "smart"],
     "CHINGSHIN Kidboxs 3 U7":["bat", "bats", "bear", "bears", "dolphin", "dolphins", "kangaroo", "kangaroos", "panda", "pandas", "parrot", "parrots", "shark", "sharks", "whale", "penguin", "big", "bigger", "fat", "fatter", "thin", "thinner", "clean", "cleaner", "long", "longer", "slow", "slower", "small", "smaller", "strong", "stronger", "quick", "quicker", "quiet", "quieter", "weak", "weaker", "dirty", "dirtier", "ugly", "uglier", "bad", "worse", "good", "better", "bright", "escape", "grasshopper", "hummingbird", "octopus", "poisonous", "sea turtle", "shell", "wings"],
     "CHINGSHIN Kidboxs 3 U8":["sun", "sunny", "cloud", "cloudy", "wind", "windy", "rain", "rainy", "raining", "snow", "snowy", "snowing", "wet", "dry", "rainbow", "rainbows", "weather", "weather report", "weather reports", "coat", "coats", "sweater", "sweaters", "scarf", "scarves", "was", "were", "wasn't", "weren't", "today", "yesterday", "vacation", "drum", "insect", "musical instrument", "thunder", "waves", "spring", "summer", "fall", "autumn", "winter"],
