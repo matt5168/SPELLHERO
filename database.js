@@ -18,11 +18,8 @@ window.TAG_POOLS = {
     "SUBJ_DOES": ["he", "she", "it", "Sally", "Tom", "my brother", "the teacher"]
 };
 
+// 嚴格對應 U5 ~ U8 文法標的
 window.GRAMMAR_TARGETS = {
-    "PB1 U1 句型庫": ["do", "does", "is", "are", "am"],
-    "PB1 U2 句型庫": ["do", "does", "in", "on", "at", "above", "below"],
-    "PB1 U3 句型庫": ["do", "does", "always", "sometimes", "never"],
-    "PB1 U4 句型庫": ["is", "are", "do", "does", "in front of", "behind"],
     "PB1 U5 句型庫": ["have", "has", "do", "does", "must", "must not", "can", "can't", "have to", "has to", "when"],
     "PB1 U6 句型庫": ["do", "does", "want", "wants", "should"],
     "PB1 U7 句型庫": ["is", "are", "isn't", "aren't", "than", "favorite", "wild"],
@@ -30,55 +27,8 @@ window.GRAMMAR_TARGETS = {
     "DEFAULT": ["is", "are", "was", "were", "do", "does", "have", "has"]
 };
 
+// 嚴格對應 U5 ~ U8 動態句型庫
 window.GRAMMAR_NOTEBOOKS = {
-    "PB1 U1 句型庫": [
-        {id:"g_u1_1", answer:"[ACTION_ING_1]", sentence:"Do you enjoy ______?", hint:"[ACTION_ING_1_HINT]"},
-        {id:"g_u1_2", answer:"[ACTION_ING_1]", sentence:"Does Sally like ______?", hint:"[ACTION_ING_1_HINT]"},
-        {id:"g_u1_3", answer:"[ACTION_ING_1]", sentence:"Who's ______ with her [FAMILY_MEMBER_1]?", hint:"[ACTION_ING_1_HINT]"},
-        {id:"g_u1_4", answer:"her [FAMILY_MEMBER_1]", sentence:"Who's [ACTION_ING_1] with ______?", hint:"她的[FAMILY_MEMBER_1_HINT]"},
-        {id:"g_u1_5", answer:"Sally", sentence:"Who's [ACTION_ING_1] with her [FAMILY_MEMBER_1]? It's ______.", hint:"莎莉"},
-        {id:"g_u1_6", answer:"May", sentence:"Who's ______? She is my father's sister.", hint:"梅(女子名)"},
-        {id:"g_u1_7", answer:"She is my father's sister.", sentence:"Who's May? ______ She is my aunt.", hint:"她是我父親的姊妹。"},
-        {id:"g_u1_8", answer:"She is my aunt.", sentence:"Who's May? She is my father's sister. ______", hint:"她是我阿姨。"}
-    ],
-    "PB1 U2 句型庫": [
-        {id:"g_u2_1", answer:"do you", sentence:"Where ______ live?", hint:"你 (助動詞+主詞)"},
-        {id:"g_u2_2", answer:"does he", sentence:"Where ______ live?", hint:"他 (助動詞+主詞)"},
-        {id:"g_u2_3", answer:"in an apartment in Taipei City", sentence:"I live ______.", hint:"在一間臺北市的公寓裡"},
-        {id:"g_u2_4", answer:"at number 72", sentence:"I live ______.", hint:"在72號"},
-        {id:"g_u2_5", answer:"on Park Road", sentence:"He lives ______.", hint:"在公園路上"},
-        {id:"g_u2_6", answer:"your", sentence:"What's ______ address?", hint:"你的"},
-        {id:"g_u2_7", answer:"86 Park Road, Taipei City", sentence:"It's ______.", hint:"臺北市公園路86號"},
-        {id:"g_u2_8", answer:"above", sentence:"The beautiful balcony is ______ my apartment.", hint:"在...之上"},
-        {id:"g_u2_9", answer:"below", sentence:"The beautiful balcony is ______ my apartment.", hint:"在...之下"}
-    ],
-    "PB1 U3 句型庫": [
-        {id:"g_u3_1", answer:"do you", sentence:"What time ______ get dressed?", hint:"你 (助動詞+主詞)"},
-        {id:"g_u3_2", answer:"get dressed", sentence:"What time do you ______?", hint:"穿衣服"},
-        {id:"g_u3_3", answer:"I get dressed", sentence:"______ at seven o'clock.", hint:"我穿衣服"},
-        {id:"g_u3_4", answer:"at seven o'clock", sentence:"I get dressed ______.", hint:"在七點鐘"},
-        {id:"g_u3_5", answer:"does he", sentence:"What time ______ get dressed?", hint:"他 (助動詞+主詞)"},
-        {id:"g_u3_6", answer:"get dressed", sentence:"What time does he ______?", hint:"穿衣服"},
-        {id:"g_u3_7", answer:"He gets dressed", sentence:"______ at seven o'clock.", hint:"他穿衣服 (第三人稱單數)"},
-        {id:"g_u3_8", answer:"at seven o'clock", sentence:"He gets dressed ______.", hint:"在七點鐘"},
-        {id:"g_u3_9", answer:"play in the park", sentence:"How often do you ______?", hint:"在公園裡玩"},
-        {id:"g_u3_10", answer:"always", sentence:"I ______ play in the park on Saturdays.", hint:"總是"},
-        {id:"g_u3_11", answer:"play in the park", sentence:"I always ______ on Saturdays.", hint:"在公園裡玩"},
-        {id:"g_u3_12", answer:"on Saturdays", sentence:"I always play in the park ______.", hint:"在每個星期六"},
-        {id:"g_u3_13", answer:"he", sentence:"How often does ______ do his homework?", hint:"他 (主格)"},
-        {id:"g_u3_14", answer:"do his homework", sentence:"How often does he ______?", hint:"做他的功課 (原形)"},
-        {id:"g_u3_15", answer:"does his homework", sentence:"He ______ every day.", hint:"做他的功課 (第三人稱單數)"}
-    ],
-    "PB1 U4 句型庫": [
-        {id:"g_u4_1", answer:"the [PLACE_1]", sentence:"Where is ______?", hint:"那個[PLACE_1_HINT]"},
-        {id:"g_u4_2", answer:"in front of", sentence:"It's ______ the [PLACE_1].", hint:"在...前面"},
-        {id:"g_u4_3", answer:"see a movie", sentence:"Where do you go to ______?", hint:"看電影"},
-        {id:"g_u4_4", answer:"movie theater", sentence:"I go to the ______ to see a movie.", hint:"電影院"},
-        {id:"g_u4_5", answer:"see a movie", sentence:"I go to the movie theater to ______.", hint:"看電影"},
-        {id:"g_u4_6", answer:"in a library", sentence:"What do you have to do ______?", hint:"在圖書館裡"},
-        {id:"g_u4_7", answer:"be quiet", sentence:"We have to ______ in a library.", hint:"保持安靜"},
-        {id:"g_u4_8", answer:"in a library", sentence:"We have to be quiet ______.", hint:"在圖書館裡"}
-    ],
     "PB1 U5 句型庫": [
         {id:"g_u5_1", answer:"have", sentence:"[SUBJ_DO_1] ______ [ILLNESS_PHRASE_1].", hint:"有"},
         {id:"g_u5_2", answer:"has", sentence:"[SUBJ_DOES_1] ______ [ILLNESS_PHRASE_1].", hint:"有(第三人稱單數)"},
@@ -175,19 +125,14 @@ window.SH_DICTIONARY = {
     "he":"他", "she":"她", "it":"牠", "sally":"莎莉", "tom":"湯姆", "my brother":"我的兄弟", "the teacher":"老師"
 };
 
+// 單字庫精簡化：僅保留 PB1 U5~U8 與 Words to know 系列，以嚴格匹配選單
 window.RAW_NOTEBOOKS = {
-    "CHINGSHIN Kidboxs 3 U1":["aunt","uncle","son","daughter","parent","granddaughter","grandson","grandchild","grandparent","enjoy","good at","naughty","quiet","smart","dirty","beard","mustache","curly","straight","fair","science","towel","thief","because","need","all day","adult","count","cousin","finger","right","left","middle","taking pictures","drawing leaves","playing a game"], 
-    "CHINGSHIN Kidboxs 3 U2":["city","town","country","address","map","home","upstairs","downstairs","floor","stairs","above","below","between","move","want","balcony","basement","elevator","apartment","building","twenty","twenty-one","thirty","forty","forty-four","fifty-five","sixty","seventy","eighty","ninety","one hundred","laptop","tablet","cabin","cave home","houseboat","tree house","spiral","staircase","India","Norway","Singapore","Turkey","U.S.A."], 
-    "CHINGSHIN Kidboxs 3 U3":["wake up","get up","get dressed","get undressed","put on","take off","make the bed","wash","take a shower","go to school","go to bed","catch a bus","catch the bus","have breakfast","have lunch","have dinner","do homework","come home","bedtime","before","after","o'clock","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","week","weekend","always","sometimes","never","every day","astronaut","clean","leggings","toilet","space","spacesuit","space station"], 
-    "CHINGSHIN Kidboxs 3 U4":["bank", "banks", "bus station", "bus stations", "movie theater", "movie theaters", "library", "libraries", "market", "markets", "supermarket", "supermarkets", "sports center", "sports centers", "swimming pool", "swimming pools", "playground", "playgrounds", "parking lot", "parking lots", "circus", "circuses", "watch a movie", "watches a movie", "see a movie", "sees a movie", "play badminton", "plays badminton", "play tennis", "plays tennis", "play volleyball", "plays volleyball", "see a doctor", "sees a doctor", "across from", "behind", "money", "must", "can", "be", "United States", "coin", "coins", "dollar", "dollars", "cent", "cents", "cash", "count", "math", "hole", "holes", "middle", "robber", "robbers", "Denmark", "right", "left", "closet", "exciting", "dance", "comic book"],
-    "CHINGSHIN Kidboxs 3 U5":["cold","cough","stomachache","headache","toothache","backache","earache","temperature","hurt","take care of","stay in bed","back","healthy","running nose","flu","matter","have to","has to","illness","illnesses","daily routines","activity","action","jump","hop","climb","dance"],
-    "CHINGSHIN Kidboxs 3 U6":["field", "fields", "forest", "forests", "grass", "river", "rivers", "lake", "lakes", "plant", "plants", "leaf", "leaves", "picnic", "picnics", "country", "countryside", "hungry", "thirsty", "loud", "quiet", "thin", "fat", "weak", "strong", "angry", "tired", "smart", "construction worker", "skateboarding", "pollution", "teenager", "huge"],
-    "CHINGSHIN Kidboxs 3 U7":["bat", "bats", "bear", "bears", "dolphin", "dolphins", "kangaroo", "kangaroos", "panda", "pandas", "parrot", "parrots", "shark", "sharks", "whale", "penguin", "big", "bigger", "fat", "fatter", "thin", "thinner", "clean", "cleaner", "long", "longer", "slow", "slower", "small", "smaller", "strong", "stronger", "quick", "quicker", "quiet", "quieter", "weak", "weaker", "dirty", "dirtier", "ugly", "uglier", "bad", "worse", "good", "better", "bright", "escape", "grasshopper", "hummingbird", "octopus", "poisonous", "sea turtle", "shell", "wings"],
-    "CHINGSHIN Kidboxs 3 U8":["sun", "sunny", "cloud", "cloudy", "wind", "windy", "rain", "rainy", "raining", "snow", "snowy", "snowing", "wet", "dry", "rainbow", "rainbows", "weather", "weather report", "weather reports", "coat", "coats", "sweater", "sweaters", "scarf", "scarves", "was", "were", "wasn't", "weren't", "today", "yesterday", "vacation", "drum", "insect", "musical instrument", "thunder", "waves", "spring", "summer", "fall", "autumn", "winter"],
+    "PB1 U5":["cold","cough","stomachache","headache","toothache","backache","earache","temperature","hurt","take care of","stay in bed","back","healthy","running nose","flu","matter","have to","has to","illness","illnesses","daily routines","activity","action","jump","hop","climb","dance"],
+    "PB1 U6":["field", "fields", "forest", "forests", "grass", "river", "rivers", "lake", "lakes", "plant", "plants", "leaf", "leaves", "picnic", "picnics", "country", "countryside", "hungry", "thirsty", "loud", "quiet", "thin", "fat", "weak", "strong", "angry", "tired", "smart", "construction worker", "skateboarding", "pollution", "teenager", "huge"],
+    "PB1 U7":["bat", "bats", "bear", "bears", "dolphin", "dolphins", "kangaroo", "kangaroos", "panda", "pandas", "parrot", "parrots", "shark", "sharks", "whale", "penguin", "big", "bigger", "fat", "fatter", "thin", "thinner", "clean", "cleaner", "long", "longer", "slow", "slower", "small", "smaller", "strong", "stronger", "quick", "quicker", "quiet", "quieter", "weak", "weaker", "dirty", "dirtier", "ugly", "uglier", "bad", "worse", "good", "better", "bright", "escape", "grasshopper", "hummingbird", "octopus", "poisonous", "sea turtle", "shell", "wings"],
+    "PB1 U8":["sun", "sunny", "cloud", "cloudy", "wind", "windy", "rain", "rainy", "raining", "snow", "snowy", "snowing", "wet", "dry", "rainbow", "rainbows", "weather", "weather report", "weather reports", "coat", "coats", "sweater", "sweaters", "scarf", "scarves", "was", "were", "wasn't", "weren't", "today", "yesterday", "vacation", "drum", "insect", "musical instrument", "thunder", "waves", "spring", "summer", "fall", "autumn", "winter"],
     "劍橋英檢 Movers":["above","address","afraid","after","age","all","all right","along","always","another","any","app","around","asleep","at","aunt","awake","back","bad","badly","balcony","band","beard","boring","bring","because","both","build","before","bottle","building","below","bottom","bus station","best","bowl","bus stop","basement","better","brave","busy","bat","blanket","break","buy","be called","blond","brilliant","by","cafe","catch","cinema","clever","cage","CD","circle","climb","call","centre","circus","cloud","car park","city","cloudy","careful","change","clown","carefully","Charlie","coat","cheese","Clare","carry","coffee","cold","come on","comic","comic book","cook","cough","could","country","cry","cup","curly","countryside","Daisy","difference","down","driver","dance","dangerous","daughter","dentist","different","difficult","doctor","dolphin","downstairs","dream","dress up","drive","drop","dry","DVD","earache","easy","e-book","elevator","email","every","everyone","everything","exciting","excuse me","fair","feed","fine","fly","fall","field","first","forest","famous","film","fish","Fred","farm","fix","Friday","farmer","fat","star","floor","frightened","funfair","get dressed","get off","get on","get undressed","get up","glass","go shopping","goal","granddaughter","grandparent","grandson","grass","ground","grow","grown-up","have to","headache","holiday","homework","how","how much","hungry","hurt","helmet","hop","how often","help","hospital","huge","hide","hot","hundred","ice","ill","into","ice skates","ice skating","inside","invite","island","idea","internet","Jack","Jane","Jim","Julia","jungle","kangaroo","kick","kind","kitten","lake","leaf","lion","loud","laptop","library","little","loudly","last","laugh","lift","Lily","look for","lose","machine","mean","Monday","mountain","map","market","message","milkshake","moon","more","moustache","move","Mary","mistake","movie","matter","model","most","must","naughty","near","need","net","noise","noodles","nurse","neck","never","nothing","o'clock","off","often","on","only","opposite","out","out of","outside","pair","pasta","place","practice","pancake","Paul","plant","practise","panda","penguin","plate","present","parent","Peter","player","pretty","parrot","picnic","pool","puppy","party","pirate","pop star","put on","quick","quickly","quiet","quietly","rabbit","ride","rock","roof","rain","river","roller skates","round","rainbow","road","roller skating","safe","shape","slowly","stomach","sail","shark","snail","stomach-ache","salad","shop","snow","straight","Sally","shopping","someone","strong","sandwich","Saturday","shopping centre","something","sometimes","Sunday","sunny","sauce","shoulder","son","supermarket","scarf","shout","soup","surprised","score","shower","sports centre","sweater","seat","sick","sweet","second","skate","square","swim","send","shall","skip","sky","stairs","swimming pool","swimsuit","slow","station","take","text","ticket","town","take off","tall","than","then","thin","tired","tooth","teeth","toothache","tractor","tea","think","toothbrush","travel","teach","temperature","terrible","third","thirsty","Thursday","toothpaste","top","towel","treasure","trip","Tuesday","uncle","up","upstairs","vegetable","Vicky","video","village","wait","weather","when","work","wake up","website","world","walk","Wednesday","where","worse","wash","week","which","worst","water","weekend","who","would","waterfall","well","why","wrong","wave","wet","wind","weak","whale","windy","yesterday","Zoe"],
-    "WTK (A-E)": Object.keys(window.SH_DICTIONARY).filter(w => /^[a-e]/i.test(w)),
-    "WTK (F-J)": Object.keys(window.SH_DICTIONARY).filter(w => /^[f-j]/i.test(w)),
-    "WTK (K-O)": Object.keys(window.SH_DICTIONARY).filter(w => /^[k-o]/i.test(w)),
-    "WTK (P-T)": Object.keys(window.SH_DICTIONARY).filter(w => /^[p-t]/i.test(w)),
-    "WTK (U-Z)": Object.keys(window.SH_DICTIONARY).filter(w => /^[u-z]/i.test(w))
+    "Words to know 1": Object.keys(window.SH_DICTIONARY).filter(w => /^[a-h]/i.test(w)),
+    "Words to know 2": Object.keys(window.SH_DICTIONARY).filter(w => /^[i-p]/i.test(w)),
+    "Words to know 3": Object.keys(window.SH_DICTIONARY).filter(w => /^[q-z]/i.test(w))
 };
