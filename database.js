@@ -18,18 +18,15 @@ window.TAG_POOLS = {
     "SUBJ_DOES": ["he", "she", "it", "Sally", "Tom", "my brother", "the teacher"]
 };
 
-// 新增：各文法單元的專屬文法標的清單，用於改錯題的嚴格限制
 window.GRAMMAR_TARGETS = {
     "PB1 U1 句型庫": ["do", "does", "is", "are", "am"],
     "PB1 U2 句型庫": ["do", "does", "in", "on", "at", "above", "below"],
     "PB1 U3 句型庫": ["do", "does", "always", "sometimes", "never"],
     "PB1 U4 句型庫": ["is", "are", "do", "does", "in front of", "behind"],
-    "PB1 U5 句型庫": ["have", "has", "do", "does", "must", "have to", "has to"],
+    "PB1 U5 句型庫": ["have", "has", "do", "does", "must", "must not", "can", "can't", "have to", "has to", "when"],
     "PB1 U6 句型庫": ["do", "does", "want", "wants", "should"],
-    "PB1 U7 句型庫": ["is", "are", "isn't", "aren't", "than"],
+    "PB1 U7 句型庫": ["is", "are", "isn't", "aren't", "than", "favorite", "wild"],
     "PB1 U8 句型庫": ["is", "are", "was", "were", "wasn't", "weren't"],
-    "CHINGSHIN Kidboxs 3 U5": ["must", "must not", "can", "can't", "have to", "has to", "when"],
-    "CHINGSHIN Kidboxs 3 U6": ["do", "does", "want", "wants", "should"],
     "DEFAULT": ["is", "are", "was", "were", "do", "does", "have", "has"]
 };
 
@@ -99,7 +96,10 @@ window.GRAMMAR_NOTEBOOKS = {
         {id:"g_u5_14", answer:"you", sentence:"When ______ have [ILLNESS_PHRASE_1], you must [TREATMENT_1].", hint:"你(主格)"},
         {id:"g_u5_15", answer:"[ILLNESS_PHRASE_1]", sentence:"When you have ______, you must [TREATMENT_1].", hint:"[ILLNESS_PHRASE_1_HINT]"},
         {id:"g_u5_16", answer:"you", sentence:"When you have [ILLNESS_PHRASE_1], ______ must [TREATMENT_1].", hint:"你(主格)"},
-        {id:"g_u5_17", answer:"[TREATMENT_1]", sentence:"When you have [ILLNESS_PHRASE_1], you must ______.", hint:"[TREATMENT_1_HINT]"}
+        {id:"g_u5_17", answer:"[TREATMENT_1]", sentence:"When you have [ILLNESS_PHRASE_1], you must ______.", hint:"[TREATMENT_1_HINT]"},
+        {id:"g_u5_18", answer:"must not", sentence:"You ______ jump on the bed when you are sick.", hint:"不可以 / 禁止"},
+        {id:"g_u5_19", answer:"can", sentence:"______ I go out to play?", hint:"可以 (詢問許可)"},
+        {id:"g_u5_20", answer:"can't", sentence:"No, you ______. You have [ILLNESS_PHRASE_1].", hint:"不行 (拒絕許可)"}
     ],
     "PB1 U6 句型庫": [
         {id:"g_u6_1", answer:"do they", sentence:"Where ______ want to go?", hint:"他們(助動詞+主詞)"},
@@ -114,54 +114,37 @@ window.GRAMMAR_NOTEBOOKS = {
         {id:"g_u6_10", answer:"clean it", sentence:"Yes, you should ______.", hint:"清理它"}
     ],
     "PB1 U7 句型庫": [
-        {id:"g_u7_1", answer:"[ADJ_PAIR_1]", sentence:"It is ______.", hint:"[ADJ_PAIR_1_HINT]"},
-        {id:"g_u7_2", answer:"[HABITAT_1]", sentence:"It lives in the ______.", hint:"[HABITAT_1_HINT]"},
-        {id:"g_u7_3", answer:"[COMP_ADJ_1]", sentence:"[ANIMAL_PLURAL_1] are ______ than [ANIMAL_PLURAL_2].", hint:"[COMP_ADJ_1_HINT]"},
-        {id:"g_u7_4", answer:"than", sentence:"[ANIMAL_PLURAL_1] are bigger ______ [ANIMAL_PLURAL_2].", hint:"比 (比較級連詞)"},
-        {id:"g_u7_5", answer:"Is", sentence:"______ the [ANIMAL_1] [COMP_ADJ_1] than the [ANIMAL_2]?", hint:"是...嗎 (Be動詞單數)"},
-        {id:"g_u7_6", answer:"[ANIMAL_1]", sentence:"Is the ______ [COMP_ADJ_1] than the [ANIMAL_2]?", hint:"[ANIMAL_1_HINT]"},
-        {id:"g_u7_7", answer:"[COMP_ADJ_1]", sentence:"Yes, the [ANIMAL_1] is ______ than the [ANIMAL_2].", hint:"[COMP_ADJ_1_HINT]"},
-        {id:"g_u7_8", answer:"[ANIMAL_2]", sentence:"No, the [ANIMAL_1] isn't [COMP_ADJ_1] than the ______.", hint:"[ANIMAL_2_HINT]"},
+        {id:"g_u7_1", answer:"favorite", sentence:"My ______ wild animal is the [ANIMAL_1].", hint:"最喜愛的"},
+        {id:"g_u7_2", answer:"[ADJ_PAIR_1]", sentence:"It is ______.", hint:"[ADJ_PAIR_1_HINT]"},
+        {id:"g_u7_3", answer:"[HABITAT_1]", sentence:"It lives in the ______.", hint:"[HABITAT_1_HINT]"},
+        {id:"g_u7_4", answer:"[COMP_ADJ_1]", sentence:"[ANIMAL_PLURAL_1] are ______ than [ANIMAL_PLURAL_2].", hint:"[COMP_ADJ_1_HINT]"},
+        {id:"g_u7_5", answer:"than", sentence:"[ANIMAL_PLURAL_1] are [COMP_ADJ_1] ______ [ANIMAL_PLURAL_2].", hint:"比 (比較級連詞)"},
+        {id:"g_u7_6", answer:"Is", sentence:"______ the [ANIMAL_1] [COMP_ADJ_1] than the [ANIMAL_2]?", hint:"是...嗎 (Be動詞單數)"},
+        {id:"g_u7_7", answer:"isn't", sentence:"No, it ______. The [ANIMAL_1] isn't [COMP_ADJ_1] than the [ANIMAL_2].", hint:"不是 (縮寫)"},
+        {id:"g_u7_8", answer:"[COMP_ADJ_1]", sentence:"No, the [ANIMAL_1] isn't ______ than the [ANIMAL_2].", hint:"[COMP_ADJ_1_HINT]"},
         {id:"g_u7_9", answer:"Are", sentence:"______ [ANIMAL_PLURAL_1] [COMP_ADJ_1] than [ANIMAL_PLURAL_2]?", hint:"是...嗎 (Be動詞複數)"},
-        {id:"g_u7_10", answer:"[COMP_ADJ_1]", sentence:"Are [ANIMAL_PLURAL_1] ______ than [ANIMAL_PLURAL_2]?", hint:"[COMP_ADJ_1_HINT]"},
-        {id:"g_u7_11", answer:"[ANIMAL_PLURAL_2]", sentence:"Yes, [ANIMAL_PLURAL_1] are [COMP_ADJ_1] than ______.", hint:"[ANIMAL_PLURAL_2_HINT]"}
+        {id:"g_u7_10", answer:"aren't", sentence:"No, they ______. [ANIMAL_PLURAL_1] aren't [COMP_ADJ_1] than [ANIMAL_PLURAL_2].", hint:"不是 (縮寫)"},
+        {id:"g_u7_11", answer:"[COMP_ADJ_1]", sentence:"Yes, [ANIMAL_PLURAL_1] are ______ than [ANIMAL_PLURAL_2].", hint:"[COMP_ADJ_1_HINT]"},
+        {id:"g_u7_12", answer:"[ANIMAL_PLURAL_2]", sentence:"Yes, [ANIMAL_PLURAL_1] are [COMP_ADJ_1] than ______.", hint:"[ANIMAL_PLURAL_2_HINT]"}
     ],
     "PB1 U8 句型庫": [
         {id:"g_u8_1", answer:"at the [PLACE_1]", sentence:"What is the weather like ______?", hint:"在那個[PLACE_1_HINT]"},
         {id:"g_u8_2", answer:"[WEATHER_ADJ_1]", sentence:"It's ______ at the [PLACE_1].", hint:"[WEATHER_ADJ_1_HINT]"},
-        {id:"g_u8_3", answer:"at the [PLACE_1]", sentence:"It's [WEATHER_ADJ_1] ______.", hint:"在那個[PLACE_1_HINT]"},
-        {id:"g_u8_4", answer:"[WEATHER_ADJ_1]", sentence:"It's ______.", hint:"[WEATHER_ADJ_1_HINT]"},
-        {id:"g_u8_5", answer:"[WEATHER_PAIR_1]", sentence:"It was ______ yesterday.", hint:"[WEATHER_PAIR_1_HINT]"},
-        {id:"g_u8_6", answer:"at home", sentence:"They are ______ today.", hint:"在家"},
-        {id:"g_u8_7", answer:"at home", sentence:"They were ______ yesterday.", hint:"在家"}
-    ],
-    "CHINGSHIN Kidboxs 3 U5": [
-        {id:"kb3_u5_01", answer:"matter", sentence:"What's the ______ with you?", hint:"怎麼了 / 發生什麼事"},
-        {id:"kb3_u5_02", answer:"stomachache", sentence:"I'm not very well. I have a ______.", hint:"胃痛"},
-        {id:"kb3_u5_03", answer:"has", sentence:"He ______ an earache.", hint:"有 (第三人稱單數)"},
-        {id:"kb3_u5_04", answer:"does", sentence:"What ______ she have to do?", hint:"助動詞"},
-        {id:"kb3_u5_05", answer:"has to", sentence:"She ______ stay in bed.", hint:"必須 (第三人稱單數)"},
-        {id:"kb3_u5_06", answer:"must", sentence:"When you have a temperature, you ______ go to bed.", hint:"必須 (強烈義務)"},
-        {id:"kb3_u5_07", answer:"When", sentence:"______ you have a temperature, you must go to bed.", hint:"當...的時候"},
-        {id:"kb3_u5_08", answer:"must not", sentence:"You ______ jump on the bed when you are sick.", hint:"不可以 / 禁止"},
-        {id:"kb3_u5_09", answer:"can", sentence:"______ I go out to play?", hint:"可以 (詢問許可)"},
-        {id:"kb3_u5_10", answer:"can't", sentence:"No, you ______. You have a cold.", hint:"不行 (拒絕許可)"}
-    ],
-    "CHINGSHIN Kidboxs 3 U6": [
-        {id:"kb3_u6_01", answer:"do they", sentence:"Where ______ want to go?", hint:"他們 (助動詞+主詞)"},
-        {id:"kb3_u6_02", answer:"want to", sentence:"They ______ go to the countryside.", hint:"想要"},
-        {id:"kb3_u6_03", answer:"does", sentence:"What ______ Jane want to do?", hint:"助動詞 (第三人稱單數)"},
-        {id:"kb3_u6_04", answer:"wants", sentence:"She ______ to look at some plants.", hint:"想要 (第三人稱單數)"},
-        {id:"kb3_u6_05", answer:"look at", sentence:"She wants to ______ some plants.", hint:"看"},
-        {id:"kb3_u6_06", answer:"Who's", sentence:"______ cold?", hint:"誰"},
-        {id:"kb3_u6_07", answer:"Scott's", sentence:"______ cold.", hint:"史考特是"},
-        {id:"kb3_u6_08", answer:"should", sentence:"The board's dirty. What ______ we do?", hint:"應該"},
-        {id:"kb3_u6_09", answer:"clean it", sentence:"Should we ______?", hint:"清理它"},
-        {id:"kb3_u6_10", answer:"should", sentence:"Yes, you ______ clean it.", hint:"應該"}
+        {id:"g_u8_3", answer:"today", sentence:"What is the weather like ______?", hint:"今天"},
+        {id:"g_u8_4", answer:"[WEATHER_ADJ_1]", sentence:"It is ______ today.", hint:"[WEATHER_ADJ_1_HINT]"},
+        {id:"g_u8_5", answer:"was", sentence:"What ______ the weather like yesterday?", hint:"是 (過去式)"},
+        {id:"g_u8_6", answer:"yesterday", sentence:"What was the weather like ______?", hint:"昨天"},
+        {id:"g_u8_7", answer:"[WEATHER_PAIR_1]", sentence:"It was ______ yesterday.", hint:"[WEATHER_PAIR_1_HINT]"},
+        {id:"g_u8_8", answer:"was", sentence:"It ______ [WEATHER_PAIR_1] yesterday.", hint:"是 (過去式)"},
+        {id:"g_u8_9", answer:"are", sentence:"Where ______ they today?", hint:"是 (現在式複數)"},
+        {id:"g_u8_10", answer:"at home", sentence:"They are ______ today.", hint:"在家"},
+        {id:"g_u8_11", answer:"were", sentence:"Where ______ they yesterday?", hint:"是 (過去式複數)"},
+        {id:"g_u8_12", answer:"were", sentence:"They ______ at home yesterday.", hint:"是 (過去式複數)"}
     ]
 };
 
 window.SH_DICTIONARY = {
+    "construction worker":"建築工人", "skateboarding":"溜滑板", "pollution":"汙染", "teenager":"青少年", "huge":"巨大的",
     "86 park road, taipei city":"臺北市公園路86號", "a":"一個", "a lot":"很多(用於句尾)", "a lot of":"很多的", "a.m.":"早上", "about":"關於", "above":"在…之上", "across":"穿過", "across from":"在...對面", "act":"行為;演出", "actor":"演員", "actually":"實際上", "add":"增加", "address":"地址", "adult":"大人;成人", "adventure":"冒險", "afraid":"害怕", "after":"在…之後", "afternoon":"下午", "again":"再次", "age":"年紀", "ago":"…以前(指時間)", "agree":"贊同", "air":"空氣", "airport":"機場", "alex":"艾力克斯(男子名)", "alice":"愛麗絲(女子名)", "alien":"外星人", "all":"全部", "all day":"一整天", "all right":"尚可的", "alone":"單獨", "along":"沿著", "alphabet":"字母", "already":"已經", "also":"而且;此外", "always":"總是", "amazing":"驚人的", "ambulance":"救護車", "america":"美國", "an":"一個", "and":"和", "angry":"生氣的", "animal":"動物", "ann":"安(女子名)", "anna":"安(女子名)", "another":"另一個", "answer":"回答", "any":"任何", "anyone":"任何人", "anything":"任何東西", "anywhere":"任何地方", "apartment":"公寓", "app":"應用程式", "appear":"出現", "apple":"蘋果", "april":"四月", "are":"是", "aren't":"不是(縮寫)", "arm":"手臂", "armchair":"扶手椅", "around":"周圍", "arrive":"到達", "art":"美術", "artist":"藝術家", "as":"像…(一樣)", "as...as":"像…(一樣)", "ask":"問", "astronaut":"太空人", "at":"在…", "at home":"在家", "at number 72":"在72號", "at seven o'clock":"在七點鐘", "at the moment":"現在", "august":"八月", "aunt":"姑姑/阿姨", "australia":"澳洲", "autumn":"秋天", "awake":"清醒", "away":"離開",
     "baby":"嬰兒", "back":"回到;背部", "backache":"背痛", "backpack":"背包", "bad":"壞的", "badly":"嚴重地", "badminton":"羽毛球", "bag":"袋子", "balcony":"陽台", "ball":"球", "balloon":"氣球", "banana":"香蕉", "band":"樂團", "bandage":"繃帶", "bank":"銀行", "banks":"銀行(複數)", "baseball":"棒球", "baseball cap":"棒球帽", "basement":"地下室", "basketball":"籃球", "bat":"蝙蝠", "bats":"蝙蝠(複數)", "bath":"洗澡", "bathroom":"廁所", "be":"是…;在…", "be called":"召喚;叫來", "be quiet":"保持安靜", "beach":"海灘", "bean":"豆子", "bear":"熊", "bears":"熊(複數)", "beard":"鬍子", "beautiful":"美麗的", "because":"因為", "bed":"床", "bedtime":"就寢時間", "bedroom":"臥室", "bee":"蜜蜂", "beetle":"甲蟲", "before":"在…之前", "begin":"開始", "behind":"在…之後", "believe":"相信", "below":"在…之下", "belt":"皮帶", "ben":"班(男子名)", "best":"最好的", "better":"較好的", "betty":"貝蒂(女子名)", "between":"在…之中", "bicycle":"腳踏車", "big":"大的", "bigger":"較大的", "bike":"腳踏車", "bill":"比爾(男子名)", "bird":"鳥", "birthday":"生日", "bit":"少許", "black":"黑色的", "blackboard":"黑板", "blanket":"毯子", "blond":"金黃色的", "blonde":"金黃色的", "blue":"藍色的", "board":"木板;牌子", "board game":"桌遊", "boat":"船", "body":"身體", "book":"書", "bookcase":"書櫃", "bookshop":"書店", "boots":"靴子", "bored":"感到無聊的", "boring":"無趣的", "borrow":"借", "both":"兩者都…", "bottle":"瓶子", "bottom":"底部", "bounce":"彈起;彈跳", "bowl":"碗", "box":"盒子", "boy":"男生", "bracelet":"手鐲", "brave":"勇敢的", "brazil":"巴西", "bread":"麵包", "break":"打破", "breakfast":"早餐", "bridge":"橋", "bright":"明亮的", "brilliant":"聰穎的", "bring":"帶來", "broken":"破損的", "brother":"兄弟", "brown":"咖啡色的", "brush":"牙刷;刷子", "build":"建造", "building":"建築物", "burger":"漢堡", "burn":"燃燒", "bus":"公車", "bus station":"公車站", "bus stations":"公車站(複數)", "bus stop":"公車站", "business":"職業;生意", "businessman":"商人", "businesswoman":"商人", "busy":"忙碌的", "but":"但是", "butter":"奶油", "butterfly":"蝴蝶", "buy":"買", "by":"藉由", "by myself":"靠我自己", "by yourself":"靠你自己", "bye":"再見", "bye!":"再見",
     "cabin":"小木屋", "café":"咖啡店", "cage":"籠子", "cake":"蛋糕", "calendar":"日曆", "call":"叫;打電話", "camel":"駱駝", "camera":"相機", "camp":"營地", "can":"可以", "canada":"加拿大", "candy":"糖果", "car":"車子", "car park":"停車場", "card":"卡片", "careful":"小心仔細的", "carefully":"小心仔細地", "carrot":"胡蘿蔔", "carry":"攜帶", "cartoon":"卡通", "cash":"現金", "castle":"城堡", "cat":"貓", "catch":"抓;接到;趕上(公車)", "catch a bus":"趕公車", "catch the bus":"趕公車", "caterpillar":"毛毛蟲", "cave":"洞穴", "cave home":"洞穴屋", "cd":"光碟", "cent":"分", "cents":"分(複數)", "center":"中央", "centre":"中央", "century":"一百年;世紀", "cereal":"穀物", "chair":"椅子", "change":"換;改變", "channel":"頻道", "charlie":"查利(男子名)", "chat":"聊天", "cheap":"便宜的", "cheese":"起士", "chemist":"化學家", "chess":"西洋棋", "chicken":"雞肉", "child":"孩童", "children":"孩童", "china":"中國", "chocolate":"巧克力", "choose":"選擇", "chopsticks":"筷子", "cinema":"電影院", "circle":"圓形;圓形的", "circus":"馬戲團", "circuses":"馬戲團(複數)", "city":"城市", "city center":"市中心", "town center":"市中心", "clap":"拍手", "clare":"克萊爾(英文名)", "class":"課堂", "classmate":"同學", "classroom":"教室", "clean":"清潔;乾淨的", "clean it":"清理它", "cleaner":"較乾淨的", "clever":"聰穎的", "climb":"爬", "clock":"時鐘", "close":"關閉", "closed":"關閉的", "closet":"衣櫥", "clothes":"衣服", "cloud":"雲", "cloudy":"多雲的", "cloudy and windy":"多雲且刮風的", "clown":"小丑", "club":"俱樂部;社團", "coat":"大衣", "coats":"大衣(複數)", "coconut":"椰子", "coffee":"咖啡", "coin":"硬幣", "coins":"硬幣(複數)", "cold":"冷的;感冒", "cold and snowy":"寒冷且下雪的", "cold and windy":"寒冷且刮風的", "collect":"收集", "college":"大學", "color":"顏色", "colour":"顏色", "comb":"梳;梳子", "come":"來", "come home":"回家", "come on":"來吧", "come on!":"來吧!", "comic":"漫畫", "comic book":"漫畫書", "competition":"比賽", "complete":"完成", "computer":"電腦", "concert":"演唱會", "conversation":"對話", "cook":"烹煮", "cooker":"爐具", "cookie":"餅乾", "cool":"涼的", "corner":"角落", "correct":"正確的", "costume":"服裝", "cough":"咳嗽", "could":"可以", "count":"計算", "country":"國家;鄉村", "countryside":"鄉村", "cousin":"表兄弟姐妹", "cow":"乳牛", "crayon":"蠟筆", "creature":"生物", "crocodile":"鱷魚", "cross":"越過", "crown":"王冠", "cry":"哭泣", "cup":"杯子", "cupboard":"壁櫥", "curly":"捲的", "cushion":"墊子", "cut":"切", "cycle":"腳踏車",
@@ -197,7 +180,7 @@ window.RAW_NOTEBOOKS = {
     "CHINGSHIN Kidboxs 3 U2":["city","town","country","address","map","home","upstairs","downstairs","floor","stairs","above","below","between","move","want","balcony","basement","elevator","apartment","building","twenty","twenty-one","thirty","forty","forty-four","fifty-five","sixty","seventy","eighty","ninety","one hundred","laptop","tablet","cabin","cave home","houseboat","tree house","spiral","staircase","India","Norway","Singapore","Turkey","U.S.A."], 
     "CHINGSHIN Kidboxs 3 U3":["wake up","get up","get dressed","get undressed","put on","take off","make the bed","wash","take a shower","go to school","go to bed","catch a bus","catch the bus","have breakfast","have lunch","have dinner","do homework","come home","bedtime","before","after","o'clock","Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","week","weekend","always","sometimes","never","every day","astronaut","clean","leggings","toilet","space","spacesuit","space station"], 
     "CHINGSHIN Kidboxs 3 U4":["bank", "banks", "bus station", "bus stations", "movie theater", "movie theaters", "library", "libraries", "market", "markets", "supermarket", "supermarkets", "sports center", "sports centers", "swimming pool", "swimming pools", "playground", "playgrounds", "parking lot", "parking lots", "circus", "circuses", "watch a movie", "watches a movie", "see a movie", "sees a movie", "play badminton", "plays badminton", "play tennis", "plays tennis", "play volleyball", "plays volleyball", "see a doctor", "sees a doctor", "across from", "behind", "money", "must", "can", "be", "United States", "coin", "coins", "dollar", "dollars", "cent", "cents", "cash", "count", "math", "hole", "holes", "middle", "robber", "robbers", "Denmark", "right", "left", "closet", "exciting", "dance", "comic book"],
-    "CHINGSHIN Kidboxs 3 U5":["cold","cough","stomachache","headache","toothache","backache","earache","temperature","hurt","take care of","stay in bed","back","healthy","matter","have to","has to","running nose","flu","illness","illnesses","daily routines","activity","action","jump","hop","climb","dance"],
+    "CHINGSHIN Kidboxs 3 U5":["cold","cough","stomachache","headache","toothache","backache","earache","temperature","hurt","take care of","stay in bed","back","healthy","running nose","flu","matter","have to","has to","illness","illnesses","daily routines","activity","action","jump","hop","climb","dance"],
     "CHINGSHIN Kidboxs 3 U6":["field", "fields", "forest", "forests", "grass", "river", "rivers", "lake", "lakes", "plant", "plants", "leaf", "leaves", "picnic", "picnics", "country", "countryside", "hungry", "thirsty", "loud", "quiet", "thin", "fat", "weak", "strong", "angry", "tired", "smart", "construction worker", "skateboarding", "pollution", "teenager", "huge"],
     "CHINGSHIN Kidboxs 3 U7":["bat", "bats", "bear", "bears", "dolphin", "dolphins", "kangaroo", "kangaroos", "panda", "pandas", "parrot", "parrots", "shark", "sharks", "whale", "penguin", "big", "bigger", "fat", "fatter", "thin", "thinner", "clean", "cleaner", "long", "longer", "slow", "slower", "small", "smaller", "strong", "stronger", "quick", "quicker", "quiet", "quieter", "weak", "weaker", "dirty", "dirtier", "ugly", "uglier", "bad", "worse", "good", "better", "bright", "escape", "grasshopper", "hummingbird", "octopus", "poisonous", "sea turtle", "shell", "wings"],
     "CHINGSHIN Kidboxs 3 U8":["sun", "sunny", "cloud", "cloudy", "wind", "windy", "rain", "rainy", "raining", "snow", "snowy", "snowing", "wet", "dry", "rainbow", "rainbows", "weather", "weather report", "weather reports", "coat", "coats", "sweater", "sweaters", "scarf", "scarves", "was", "were", "wasn't", "weren't", "today", "yesterday", "vacation", "drum", "insect", "musical instrument", "thunder", "waves", "spring", "summer", "fall", "autumn", "winter"],
