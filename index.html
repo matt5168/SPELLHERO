@@ -294,8 +294,8 @@
           const handleModeChange = newMode => { setVocabMode(newMode); setQuestions([]); setReady(false); readyRef.current = false; overrideTriggeredRef.current = {}; };
           const handleGrammarModeChange = newMode => { setGrammarMode(newMode); setQuestions([]); setReady(false); readyRef.current = false; overrideTriggeredRef.current = {}; };
 
-          const allGrammarBanks = ['PB1 U5 句型庫', 'PB1 U6 句型庫', 'PB1 U7 句型庫', 'PB1 U8 句型庫'];
-          const allVocabBanks = ['Words to know 1', 'Words to know 2', 'Words to know 3', 'PB1 U5', 'PB1 U6', 'PB1 U7', 'PB1 U8', '劍橋英檢 Movers'];
+          const allGrammarBanks = ['PB1 U1 句型庫', 'PB1 U2 句型庫', 'PB1 U3 句型庫', 'PB1 U4 句型庫', 'PB1 U5 句型庫', 'PB1 U6 句型庫', 'PB1 U7 句型庫', 'PB1 U8 句型庫'];
+          const allVocabBanks = ['Words to know 1', 'Words to know 2', 'Words to know 3', 'PB1 U1', 'PB1 U2', 'PB1 U3', 'PB1 U4', 'PB1 U5', 'PB1 U6', 'PB1 U7', 'PB1 U8', '劍橋英檢 Movers'];
 
           const runSingleDiag = async (provider) => {
               if(!window.sharedAIClient) return;
@@ -368,15 +368,39 @@
             while (selected.length < targetTotal && tempPool.length > 0) {
                 let pick = Math.floor(Math.random() * tempPool.length);
                 if (targetMenu !== 'review') {
+                    const hasPriority = tempPool.some(q => {
+                        const safeAns = String(q.answer||"").trim().toLowerCase();
+                        const s = m[safeAns];
+                        return s === undefined || s <= 0;
+                    });
+
                     let tw = 0; const ws = tempPool.map(q => { 
-                        const safeAns = String(q.answer||"").trim().toLowerCase(); const s = m[safeAns] || 0; 
-                        let w = s < 0 ? 25 : s > 2 ? 0.5 : 10; 
-                        const key = targetMenu === 'grammar' ? `gram_${q.id}` : `word_${safeAns}`;
-                        if (currentPool[key] && currentPool[key].length > 0) w += 1000; 
+                        const safeAns = String(q.answer||"").trim().toLowerCase(); 
+                        const s = m[safeAns]; 
+                        
+                        let w = 0;
+                        if (s < 0) {
+                            w = 100;
+                        } else if (s === undefined || s === 0) {
+                            w = 50; 
+                        } else if (s > 0 && s <= 2) {
+                            w = hasPriority ? 1 : 10;
+                        } else {
+                            w = hasPriority ? 0 : 5; 
+                        }
                         tw += w; return w; 
                     });
-                    let r = Math.random() * tw; pick = -1; for(let i=0; i<tempPool.length; i++) { r -= ws[i]; if(r<=0) { pick=i; break; } }
-                    if (pick === -1) pick = 0;
+
+                    if (tw > 0) {
+                        let r = Math.random() * tw; pick = -1; 
+                        for(let i=0; i<tempPool.length; i++) { 
+                            r -= ws[i]; 
+                            if(r <= 0) { pick = i; break; } 
+                        }
+                        if (pick === -1) pick = Math.floor(Math.random() * tempPool.length);
+                    } else {
+                        pick = Math.floor(Math.random() * tempPool.length);
+                    }
                 }
                 let item = tempPool[pick]; 
                 if (!patternUsageCount[item.id]) patternUsageCount[item.id] = 0;
