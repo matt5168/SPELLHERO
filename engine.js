@@ -59,16 +59,6 @@ window.SYSTEM_ENGINE = {
           if (!Array.isArray(ui)) return 0;
           return ui.join(' ').trim() === String(ca||"").trim() ? 1 : 0;
       }
-      if (qType === 'cloze') {
-          let targetArr = Array.isArray(ca) ? ca : [];
-          if (typeof ca === 'string') { try { targetArr = JSON.parse(ca); } catch(e) { targetArr = [ca]; } }
-          if (!Array.isArray(ui) || ui.length === 0 || targetArr.length === 0) return 0;
-          let correctCount = 0;
-          for (let i=0; i<targetArr.length; i++) {
-              if (String(ui[i]||'').trim().toLowerCase() === String(targetArr[i]||'').trim().toLowerCase()) correctCount++;
-          }
-          return correctCount / targetArr.length;
-      }
       if (qType === 'correction') {
           let targetObj = typeof ca === 'object' && ca !== null ? ca : {};
           if (typeof ca === 'string') { try { targetObj = JSON.parse(ca); } catch(e) {} }
