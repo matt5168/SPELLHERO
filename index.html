@@ -10,7 +10,7 @@
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     
     <script src="database.js?v=12"></script>
-    <script src="engine.js?v=8"></script>
+    <script src="engine.js?v=9"></script>
 
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: manipulation; }
@@ -1184,6 +1184,10 @@
                                       <React.Fragment>
                                           <option value="All">全部混合</option>
                                           <option value="CustomMulti">自行多選 ⚙️</option>
+                                          <option value="PB1 U1 句型庫">PB1 U1 句型庫</option>
+                                          <option value="PB1 U2 句型庫">PB1 U2 句型庫</option>
+                                          <option value="PB1 U3 句型庫">PB1 U3 句型庫</option>
+                                          <option value="PB1 U4 句型庫">PB1 U4 句型庫</option>
                                           <option value="PB1 U5 句型庫">PB1 U5 句型庫</option>
                                           <option value="PB1 U6 句型庫">PB1 U6 句型庫</option>
                                           <option value="PB1 U7 句型庫">PB1 U7 句型庫</option>
@@ -1197,6 +1201,10 @@
                                           <option value="Words to know 1">Words to know 1</option>
                                           <option value="Words to know 2">Words to know 2</option>
                                           <option value="Words to know 3">Words to know 3</option>
+                                          <option value="PB1 U1">PB1 U1</option>
+                                          <option value="PB1 U2">PB1 U2</option>
+                                          <option value="PB1 U3">PB1 U3</option>
+                                          <option value="PB1 U4">PB1 U4</option>
                                           <option value="PB1 U5">PB1 U5</option>
                                           <option value="PB1 U6">PB1 U6</option>
                                           <option value="PB1 U7">PB1 U7</option>
@@ -1293,13 +1301,14 @@
       cleanSentence += "."; 
   }
   
+  const rawRight = (q.rawAnswerObj && q.rawAnswerObj.right) ? q.rawAnswerObj.right : '???';
+  const rawWrong = (q.rawAnswerObj && q.rawAnswerObj.wrong) ? q.rawAnswerObj.wrong : '';
+  const isPhrase = safeAnswerStr.indexOf(' ') !== -1 || safeAnswerStr.indexOf('-') !== -1 || safeAnswerStr.indexOf('...') !== -1;
+
   if (cleanSentence.startsWith('______') && typeof currentAns === 'string') {
       hintMask = window.SYSTEM_ENGINE.capitalize(hintMask);
       currentAns = window.SYSTEM_ENGINE.capitalize(currentAns);
   }
-  
-  const rawWrong = (q.rawAnswerObj && q.rawAnswerObj.wrong) ? q.rawAnswerObj.wrong : '';
-  const rawRight = (q.rawAnswerObj && q.rawAnswerObj.right) ? q.rawAnswerObj.right : '???';
 
   return (
     <div key={q.runtimeId} className={`bg-[#f4f1ea] rounded-[2rem] border-[3px] shadow-sm transition-all relative overflow-hidden ${isReview ? 'border-[#dcb5b0]' : 'border-[#e6e9e4] hover:border-[#c4cec1]'} ${isLayout2 ? 'p-5 md:p-8' : 'p-5 md:p-8 flex flex-col items-center'}`}>
@@ -1308,6 +1317,11 @@
       <div className={`flex w-full items-start md:items-center justify-between mb-4 border-b-2 border-[#ebe6df] pb-3 relative z-10 text-[#524d46] gap-2 flex-wrap`}>
         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-black text-xs flex-shrink-0 ${q.isAI ? 'bg-[#cca677]' : (isReview ? 'bg-[#b5847e]' : 'bg-[#8b9586]')}`}>{i+1}</div>
         <div className="flex flex-wrap gap-2 flex-1 justify-end">
+            {mainMenu === 'vocab' && vocabMode === 'mixed' && (
+                <div className={`hidden sm:flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg border shadow-sm tracking-wider ${isPhrase ? 'bg-[#e2eae8] text-[#6b8b9c] border-[#b2cbc7]' : 'bg-[#f4ebd9] text-[#a68258] border-[#e0c9aa]'}`}>
+                    {isPhrase ? '💬 片語題' : '📝 單字題'}
+                </div>
+            )}
             {q.qType && <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#576b5d] bg-[#c4d1c8] px-2 py-1 rounded-lg border border-[#9fb3a6] shadow-sm uppercase tracking-wider">{q.qType}</div>}
             {q.isAI ? <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#a68258] bg-[#f4ebd9] px-2 py-1 rounded-lg border border-[#e0c9aa] shadow-sm"><Sparkles size={14}/> {q.modelName || 'AI MODEL'}</div> : <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#8a847c] bg-[#ebe6df] px-2 py-1 rounded-lg border border-[#d6cfc5] shadow-sm"><BookOpen size={14}/> OFFLINE</div>}
             {mainMenu !== 'grammar' && !(q.qType === 'reorder' && !isLocked) && ( <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className="px-3 py-1.5 md:px-4 md:py-2 bg-[#e6e9e4] text-[#6b7566] rounded-xl active:scale-95 border border-[#c4cec1] flex items-center gap-1.5 font-bold text-sm shadow-sm transition-all hover:bg-[#d5dcd3]"><Megaphone size={18}/> <span>英文語音</span></button> )}
@@ -1345,7 +1359,9 @@
                                                         }
                                                     }}
                                                     autoComplete="off" spellCheck="false"
-                                                    className={`w-24 md:w-32 mx-1 appearance-none bg-white border-b-4 border-[#d6cfc5] focus:border-[#8b9586] text-[#524d46] text-lg md:text-xl font-mono font-black text-center p-1 rounded-lg outline-none shadow-sm align-middle inline-block ${combo>=3?'border-[#cca677] bg-[#f4ebd9] focus:bg-[#f4ebd9]':''}`} 
+                                                    placeholder={hintMask}
+                                                    style={{ width: `${Math.max(hintMask.length + 2, 8)}ch`, minWidth: '4rem', maxWidth: '100%' }}
+                                                    className={`mx-1 appearance-none bg-white border-b-4 border-[#d6cfc5] focus:border-[#8b9586] text-[#524d46] text-lg md:text-xl font-mono font-black text-center p-1 rounded-lg outline-none shadow-sm align-middle inline-block placeholder:text-[#b8b3aa]/60 ${combo>=3?'border-[#cca677] bg-[#f4ebd9] focus:bg-[#f4ebd9]':''}`} 
                                                 />
                                             ) : (
                                                 <span className={`mx-1 inline-block px-2 pb-0.5 border-b-[3px] align-middle ${isLocked ? (isFinallyCorrect ? "text-[#7a8575] border-[#7a8575]" : "text-[#b5847e] border-[#b5847e] line-through") : "text-[#8b9586] border-[#8b9586]"}`}>
