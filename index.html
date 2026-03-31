@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (多重文法題型 v25.3 動態熔斷版)</title>
+    <title>Spelling Hero - 互動家教版 (多重文法題型 v25.4 極簡架構版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     
-    <script src="database.js?v=10"></script>
-    <script src="engine.js?v=6"></script>
+    <script src="database.js?v=11"></script>
+    <script src="engine.js?v=7"></script>
 
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: manipulation; }
@@ -70,7 +70,7 @@
           const isGeneratingRef = useRef(false);
           const [isGenerating, setIsGenerating] = useState(false); 
           const [showFallbackAlert, setShowFallbackAlert] = useState(false);
-          const [alertMessage, setAlertMessage] = useState(""); const [streamCount, setStreamCount] = useState(0); 
+          const [alertMessage, setAlertMessage] = useState(""); 
           
           const [uiLayout, setUiLayout] = useState(localStorage.getItem('sh_ui_layout') || 'layout1');
           const [ttsEngine, setTtsEngine] = useState(localStorage.getItem('sh_tts_engine') || 'native');
@@ -352,7 +352,7 @@
             
             setDynamicContent({}); setLoadingStates({}); setDynamicModels({}); setDynamicProviders({});
             const currentPool = JSON.parse(localStorage.getItem('sh_qpool_v34') || '{}');
-            clearLogs(); setStreamCount(0); setAiStatus("初始化連線...");
+            clearLogs(); setAiStatus("初始化連線...");
             
             let activeDB = [];
             if (targetMenu === 'review') activeDB = (Array.isArray(currentMistakes) ? currentMistakes : []).map(w=>({answer:w, hint:""}));
@@ -1269,11 +1269,10 @@
       cleanSentence += "."; 
   }
   
-  const firstBlankIdx = cleanSentence.indexOf('______');
-  let p0 = cleanSentence; let p1 = "";
-  if (firstBlankIdx !== -1 && (q.qType === 'fill' || q.qType === undefined)) { p0 = cleanSentence.substring(0, firstBlankIdx); p1 = cleanSentence.substring(firstBlankIdx + 6); }
-  
-  if (!/[a-zA-Z]/.test(p0) && firstBlankIdx !== -1 && typeof currentAns === 'string') { hintMask = window.SYSTEM_ENGINE.capitalize(hintMask); currentAns = window.SYSTEM_ENGINE.capitalize(currentAns); }
+  if (cleanSentence.startsWith('______') && typeof currentAns === 'string') {
+      hintMask = window.SYSTEM_ENGINE.capitalize(hintMask);
+      currentAns = window.SYSTEM_ENGINE.capitalize(currentAns);
+  }
   
   const rawWrong = (q.rawAnswerObj && q.rawAnswerObj.wrong) ? q.rawAnswerObj.wrong : '';
   const rawRight = (q.rawAnswerObj && q.rawAnswerObj.right) ? q.rawAnswerObj.right : '???';
@@ -1296,12 +1295,57 @@
               <div className={`text-xl md:text-3xl font-bold leading-normal md:leading-relaxed break-words mt-2 ${!q.isAI ? 'text-[#8a847c]' : 'text-[#524d46]'} ${!isLayout2 && 'text-center'} w-full`}>
                 {q.qType === 'reorder' && !isLocked ? (
                     <span className="text-sm font-bold text-[#b5b0a8] italic">🧩 觀察下方亂序單字，依序點擊拼出完整句子。</span>
-                ) : firstBlankIdx !== -1 && (q.qType === 'fill' || q.qType === undefined) ? (
-                    <React.Fragment>
-                        <span>{window.SYSTEM_ENGINE.capitalize(p0)}</span>
-                        <span className={`mx-1 inline-block ${!isLocked && hintMask.indexOf('_') !== -1 && mainMenu !== 'grammar' ? 'tracking-[0.2em]' : ''} ${isLocked ? (isFinallyCorrect ? "text-[#7a8575]" : "text-[#b5847e] line-through decoration-[#b5847e] decoration-[3px]") : (combo >= 3 ? "text-[#cca677]" : "text-[#8b9586]")} transition-colors duration-300`}>{isLocked ? (currentAns || '______') : hintMask}</span>
-                        <span>{p1}</span>
-                    </React.Fragment>
+                ) : (q.qType === 'fill' || q.qType === undefined) && cleanSentence.includes('______') ? (
+                    <span className="leading-[3.5rem] md:leading-[4rem]">
+                        {(() => {
+                            const rawParts = cleanSentence.split('______');
+                            const parts = rawParts.length > 1 ? rawParts : [cleanSentence, '']; 
+                            return parts.map((part, pIdx, arr) => {
+                                const isLast = pIdx === arr.length - 1;
+                                return (
+                                    <React.Fragment key={pIdx}>
+                                        <span className="align-middle">{pIdx === 0 && cleanSentence.startsWith('______') ? part : (pIdx === 0 ? window.SYSTEM_ENGINE.capitalize(part) : part)}</span>
+                                        {!isLast && (
+                                            quizMode === 'fill_in' && !isLocked ? (
+                                                <input 
+                                                    type="text" 
+                                                    value={String(answers[i] || '')} 
+                                                    onChange={e => { 
+                                                        const n = [...answers]; 
+                                                        n[i] = e.target.value.replace(/^\s+/, '');
+                                                        setAnswers(n); 
+                                                    }} 
+                                                    onKeyDown={e => {
+                                                        if(e.key === 'Enter') {
+                                                            if (String(answers[i]||'').trim() !== '') handleCheckSingle(i);
+                                                        }
+                                                    }}
+                                                    autoComplete="off" spellCheck="false"
+                                                    className={`w-24 md:w-32 mx-1 appearance-none bg-white border-b-4 border-[#d6cfc5] focus:border-[#8b9586] text-[#524d46] text-lg md:text-xl font-mono font-black text-center p-1 rounded-lg outline-none shadow-sm align-middle inline-block ${combo>=3?'border-[#cca677] bg-[#f4ebd9] focus:bg-[#f4ebd9]':''}`} 
+                                                />
+                                            ) : (
+                                                <span className={`mx-1 inline-block px-2 pb-0.5 border-b-[3px] align-middle ${isLocked ? (isFinallyCorrect ? "text-[#7a8575] border-[#7a8575]" : "text-[#b5847e] border-[#b5847e] line-through") : "text-[#8b9586] border-[#8b9586]"}`}>
+                                                    {isLocked ? (String(answers[i] || '') || '______') : hintMask}
+                                                </span>
+                                            )
+                                        )}
+                                    </React.Fragment>
+                                );
+                            });
+                        })()}
+                        
+                        {quizMode === 'fill_in' && !isLocked && (() => {
+                            const isComplete = String(answers[i]||'').trim() !== '';
+                            return (
+                                <button 
+                                    onClick={() => handleCheckSingle(i)} 
+                                    disabled={!isComplete} 
+                                    className={`ml-3 inline-flex items-center justify-center text-white text-sm font-black w-12 h-10 md:w-14 md:h-12 rounded-xl active:scale-95 shadow transition-all align-middle border-b-4 ${!isComplete ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed opacity-50' : (combo>=3?'bg-[#cca677] border-[#a68258]':'bg-[#8b9586] border-[#6b7566]')}`}>
+                                    {combo>=3?<Flame size={20} className="animate-pulse"/>:<Send size={20}/>}
+                                </button>
+                            );
+                        })()}
+                    </span>
                 ) : q.qType === 'correction' && !isLocked ? (
                     <div className="flex flex-wrap justify-center gap-1.5 md:gap-2 leading-relaxed">
                         {cleanSentence.split(' ').map((word, wIdx) => {
@@ -1333,13 +1377,6 @@
                                       {mainMenu !== 'grammar' && ( <button onClick={e => { e.stopPropagation(); playTTS(opt, false, ''); }} className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-[#8a847c] hover:bg-[#c4cec1] rounded-full active:scale-90"><Megaphone size={18} /></button> )}
                                   </div>
                               ))}
-                          </div>
-                      )}
-                      
-                      {quizMode === 'fill_in' && !isLocked && (q.qType === 'fill' || q.qType === undefined) && (
-                          <div className={`flex flex-row items-center w-full gap-2 max-w-sm`}>
-                            <input type="text" value={String(answers[i] || "")} onChange={e => { const n = [...answers]; n[i] = e.target.value.replace(/^\s+/, ''); setAnswers(n); }} onKeyDown={e => {if(e.key==='Enter') handleCheckSingle(i);}} onFocus={e => { if(config.autoRead && mainMenu !== 'grammar') playTTS(q.sentence, true, safeAnswerStr); setTimeout(() => e.target.scrollIntoView({behavior:'smooth', block:'center'}), 300); }} autoComplete="off" spellCheck="false" placeholder="在此拼字..." className={`flex-1 min-w-0 appearance-none bg-white border-b-4 border-[#d6cfc5] focus:border-[#8b9586] text-[#524d46] text-xl md:text-2xl font-mono font-black text-center p-3 rounded-xl outline-none shadow-sm placeholder:text-[#b8b3aa] ${combo>=3?'border-[#cca677] bg-[#f4ebd9] focus:bg-[#f4ebd9]':''}`} />
-                            <button onClick={() => handleCheckSingle(i)} disabled={String(answers[i]||'').trim() === ''} className={`text-white text-lg md:text-xl font-black px-5 py-3 rounded-xl flex items-center justify-center gap-2 active:scale-95 shadow transition-all ${String(answers[i]||'').trim() === '' ? 'bg-[#a6a198] border-b-4 border-[#8a847c] cursor-not-allowed opacity-50' : (combo>=3?'bg-[#cca677] border-b-4 border-[#a68258]':'bg-[#8b9586] border-b-4 border-[#6b7566]')}`}>{combo>=3?<Flame size={20} className="animate-pulse"/>:<Send size={20}/>}</button>
                           </div>
                       )}
 
