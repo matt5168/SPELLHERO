@@ -72,7 +72,10 @@ window.SYSTEM_ENGINE = {
       return 0;
   },
   capitalize: s => { const str = String(s||""); const fc = str.search(/[a-zA-Z]/); return fc === -1 ? str : str.substring(0, fc) + str.charAt(fc).toUpperCase() + str.substring(fc + 1); },
-  createHintMask: w => String(w||"").split(' ').map(wd => { const ch = wd.split(''); const ls = ch.filter(c => /[a-zA-Z]/.test(c)); if (ls.length <= 2) return ch.map(c => /[a-zA-Z]/.test(c) ? '_' : c).join(''); let r = []; let lI = 0; for (let i = 0; i < ch.length; i++) { if (/[a-zA-Z]/.test(ch[i])) { lI++; r.push((lI === 1 || lI === ls.length) ? ch[i] : '_'); } else { r.push(ch[i]); } } return r.join(''); }).join(' '),
+  
+  // 最佳化首字母提示生成器 (單字: book -> b___, 片語: wake up -> w___ u_)
+  createHintMask: w => String(w||"").split(' ').map(wd => { let f=false, r=""; for(let i=0;i<wd.length;i++){ if(/[a-zA-Z]/.test(wd[i])){ if(!f){ r+=wd[i]; f=true; }else{ r+='_'; } }else{ r+=wd[i]; } } return r; }).join(' '),
+  
   extractJSONObjects: function(text) {
       let cleaned = String(text||"").replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
       let objects = []; let braceCount = 0; let inString = false; let escape = false; let startIdx = -1;
