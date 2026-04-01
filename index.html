@@ -509,10 +509,11 @@
                             const wordsToGenerate = chunkPending.map((s, idx) => `[IDX:${idx}] Target Word: "${s.answer}"`);
                             systemPrompt = `ESL vocab fill-blank, Taiwanese 3rd grade level. RULES:
     ① Simple formal English. Blank=______(6 underscores).
-    ② EVERYDAY REALITY: Sentences MUST describe ordinary, realistic daily life for a 9-year-old child in Taiwan. STRICTLY FORBIDDEN: Sci-fi, fantasy, magic, absurd situations (like jumping on the moon, talking animals).
-    ③ EXCLUSIVE CONTEXT: Add an extra sentence with undeniable realistic clues so ONLY the target word fits. NO AMBIGUITY.
-    ④ DISTRACTORS: The 3 incorrect options in 'o' array MUST be completely illogical for the everyday reality of the sentence (e.g., if answer is 'lives', distractors: 'car', 'happily', 'blue'). NEVER use synonyms or related words.
-    ⑤ JSON only: [{"idx":0,"a":"answer","s":"English sentence with ______","t":"完整繁體中文翻譯(必須將答案單字直接翻譯並寫入句子中，絕對不可有底線)","o":["opt1","opt2","opt3","opt4"]}]
+    ② SINGULAR/PLURAL CLUES: If the target word is a noun, you MUST place a clear grammatical clue immediately before the blank or in the sentence to distinguish singular from plural (e.g., use "a", "an", "one", "this", or "is" for singular; use "some", "many", "two", "these", or "are" for plural).
+    ③ EVERYDAY REALITY: Sentences MUST describe ordinary, realistic daily life for a 9-year-old child in Taiwan. STRICTLY FORBIDDEN: Sci-fi, fantasy, magic, absurd situations (like jumping on the moon, talking animals).
+    ④ EXCLUSIVE CONTEXT: Add an extra sentence with undeniable realistic clues so ONLY the target word fits. NO AMBIGUITY.
+    ⑤ DISTRACTORS: The 3 incorrect options in 'o' array MUST be completely illogical for the everyday reality of the sentence (e.g., if answer is 'lives', distractors: 'car', 'happily', 'blue'). NEVER use synonyms or related words.
+    ⑥ JSON only: [{"idx":0,"a":"answer","s":"English sentence with ______","t":"完整繁體中文翻譯(必須將答案單字直接翻譯並寫入句子中，絕對不可有底線)","o":["opt1","opt2","opt3","opt4"]}]
     Output EXACTLY 2 items per IDX.`;
                             userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH. Words:\n${wordsToGenerate.join('\n')}`;
                         }
