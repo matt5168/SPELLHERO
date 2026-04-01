@@ -495,12 +495,12 @@
                             });
                             
                             systemPrompt = `ESL grammar practice, Taiwanese 3rd grade level. RULES:
-    ① EVERYDAY REALITY: Context MUST describe realistic daily life for a 9-year-old in Taiwan. STRICTLY FORBIDDEN: Sci-fi, fantasy, magic, absurd physics (e.g., jumping on the moon).
+    ① EVERYDAY REALITY: Context MUST describe realistic daily life for a 9-year-old in Taiwan. STRICTLY FORBIDDEN: Sci-fi, fantasy, magic, absurd physics.
     ② GRAMMAR_TARGETS: [${gTargets.join(', ')}]. Use these specific words for correction errors.
     ③ Output JSON array ONLY. Format depends strictly on [Type]:
        - If Type=fill: {"idx":0, "qType":"fill", "a":"answer", "s":"Sentence with one ______.", "o":["opt1","opt2","opt3"]} (Pick 'o' from ALLOWED_DISTRACTORS_LIST)
-       - If Type=reorder: {"idx":0, "qType":"reorder", "a":"Exact correct full sentence.", "s":"scrambled / words / separated / by / slashes"} (Keep punctuation and capitalization in 'a')
-       - If Type=correction: {"idx":0, "qType":"correction", "a":{"wrong":"wrong word", "right":"correct word"}, "s":"Sentence containing the grammar error."} (Make an error based on GRAMMAR_TARGETS)
+       - If Type=reorder: {"idx":0, "qType":"reorder", "a":"Exact correct full sentence.", "s":"scrambled / words / separated / by / slashes"}
+       - If Type=correction: {"idx":0, "qType":"correction", "a":{"wrong":"wrong word", "right":"correct word"}, "s":"Sentence containing ONE grammar error."} (CRITICAL: The sentence 's' MUST be grammatically INCORRECT. The 'wrong' and 'right' values MUST be a SINGLE WORD without spaces, ideally targeting verbs or auxiliary verbs from GRAMMAR_TARGETS.)
     ④ EXCLUSIVE CLUES: For 'fill', add an undeniable context sentence so ONLY the target fits.
     ⑤ Translation: Always include "t":"Traditional Chinese translation of the correct sentence."
     Output EXACTLY 2 items per IDX.${distractorStr}`;
@@ -540,6 +540,20 @@
                                     let parsedAns = q.a !== undefined ? q.a : (q.answer !== undefined ? q.answer : (expectedItem ? expectedItem.answer : ""));
                                     let parsedQType = q.qtype || q.type || (expectedItem ? expectedItem.assignedType : 'fill');
                                     if (targetMenu === 'grammar' && expectedItem && expectedItem.assignedType && parsedQType !== expectedItem.assignedType) return; 
+                                    
+                                    // ---- 新增：糾錯題型絕對防呆攔截器 ----
+                                    if (parsedQType === 'correction') {
+                                        let wStr = parsedAns && parsedAns.wrong ? String(parsedAns.wrong).trim() : "";
+                                        let rStr = parsedAns && parsedAns.right ? String(parsedAns.right).trim() : "";
+                                        let sentStr = String(q.s || q.sentence || "").toLowerCase();
+                                        
+                                        // 嚴格攔截：1.無效字串 2.錯字等於對字 3.錯字不在句中 4.錯字包含空白(片語)
+                                        if (!wStr || !rStr || wStr.toLowerCase() === rStr.toLowerCase() || sentStr.indexOf(wStr.toLowerCase()) === -1 || wStr.indexOf(' ') !== -1) {
+                                            return; // 直接丟棄該無效題目，不加入畫面，觸發系統重試機制
+                                        }
+                                    }
+                                    // ------------------------------------
+
                                     let ansStrForOptions = typeof parsedAns === 'string' ? parsedAns.trim() : (Array.isArray(parsedAns) ? String(parsedAns[0]).trim() : (parsedAns.right ? String(parsedAns.right).trim() : "UNKNOWN"));
                                     if (!ansStrForOptions) ansStrForOptions = "UNKNOWN";
 
