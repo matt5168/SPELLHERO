@@ -468,43 +468,85 @@
                 for (let cIdx = 0; cIdx < chunks.length; cIdx++) {
                     let chunkPending = chunks[cIdx]; let loopGuard = 0; const logicFailedEngines = new Set(); 
 
+                    // ---- 本地端文法邏輯接管 (職責分離) ----
+                    if (targetMenu === 'grammar' && !chunkPending[0].localState) {
+                        const GRAMMAR_GROUPS = [
+                            ["is", "are", "am", "was", "were", "be", "been"],
+                            ["do", "does", "did", "done"],
+                            ["have", "has", "had"],
+                            ["always", "sometimes", "never", "usually", "often"],
+                            ["in", "on", "at", "above", "below", "under", "next to", "behind", "in front of"],
+                            ["must", "can", "should", "could", "would", "may", "might"],
+                            ["he", "she", "it", "they", "we", "I", "you"],
+                            ["his", "her", "its", "their", "our", "my", "your"]
+                        ];
+                        const validTypes = ['fill', 'reorder', 'correction'];
+                        chunkPending.forEach(item => {
+                            const assignedType = reqGrammarType === 'mixed' ? validTypes[Math.floor(Math.random() * validTypes.length)] : reqGrammarType;
+                            let coreAns = String(item.answer || "").trim();
+                            let coreSent = String(item.sentence || "").trim();
+                            let fullCore = coreSent.replace('______', coreAns);
+                            
+                            let localWrong = "";
+                            let localOptions = new Set([coreAns]);
+                            
+                            let targetMatch = null; let matchedGroup = [];
+                            for (let group of GRAMMAR_GROUPS) {
+                                for (let word of group) {
+                                    if (new RegExp(`\\b${word}\\b`, 'i').test(coreAns)) {
+                                        targetMatch = word; matchedGroup = group; break;
+                                    }
+                                }
+                                if (targetMatch) break;
+                            }
+                            
+                            if (targetMatch) {
+                                let peers = matchedGroup.filter(t => t.toLowerCase() !== targetMatch.toLowerCase());
+                                if (peers.length > 0) {
+                                    let rw = peers[Math.floor(Math.random() * peers.length)];
+                                    localWrong = coreAns.replace(new RegExp(`\\b${targetMatch}\\b`, 'i'), rw);
+                                    peers.forEach(p => localOptions.add(coreAns.replace(new RegExp(`\\b${targetMatch}\\b`, 'i'), p)));
+                                }
+                            }
+                            
+                            if (!localWrong) {
+                                let firstWord = coreAns.split(' ')[0];
+                                let rw = firstWord.endsWith('s') ? firstWord.slice(0, -1) : firstWord + "s";
+                                localWrong = coreAns.replace(firstWord, rw);
+                                localOptions.add(localWrong);
+                                localOptions.add(coreAns.replace(firstWord, firstWord + "ed"));
+                                localOptions.add("not " + coreAns);
+                            }
+                            
+                            let finalOptionsArr = Array.from(localOptions).filter(o => o);
+                            while(finalOptionsArr.length < 4) { finalOptionsArr.push("dummy_" + Math.random().toString().slice(2,5)); }
+                            
+                            item.localState = { type: assignedType, fullCore: fullCore, coreSentWithBlank: coreSent, right: coreAns, wrong: localWrong, options: window.shuffleArray(finalOptionsArr.slice(0, 4)) };
+                        });
+                    }
+                    // ----------------------------------------
+
                     while (chunkPending.length > 0 && loopGuard < 3) {
                         loopGuard++;
                         if (loopGuard > 1) { const delay = Math.pow(2, loopGuard - 1) * 1000 + Math.floor(Math.random() * 1000); addLog(`[防護] 冷卻 ${(delay/1000).toFixed(1)}s...`); await new Promise(r => setTimeout(r, delay)); }
                         
                         let systemPrompt = ""; let userQuery = "";
                         if (targetMenu === 'grammar') {
-                            let targetVocabBanks = [];
-                            let checkNbs = nbs.includes('All') ? Object.keys(window.GRAMMAR_NOTEBOOKS) : nbs;
-                            checkNbs.forEach(nb => { const match = nb.match(/PB1 U(\d) 句型庫/); if (match) targetVocabBanks.push(`PB1 U${match[1]}`); });
-                            if (targetVocabBanks.length === 0) targetVocabBanks = ['All'];
-                            
-                            const allowedVocabItems = window.getActiveDB(targetVocabBanks, 'word');
-                            const allowedDistractors = allowedVocabItems.map(v => String(v.answer).toLowerCase());
-                            const uniqueDistractors = [...new Set(allowedDistractors)];
-                            const distractorStr = uniqueDistractors.length > 0 ? `\nALLOWED_DISTRACTORS_LIST: [${uniqueDistractors.join(', ')}]` : "";
+                            const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Core Sentence: "${s.localState.fullCore}"`);
+                            systemPrompt = `You are an expert ESL context generator for 3rd-grade students in Taiwan.
+TASK: For each given "Core Sentence", write EXACTLY 2 DIFFERENT, simple, realistic preceding sentences that set up the context.
+RULES:
+1. The context must logically lead to the Core Sentence.
+2. Use everyday, realistic situations (e.g., family, school, weather). NO sci-fi or magic.
+3. Keep it extremely simple (A1/A2 level).
 
-                            const nbKey = nbs.includes('All') ? "DEFAULT" : nbs[0];
-                            const gTargets = (window.GRAMMAR_TARGETS && window.GRAMMAR_TARGETS[nbKey]) ? window.GRAMMAR_TARGETS[nbKey] : ["is", "are", "was", "were"];
-                            
-                            const validTypes = ['fill', 'reorder', 'correction'];
-                            const patterns = chunkPending.map((s, idx) => {
-                                const assignedType = reqGrammarType === 'mixed' ? validTypes[Math.floor(Math.random() * validTypes.length)] : reqGrammarType;
-                                s.assignedType = assignedType;
-                                return `[IDX:${idx}] [Type: ${assignedType}] Target Answer: [${s.answer}] | Pattern: ${String(s.sentence||"").replace('______', s.answer)}`;
-                            });
-                            
-                            systemPrompt = `ESL grammar practice, Taiwanese 3rd grade level. RULES:
-    ① EVERYDAY REALITY: Context MUST describe realistic daily life for a 9-year-old in Taiwan. STRICTLY FORBIDDEN: Sci-fi, fantasy, magic, absurd physics.
-    ② GRAMMAR_TARGETS: [${gTargets.join(', ')}]. Use these specific words for correction errors.
-    ③ Output JSON array ONLY. Format depends strictly on [Type]:
-       - If Type=fill: {"idx":0, "qType":"fill", "a":"answer", "s":"Sentence with one ______.", "o":["opt1","opt2","opt3"]} (Pick 'o' from ALLOWED_DISTRACTORS_LIST)
-       - If Type=reorder: {"idx":0, "qType":"reorder", "a":"Exact correct full sentence.", "s":"scrambled / words / separated / by / slashes"}
-       - If Type=correction: {"idx":0, "qType":"correction", "a":{"wrong":"wrong word", "right":"correct word"}, "s":"Sentence containing ONE grammar error."} (CRITICAL: The sentence 's' MUST be grammatically INCORRECT. The 'wrong' and 'right' values MUST be a SINGLE WORD without spaces, ideally targeting verbs or auxiliary verbs from GRAMMAR_TARGETS.)
-    ④ EXCLUSIVE CLUES: For 'fill', add an undeniable context sentence so ONLY the target fits.
-    ⑤ Translation: Always include "t":"Traditional Chinese translation of the correct sentence."
-    Output EXACTLY 2 items per IDX.${distractorStr}`;
-                            userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH.\n${patterns.join('\n')}`;
+JSON OUTPUT FORMAT:
+[
+  {"idx": 0, "c": "Context 1.", "t": "Traditional Chinese translation of BOTH Context 1 AND the core sentence."},
+  {"idx": 0, "c": "Context 2.", "t": "Traditional Chinese translation of BOTH Context 2 AND the core sentence."}
+]
+CRITICAL: Output EXACTLY TWO objects per IDX.`;
+                            userQuery = `Provide EXACTLY 2 DIFFERENT contexts for each sentence:\n${patterns.join('\n')}`;
                         } else {
                             const wordsToGenerate = chunkPending.map((s, idx) => `[IDX:${idx}] Target Word: "${s.answer}"`);
                             systemPrompt = `ESL vocab fill-blank, Taiwanese 3rd grade level. RULES:
@@ -532,38 +574,53 @@
                                     if (!rawQ) return; const q = {}; Object.keys(rawQ).forEach(k => { q[k.toLowerCase()] = rawQ[k]; });
                                     let aiIdx = q.idx !== undefined ? parseInt(q.idx) : -1;
                                     let expectedItem = chunkPending[aiIdx];
-                                    if (!expectedItem) {
+                                    
+                                    // 針對 vocab 模式的強大備援搜尋
+                                    if (!expectedItem && targetMenu !== 'grammar') {
                                         let ansStr = typeof q.a === 'string' ? q.a.trim().toLowerCase() : (typeof q.answer === 'string' ? q.answer.trim().toLowerCase() : "");
                                         expectedItem = chunkPending.find(item => String(item.answer||"").trim().toLowerCase() === ansStr);
                                     }
+                                    if (!expectedItem) return; // 確保安全性
 
-                                    let parsedAns = q.a !== undefined ? q.a : (q.answer !== undefined ? q.answer : (expectedItem ? expectedItem.answer : ""));
-                                    let parsedQType = q.qtype || q.type || (expectedItem ? expectedItem.assignedType : 'fill');
-                                    if (targetMenu === 'grammar' && expectedItem && expectedItem.assignedType && parsedQType !== expectedItem.assignedType) return; 
-                                    
-                                    // ---- 新增：糾錯題型絕對防呆攔截器 ----
-                                    if (parsedQType === 'correction') {
-                                        let wStr = parsedAns && parsedAns.wrong ? String(parsedAns.wrong).trim() : "";
-                                        let rStr = parsedAns && parsedAns.right ? String(parsedAns.right).trim() : "";
-                                        let sentStr = String(q.s || q.sentence || "").toLowerCase();
+                                    let reqUid = expectedItem.reqUid; 
+                                    let refKey = expectedItem.poolKey;
+                                    let finalQ = null;
+
+                                    if (targetMenu === 'grammar') {
+                                        // --- 文法題：本地端邏輯組裝 ---
+                                        let ls = expectedItem.localState;
+                                        let ctxSentence = String(q.c || q.ctx || q.context || "").trim();
+                                        let fullTrans = String(q.t || q.full_t || q.translation || "").trim();
+                                        if (!fullTrans) fullTrans = "正在努力翻譯中...";
                                         
-                                        // 嚴格攔截：1.無效字串 2.錯字等於對字 3.錯字不在句中 4.錯字包含空白(片語)
-                                        if (!wStr || !rStr || wStr.toLowerCase() === rStr.toLowerCase() || sentStr.indexOf(wStr.toLowerCase()) === -1 || wStr.indexOf(' ') !== -1) {
-                                            return; // 直接丟棄該無效題目，不加入畫面，觸發系統重試機制
+                                        let finalSentence = ""; let finalAnswer = ""; let finalRawObj = ""; let finalOptions = [];
+                                        let finalHint = expectedItem.hint || "文法重點";
+                                        
+                                        if (ls.type === 'fill') {
+                                            finalSentence = ctxSentence ? `${ctxSentence} ${ls.coreSentWithBlank}` : ls.coreSentWithBlank;
+                                            finalAnswer = ls.right; finalRawObj = ls.right; finalOptions = ls.options;
+                                        } else if (ls.type === 'reorder') {
+                                            finalSentence = ctxSentence; finalAnswer = ls.fullCore; finalRawObj = ls.fullCore;
+                                            let words = ls.fullCore.trim().replace(/[.!?]$/, '').split(/\s+/).filter(w => w.length > 0);
+                                            finalOptions = window.shuffleArray(words);
+                                        } else if (ls.type === 'correction') {
+                                            let coreWithWrong = ls.coreSentWithBlank.replace('______', ls.wrong);
+                                            finalSentence = ctxSentence ? `${ctxSentence} ${coreWithWrong}` : coreWithWrong;
+                                            finalAnswer = JSON.stringify({wrong: ls.wrong, right: ls.right});
+                                            finalRawObj = {wrong: ls.wrong, right: ls.right}; finalOptions = [];
                                         }
-                                    }
-                                    // ------------------------------------
+                                        
+                                        finalQ = { id: "ai_" + Math.random(), poolKey: refKey, runtimeId: Math.random(), answer: finalAnswer, rawAnswerObj: finalRawObj, qType: ls.type, sentence: finalSentence, translation: fullTrans, hint: finalHint, explanation: "", options: finalOptions, isAI: true, modelName: cardModelName };
+                                    } else {
+                                        // --- 單字題：保留原有運作極佳的 AI 組裝邏輯 ---
+                                        let parsedAns = q.a !== undefined ? q.a : (q.answer !== undefined ? q.answer : (expectedItem ? expectedItem.answer : ""));
+                                        let parsedQType = q.qtype || q.type || 'fill';
+                                        let ansStrForOptions = typeof parsedAns === 'string' ? parsedAns.trim() : (Array.isArray(parsedAns) ? String(parsedAns[0]).trim() : (parsedAns.right ? String(parsedAns.right).trim() : "UNKNOWN"));
+                                        if (!ansStrForOptions) ansStrForOptions = "UNKNOWN";
 
-                                    let ansStrForOptions = typeof parsedAns === 'string' ? parsedAns.trim() : (Array.isArray(parsedAns) ? String(parsedAns[0]).trim() : (parsedAns.right ? String(parsedAns.right).trim() : "UNKNOWN"));
-                                    if (!ansStrForOptions) ansStrForOptions = "UNKNOWN";
-
-                                    let reqUid = expectedItem ? expectedItem.reqUid : `req_${Math.random()}`; 
-                                    let refKey = expectedItem ? expectedItem.poolKey : `word_${ansStrForOptions}`;
-
-                                    let rawOptions = Array.isArray(q.o) ? q.o : (Array.isArray(q.options) ? q.options : []);
-                                    let safeOptions = [];
-                                    
-                                    if (parsedQType === 'fill') {
+                                        let rawOptions = Array.isArray(q.o) ? q.o : (Array.isArray(q.options) ? q.options : []);
+                                        let safeOptions = [];
+                                        
                                         let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ansStrForOptions.toLowerCase());
                                         if (distractors.length < 3 && typeof parsedAns === 'string') { 
                                             distractors = [...distractors, ...window.generateVocabOptions(ansStrForOptions, activeDB).filter(o=>o!==ansStrForOptions)]; 
@@ -580,58 +637,37 @@
                                                 return opt;
                                             });
                                         }
-                                    } else if (parsedQType === 'reorder') {
-                                        let ansStr = typeof parsedAns === 'string' ? parsedAns : "";
-                                        let words = ansStr.trim().split(/\s+/).filter(w => w.length > 0);
-                                        if (words.length === 0 && typeof q.s === 'string') {
-                                            words = q.s.split('/').map(w => w.trim()).filter(w => w.length > 0);
-                                        }
-                                        safeOptions = window.shuffleArray(words);
-                                    }
 
-                                    let sentence = (q.s || q.sentence) ? String(q.s || q.sentence).trim() : "";
-                                    if (parsedQType !== 'reorder') {
+                                        let sentence = (q.s || q.sentence) ? String(q.s || q.sentence).trim() : "";
                                         sentence = sentence.replace(/\s+([.!?])/g, '$1');
                                         if (sentence && !/[.!?]$/.test(sentence)) sentence += ".";
-                                    }
-                                    
-                                    if (parsedQType === 'fill') {
+                                        
                                         sentence = sentence.replace(/[a-zA-Z]*_{2,}[a-zA-Z]*/g, '______');
                                         if (sentence.indexOf('______') === -1 && typeof parsedAns === 'string') { 
                                             const reg = new RegExp('\\b' + window.escapeRegExp(parsedAns) + '\\b', 'gi'); 
                                             sentence = sentence.replace(reg, '______'); 
                                         }
                                         if (sentence.indexOf('______') === -1) return; 
-                                    }
-                                    
-                                    let finalHint = expectedItem && expectedItem.hint ? expectedItem.hint : "無提示";
-                                    if (targetMenu !== 'grammar') { 
+                                        
+                                        let finalHint = expectedItem && expectedItem.hint ? expectedItem.hint : "無提示";
                                         const dictHint = window.SH_DICTIONARY && window.SH_DICTIONARY[ansStrForOptions.toLowerCase()]; 
                                         if (dictHint) finalHint = dictHint; 
+                                        
+                                        let rawT = q.t || q.translation || q.trans || q.chinese || q.c || "";
+                                        let cleanTrans = String(rawT).replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').trim();
+                                        const dictWord = (window.SH_DICTIONARY && window.SH_DICTIONARY[ansStrForOptions.toLowerCase()]) ? window.SH_DICTIONARY[ansStrForOptions.toLowerCase()].split(/[;；]/)[0] : ansStrForOptions;
+                                        cleanTrans = cleanTrans.replace(/[_＿]{2,}/g, dictWord);
+
+                                        let stringifiedAns = typeof parsedAns === 'object' ? JSON.stringify(parsedAns) : String(parsedAns).trim();
+
+                                        finalQ = { 
+                                            id: "ai_" + Math.random(), poolKey: refKey, runtimeId: Math.random(), 
+                                            answer: stringifiedAns, rawAnswerObj: parsedAns, qType: parsedQType, 
+                                            sentence: sentence, translation: cleanTrans, hint: finalHint, 
+                                            explanation: q.e || q.explanation || "", options: safeOptions, 
+                                            isAI: true, modelName: cardModelName 
+                                        };
                                     }
-                                    
-                                    let rawT = q.t || q.translation || q.trans || q.chinese || q.c || "";
-                                    let cleanTrans = String(rawT).replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').trim();
-                                    const dictWord = (window.SH_DICTIONARY && window.SH_DICTIONARY[ansStrForOptions.toLowerCase()]) ? window.SH_DICTIONARY[ansStrForOptions.toLowerCase()].split(/[;；]/)[0] : ansStrForOptions;
-                                    cleanTrans = cleanTrans.replace(/[_＿]{2,}/g, dictWord);
-
-                                    let stringifiedAns = typeof parsedAns === 'object' ? JSON.stringify(parsedAns) : String(parsedAns).trim();
-
-                                    const finalQ = { 
-                                        id: "ai_" + Math.random(), 
-                                        poolKey: refKey, 
-                                        runtimeId: Math.random(), 
-                                        answer: stringifiedAns, 
-                                        rawAnswerObj: parsedAns, 
-                                        qType: parsedQType, 
-                                        sentence: sentence, 
-                                        translation: cleanTrans, 
-                                        hint: finalHint, 
-                                        explanation: q.e || q.explanation || "", 
-                                        options: safeOptions, 
-                                        isAI: true, 
-                                        modelName: cardModelName 
-                                    };
 
                                     if (currentUIQs.length < targetTotal && !uiPoolKeys.has(refKey)) {
                                         currentUIQs.push(finalQ); uiPoolKeys.add(refKey); fulfilledReqUids.add(reqUid); addedToUI = true;
