@@ -1,4 +1,4 @@
-// engine.js - 核心邏輯與 API 引擎 (瞬間熔斷動態路由版)
+// engine.js - 核心邏輯與 API 引擎 (標點符號寬容與智慧語意版)
 
 window.LEVEL_DATA = [{level:1,reqExp:0,title:"新手學徒",icon:"🌱",color:"text-[#8b9586]",bg:"bg-[#e6e9e4]",border:"border-[#c4cec1]"},{level:2,reqExp:150,title:"拼字新手",icon:"🥉",color:"text-[#cca677]",bg:"bg-[#f4ebd9]",border:"border-[#e0c9aa]"},{level:3,reqExp:400,title:"熟練拼手",icon:"🥈",color:"text-[#8a847c]",bg:"bg-[#dedad4]",border:"border-[#b8b3aa]"},{level:4,reqExp:800,title:"單字達人",icon:"🥇",color:"text-[#c2b49a]",bg:"bg-[#f2efe6]",border:"border-[#d9cfbb]"},{level:5,reqExp:1500,title:"英語小將",icon:"🏅",color:"text-[#768e8b]",bg:"bg-[#e2eae8]",border:"border-[#b2cbc7]"},{level:6,reqExp:2500,title:"智慧神童",icon:"💡",color:"text-[#8b9586]",bg:"bg-[#e6e9e4]",border:"border-[#c4cec1]"},{level:7,reqExp:4000,title:"拼字菁英",icon:"💎",color:"text-[#6b8b9c]",bg:"bg-[#dfe8ef]",border:"border-[#abc8d9]"},{level:8,reqExp:6000,title:"詞彙大師",icon:"👑",color:"text-[#968b95]",bg:"bg-[#e9e6e8]",border:"border-[#cfc6ce]"},{level:9,reqExp:8500,title:"傳奇英雄",icon:"🐉",color:"text-[#b5847e]",bg:"bg-[#f2e7e6]",border:"border-[#dcb5b0]"},{level:10,reqExp:12000,title:"終極神人",icon:"🌌",color:"text-[#a67c52]",bg:"bg-[#f0e6d8]",border:"border-[#c9a785]"}];
 window.getCurrentLevelInfo = exp => { let c = window.LEVEL_DATA[0]; for(let i=0;i<window.LEVEL_DATA.length;i++) { if(exp>=window.LEVEL_DATA[i].reqExp) c=window.LEVEL_DATA[i]; else break; } return { current: c, nextLevel: window.LEVEL_DATA.find(l=>l.level===c.level+1)||null }; };
@@ -52,12 +52,15 @@ window.SOUND_ENGINE = {
 
 window.SYSTEM_ENGINE = {
   isCorrect: (ui, ca, qType, sentence = "") => {
+      // 核心標準化：無視大小寫，並移除所有可能的標點符號與多餘空白
+      const normalize = s => String(s || "").replace(/[.,!?]+/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+
       if (!qType || qType === 'fill') {
-          return String(ui||'').trim().toLowerCase().replace(/\s+/g, ' ') === String(ca||'').trim().toLowerCase().replace(/\s+/g, ' ') ? 1 : 0;
+          return normalize(ui) === normalize(ca) ? 1 : 0;
       }
       if (qType === 'reorder') {
           if (!Array.isArray(ui)) return 0;
-          return ui.join(' ').trim() === String(ca||"").trim() ? 1 : 0;
+          return normalize(ui.join(' ')) === normalize(ca) ? 1 : 0;
       }
       if (qType === 'correction') {
           let targetObj = typeof ca === 'object' && ca !== null ? ca : {};
@@ -87,7 +90,6 @@ window.SYSTEM_ENGINE = {
   },
   capitalize: s => { const str = String(s||""); const fc = str.search(/[a-zA-Z]/); return fc === -1 ? str : str.substring(0, fc) + str.charAt(fc).toUpperCase() + str.substring(fc + 1); },
   
-  // 首字母提示遮罩
   createHintMask: w => String(w||"").split(' ').map(wd => { let f=false, r=""; for(let i=0;i<wd.length;i++){ if(/[a-zA-Z]/.test(wd[i])){ if(!f){ r+=wd[i]; f=true; }else{ r+='_'; } }else{ r+=wd[i]; } } return r; }).join(' '),
   
   extractJSONObjects: function(text) {
