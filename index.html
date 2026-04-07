@@ -491,11 +491,13 @@
                             ["do", "does", "did", "done"],
                             ["have", "has", "had"],
                             ["always", "sometimes", "never", "usually", "often"],
-                            ["in", "on", "at", "above", "below", "under", "next to", "behind", "in front of"],
+                            ["in", "on", "at", "above", "below", "under", "next to", "behind", "in front of", "to", "for", "with", "from"],
                             ["must", "can", "should", "could", "would", "may", "might"],
                             ["he", "she", "it", "they", "we", "I", "you"],
                             ["his", "her", "its", "their", "our", "my", "your"],
-                            ["a", "an", "the", "some", "any", "many", "much"]
+                            ["a", "an", "the", "some", "any", "many", "much"],
+                            ["go", "goes", "went", "gone"],
+                            ["want", "wants", "wanted"]
                         ];
                         const validTypes = ['fill', 'reorder', 'correction'];
                         chunkPending.forEach(item => {
@@ -1489,7 +1491,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                         })}
                     </div>
                 ) : (
-                    <span>{q.qType === 'reorder' && isLocked ? safeAnswerStr : cleanSentence}</span>
+                    <span>{q.qType === 'reorder' && isLocked ? (isFinallyCorrect ? answers[i].join(' ') : safeAnswerStr) : cleanSentence}</span>
                 )}
                 {mainMenu !== 'grammar' && !(q.qType === 'reorder' && !isLocked) && ( <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className={`ml-3 inline-flex items-center justify-center p-2 rounded-full transition-all active:scale-90 align-middle ${isLocked ? 'bg-[#e6e9e4] text-[#6b7566]' : 'bg-[#f4ebd9] text-[#cca677]'}`}><Volume2 size={24}/></button> )}
               </div>
