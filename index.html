@@ -459,7 +459,6 @@
                 for(let i=0; i<readyQs.length; i++) {
                     const qt = readyQs[i].qType || 'fill';
                     if (qt === 'reorder') n.push([]);
-                    else if (qt === 'correction') n.push({wrong: null, right: ''});
                     else n.push('');
                 }
                 return n;
@@ -499,7 +498,7 @@
                             ["go", "goes", "went", "gone"],
                             ["want", "wants", "wanted"]
                         ];
-                        const validTypes = ['fill', 'reorder', 'correction'];
+                        const validTypes = ['fill', 'reorder'];
                         chunkPending.forEach(item => {
                             const assignedType = reqGrammarType === 'mixed' ? validTypes[Math.floor(Math.random() * validTypes.length)] : reqGrammarType;
                             let coreAns = String(item.answer || "").trim();
@@ -540,7 +539,7 @@
                             let finalOptionsArr = Array.from(localOptions).filter(o => o);
                             while(finalOptionsArr.length < 4) { finalOptionsArr.push("dummy_" + Math.random().toString().slice(2,5)); }
                             
-                            item.localState = { type: assignedType, fullCore: fullCore, coreSentWithBlank: coreSent, right: coreAns, wrong: localWrong, options: window.shuffleArray(finalOptionsArr.slice(0, 4)) };
+                            item.localState = { type: assignedType, fullCore: fullCore, coreSentWithBlank: coreSent, right: coreAns, options: window.shuffleArray(finalOptionsArr.slice(0, 4)) };
                         });
                     }
                     // ----------------------------------------
@@ -622,11 +621,6 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                             finalSentence = ctxSentence; finalAnswer = ls.fullCore; finalRawObj = ls.fullCore;
                                             let words = ls.fullCore.trim().replace(/[.!?]+$/, '').split(/\s+/).filter(w => w.length > 0);
                                             finalOptions = window.shuffleArray(words);
-                                        } else if (ls.type === 'correction') {
-                                            let coreWithWrong = ls.coreSentWithBlank.replace('______', ls.wrong);
-                                            finalSentence = ctxSentence ? `${ctxSentence} ${coreWithWrong}` : coreWithWrong;
-                                            finalAnswer = JSON.stringify({wrong: ls.wrong, right: ls.right});
-                                            finalRawObj = {wrong: ls.wrong, right: ls.right}; finalOptions = [];
                                         }
                                         
                                         finalQ = { id: "ai_" + Math.random(), poolKey: refKey, runtimeId: Math.random(), answer: finalAnswer, rawAnswerObj: finalRawObj, qType: ls.type, sentence: finalSentence, translation: fullTrans, hint: finalHint, explanation: "", options: finalOptions, isAI: true, modelName: cardModelName };
@@ -731,7 +725,6 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                         while(n.length < currentUIQs.length) {
                                             const qt = currentUIQs[n.length] ? currentUIQs[n.length].qType : undefined;
                                             if (qt === 'reorder') n.push([]);
-                                            else if (qt === 'correction') n.push({wrong: null, right: ''});
                                             else n.push('');
                                         }
                                         return n; 
@@ -802,7 +795,6 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                     while(n.length < currentUIQs.length) { 
                         const qt = currentUIQs[n.length] ? currentUIQs[n.length].qType : undefined; 
                         if (qt === 'reorder') n.push([]); 
-                        else if (qt === 'correction') n.push({wrong: null, right: ''}); 
                         else n.push(''); 
                     } 
                     return n; 
@@ -968,8 +960,6 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
             } else if (qType === 'reorder') {
                 const expectedLen = questions[index].options ? questions[index].options.length : 0;
                 if (!Array.isArray(finalAnswer) || finalAnswer.length === 0 || finalAnswer.length < expectedLen) return;
-            } else if (qType === 'correction') {
-                if (!finalAnswer || typeof finalAnswer !== 'object' || !finalAnswer.wrong || !finalAnswer.right || String(finalAnswer.right).trim() === '') return;
             }
             
             const scoreVal = window.SYSTEM_ENGINE.isCorrect(finalAnswer, questions[index].rawAnswerObj || questions[index].answer, qType, questions[index].sentence);
@@ -1348,7 +1338,6 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                       <option value="mixed">綜合混合</option>
                                       <option value="fill">單字填空</option>
                                       <option value="reorder">句子重組</option>
-                                      <option value="correction">挑錯字</option>
                                   </select>
                               </div>
                           </div>
@@ -1390,8 +1379,6 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
       cleanSentence += "."; 
   }
   
-  const rawRight = (q.rawAnswerObj && q.rawAnswerObj.right) ? q.rawAnswerObj.right : '???';
-  const rawWrong = (q.rawAnswerObj && q.rawAnswerObj.wrong) ? q.rawAnswerObj.wrong : '';
   const isPhrase = safeAnswerStr.indexOf(' ') !== -1 || safeAnswerStr.indexOf('-') !== -1 || safeAnswerStr.indexOf('...') !== -1;
 
   if (cleanSentence.startsWith('______') && typeof currentAns === 'string') {
@@ -1475,21 +1462,6 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                             );
                         })()}
                     </span>
-                ) : q.qType === 'correction' && !isLocked ? (
-                    <div className="flex flex-wrap justify-center gap-1.5 md:gap-2 leading-relaxed">
-                        {cleanSentence.split(' ').map((word, wIdx) => {
-                            const cleanWord = word.replace(/[.,!?]+$/, '');
-                            const punctuation = word.match(/[.,!?]+$/) ? word.match(/[.,!?]+$/)[0] : '';
-                            const currentAnsObj = answers[i] || {wrong: null, right: ''};
-                            const isSelected = currentAnsObj.wrong === cleanWord;
-                            return (
-                                <span key={wIdx} className="flex items-center">
-                                    <button onClick={() => { const n=[...answers]; n[i]={...currentAnsObj, wrong: cleanWord}; setAnswers(n); }} className={`px-1.5 py-0.5 rounded transition-all active:scale-95 ${isSelected ? 'bg-[#b5847e] text-white shadow-inner line-through decoration-white/50' : 'text-[#524d46] hover:bg-[#e6e9e4] cursor-pointer'}`}>{cleanWord}</button>
-                                    {punctuation && <span className="text-[#524d46]">{punctuation}</span>}
-                                </span>
-                            );
-                        })}
-                    </div>
                 ) : (
                     <span>{q.qType === 'reorder' && isLocked ? (isFinallyCorrect ? answers[i].join(' ') : safeAnswerStr) : cleanSentence}</span>
                 )}
@@ -1533,24 +1505,6 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                               </div>
                           );
                       })()}
-
-                      {!isLocked && q.qType === 'correction' && (() => {
-                          const currentAnsObj = answers[i] || {wrong: null, right: ''};
-                          const isComplete = currentAnsObj.wrong && currentAnsObj.right && currentAnsObj.right.trim() !== '';
-                          return (
-                              <div className="flex flex-col gap-4 w-full items-center mt-2">
-                                  {!currentAnsObj.wrong && <div className="text-sm font-bold text-[#8a847c] bg-[#e6e9e4] px-4 py-2 rounded-full animate-pulse shadow-sm">👆 請點擊上方句子中的錯誤單字</div>}
-                                  {currentAnsObj.wrong && (
-                                      <div className="flex flex-row items-center w-full max-w-sm gap-3 animate-in fade-in zoom-in duration-300 bg-[#f4ebd9] p-3 rounded-xl border border-[#e0c9aa] shadow-sm">
-                                          <div className="bg-[#b5847e] text-white font-bold px-4 py-2 rounded-lg line-through shadow-inner text-lg">{currentAnsObj.wrong}</div>
-                                          <span className="text-[#a68258] font-black">➔</span>
-                                          <input type="text" value={currentAnsObj.right || ''} onChange={e => { const n=[...answers]; n[i]={...currentAnsObj, right: e.target.value.replace(/^\s+/, '')}; setAnswers(n); }} onKeyDown={e => {if(e.key==='Enter' && isComplete) handleCheckSingle(i);}} placeholder="輸入正確單字" className="flex-1 min-w-0 bg-white border-b-4 border-[#d6cfc5] focus:border-[#8b9586] text-xl font-black text-center p-2 rounded-lg outline-none shadow-sm" />
-                                      </div>
-                                  )}
-                                  {currentAnsObj.wrong && <button onClick={() => handleCheckSingle(i)} disabled={!isComplete} className={`w-full max-w-sm text-white text-lg font-black px-5 py-3 rounded-xl border-b-4 active:scale-95 shadow transition-all mt-2 ${!isComplete ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed opacity-50' : (combo>=3?'bg-[#cca677] border-[#a68258]':'bg-[#8b9586] border-[#6b7566]')}`}>確認修改</button>}
-                              </div>
-                          );
-                      })()}
                   </div>
               )}
           </div>
@@ -1585,19 +1539,11 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                           <div className="flex flex-col items-center text-center relative w-full">
                               <div className="absolute -top-10 bg-[#b5847e] text-white px-4 py-1.5 rounded-full font-black shadow-md border-2 border-white flex items-center gap-2">
                                 {qStatus[i] > 0 ? <RefreshCcw size={16} className="animate-spin" /> : <XCircle size={16}/>} 
-                                {qStatus[i] > 0 ? '部分答對' : (q.qType === 'reorder' ? '語序錯誤' : q.qType === 'correction' ? '文法盲點' : '拼字錯誤')}
+                                {qStatus[i] > 0 ? '部分答對' : (q.qType === 'reorder' ? '語序錯誤' : '拼字錯誤')}
                               </div>
                               <span className="text-sm font-bold text-[#a6a198] mt-2 mb-1">正確答案</span>
                               <div className="text-xl md:text-3xl font-black text-[#524d46] tracking-wide my-2 break-all" onClick={() => playTTS(safeAnswerStr, false)}>
-                                  {q.qType === 'correction' ? (
-                                      <div className="flex items-center justify-center gap-2">
-                                          <span className="line-through text-[#b5847e]">{rawWrong || '???'}</span>
-                                          <span className="text-[#8a847c]">➔</span>
-                                          <span className="text-[#8b9586]">{rawRight}</span>
-                                      </div>
-                                  ) : (
-                                      <span>{safeAnswerStr || <span className="text-[#b5847e]">系統缺漏</span>}</span>
-                                  )}
+                                  <span>{safeAnswerStr || <span className="text-[#b5847e]">系統缺漏</span>}</span>
                               </div>
                               {mainMenu !== 'grammar' && ( <button onClick={() => playTTS(safeAnswerStr, false)} className="mt-4 bg-white text-[#8c6b44] px-5 py-2.5 rounded-full font-black shadow-sm border border-[#e0c9aa] active:scale-95 flex items-center gap-2"><Megaphone size={18}/> 聆聽發音</button> )}
                           </div>
@@ -1607,9 +1553,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                           <div className="text-xs font-black text-[#7a8575] mb-2 flex items-center gap-1 uppercase tracking-widest"><BookOpen size={14}/> 完整中英對照</div>
                           
                           <div className="text-lg md:text-xl font-black text-[#524d46] mb-2 leading-relaxed">
-                              {q.qType === 'correction' ? (
-                                  <span>{rawWrong ? cleanSentence.replace(new RegExp('\\b' + window.escapeRegExp(rawWrong) + '\\b', 'gi'), rawRight) : cleanSentence}</span>
-                              ) : q.qType === 'reorder' ? (
+                              {q.qType === 'reorder' ? (
                                   <span>{safeAnswerStr}</span>
                               ) : cleanSentence.includes('______') ? (
                                   cleanSentence.split('______').map((part, idx, arr) => (
