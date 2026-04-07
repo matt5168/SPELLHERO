@@ -73,7 +73,7 @@ window.SYSTEM_ENGINE = {
   },
   capitalize: s => { const str = String(s||""); const fc = str.search(/[a-zA-Z]/); return fc === -1 ? str : str.substring(0, fc) + str.charAt(fc).toUpperCase() + str.substring(fc + 1); },
   
-  // 最佳化首字母提示生成器 (單字: book -> b___, 片語: wake up -> w___ u_)
+  // 最佳化首字母提示生成器
   createHintMask: w => String(w||"").split(' ').map(wd => { let f=false, r=""; for(let i=0;i<wd.length;i++){ if(/[a-zA-Z]/.test(wd[i])){ if(!f){ r+=wd[i]; f=true; }else{ r+='_'; } }else{ r+=wd[i]; } } return r; }).join(' '),
   
   extractJSONObjects: function(text) {
@@ -120,6 +120,20 @@ class PersistentAIClient {
     getEngineStatus(provider) { const now = Date.now(); if (now < this.circuitBreakers[provider].lockUntil) return 'red'; if (now - this.lastCallTime[provider] < this.cooldowns[provider]) return 'yellow'; return 'green'; }
     updateKeys(gKey, oKey, grKey, oaKey) { if (gKey) this.geminiKey = gKey; if (oKey) this.openRouterKey = oKey; if (grKey) this.groqKey = grKey; if (oaKey) this.openAITtsKey = oaKey; }
     
+    async checkAvailableGroqModels() {
+        if (!this.groqKey) return null;
+        try {
+            const res = await fetch('https://api.groq.com/openai/v1/models', {
+                headers: { 'Authorization': `Bearer ${this.groqKey}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                return data.data.map(m => m.id).filter(id => !id.includes('whisper') && !id.includes('vision')).sort();
+            }
+        } catch(e) {}
+        return null;
+    }
+
     async checkAvailableModels(signal) { 
         const today = new Date().toLocaleDateString(); const cachedModel = localStorage.getItem('sh_gemini_model_cache'); const cacheDate = localStorage.getItem('sh_gemini_model_cache_date');
         if (cachedModel && cacheDate === today) return { gemini: cachedModel };
