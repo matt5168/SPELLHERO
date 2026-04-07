@@ -51,7 +51,7 @@ window.SOUND_ENGINE = {
 };
 
 window.SYSTEM_ENGINE = {
-  isCorrect: (ui, ca, qType) => {
+  isCorrect: (ui, ca, qType, sentence = "") => {
       if (!qType || qType === 'fill') {
           return String(ui||'').trim().toLowerCase().replace(/\s+/g, ' ') === String(ca||'').trim().toLowerCase().replace(/\s+/g, ' ') ? 1 : 0;
       }
@@ -62,18 +62,32 @@ window.SYSTEM_ENGINE = {
       if (qType === 'correction') {
           let targetObj = typeof ca === 'object' && ca !== null ? ca : {};
           if (typeof ca === 'string') { try { targetObj = JSON.parse(ca); } catch(e) {} }
-          if (!ui || !targetObj || !targetObj.wrong || !targetObj.right) return 0;
+          if (!ui || !targetObj || !targetObj.wrong || typeof targetObj.right === 'undefined') return 0;
           
-          const wMatch = String(ui.wrong||'').trim().toLowerCase().replace(/[.,!?]/g, '') === String(targetObj.wrong||'').trim().toLowerCase().replace(/[.,!?]/g, '');
-          const rMatch = String(ui.right||'').trim().toLowerCase() === String(targetObj.right||'').trim().toLowerCase();
+          const uW = String(ui.wrong||'').trim().toLowerCase().replace(/[.,!?]/g, '');
+          const uR = String(ui.right||'').trim().toLowerCase();
+          const tW = String(targetObj.wrong||'').trim().toLowerCase().replace(/[.,!?]/g, '');
+          const tR = String(targetObj.right||'').trim().toLowerCase();
           
-          return (wMatch && rMatch) ? 1 : 0;
+          // 1. 嚴格字串比對
+          if (uW === tW && uR === tR) return 1;
+
+          // 2. 智慧語意比對：套用雙方的修改，檢視最終句子是否完全一致
+          if (sentence && uW && tW) {
+              const cleanSent = sentence.toLowerCase();
+              try {
+                  const uiSent = cleanSent.replace(new RegExp(`\\b${window.escapeRegExp(uW)}\\b`), uR);
+                  const targetSent = cleanSent.replace(new RegExp(`\\b${window.escapeRegExp(tW)}\\b`), tR);
+                  if (uiSent === targetSent) return 1;
+              } catch(e) {}
+          }
+          return 0;
       }
       return 0;
   },
   capitalize: s => { const str = String(s||""); const fc = str.search(/[a-zA-Z]/); return fc === -1 ? str : str.substring(0, fc) + str.charAt(fc).toUpperCase() + str.substring(fc + 1); },
   
-  // 最佳化首字母提示生成器
+  // 首字母提示遮罩
   createHintMask: w => String(w||"").split(' ').map(wd => { let f=false, r=""; for(let i=0;i<wd.length;i++){ if(/[a-zA-Z]/.test(wd[i])){ if(!f){ r+=wd[i]; f=true; }else{ r+='_'; } }else{ r+=wd[i]; } } return r; }).join(' '),
   
   extractJSONObjects: function(text) {
