@@ -495,7 +495,8 @@
                             ["in", "on", "at", "above", "below", "under", "next to", "behind", "in front of"],
                             ["must", "can", "should", "could", "would", "may", "might"],
                             ["he", "she", "it", "they", "we", "I", "you"],
-                            ["his", "her", "its", "their", "our", "my", "your"]
+                            ["his", "her", "its", "their", "our", "my", "your"],
+                            ["a", "an", "the", "some", "any", "many", "much"]
                         ];
                         const validTypes = ['fill', 'reorder', 'correction'];
                         chunkPending.forEach(item => {
@@ -955,7 +956,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                 if (!finalAnswer || typeof finalAnswer !== 'object' || !finalAnswer.wrong || !finalAnswer.right || String(finalAnswer.right).trim() === '') return;
             }
             
-            const scoreVal = window.SYSTEM_ENGINE.isCorrect(finalAnswer, questions[index].rawAnswerObj || questions[index].answer, qType);
+            const scoreVal = window.SYSTEM_ENGINE.isCorrect(finalAnswer, questions[index].rawAnswerObj || questions[index].answer, qType, questions[index].sentence);
             const isCorr = scoreVal === 1;
             const isPartial = scoreVal > 0 && scoreVal < 1;
             
@@ -976,7 +977,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
             questions.forEach((q, i) => { 
                 let scoreVal = qStatus[i]; 
                 if (scoreVal === null) { 
-                    scoreVal = window.SYSTEM_ENGINE.isCorrect(answers[i], q.rawAnswerObj || q.answer, q.qType); 
+                    scoreVal = window.SYSTEM_ENGINE.isCorrect(answers[i], q.rawAnswerObj || q.answer, q.qType, q.sentence); 
                     syncMistakesAndStats(i, scoreVal === 1); 
                     if (scoreVal < 1 && mainMenu === 'grammar') { setTimeout(() => handleOnDemand(i, 'exp'), 100 * i); } 
                 } 
@@ -1361,7 +1362,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                 <div className="space-y-6 md:space-y-8">
                 {questions.map((q, i) => {
   const safeAnswerStr = typeof q.answer === 'string' ? String(q.answer||"") : String(q.rawAnswerObj||""); 
-  const isFinallyCorrect = window.SYSTEM_ENGINE.isCorrect(answers[i], q.rawAnswerObj || safeAnswerStr, q.qType) === 1; 
+  const isFinallyCorrect = window.SYSTEM_ENGINE.isCorrect(answers[i], q.rawAnswerObj || safeAnswerStr, q.qType, q.sentence); 
   const isLocked = qStatus[i] !== null || submitted;
   const isLayout2 = uiLayout === 'layout2'; const isLayout3 = uiLayout === 'layout3';
   
