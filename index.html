@@ -146,7 +146,6 @@
 
           useEffect(() => {
               if (dash && window.sharedAIClient && inputGroqKey && enginesEnabled.groq) {
-                  // 動態載入 Groq 支援的模型
                   if (typeof window.sharedAIClient.checkAvailableGroqModels === 'function') {
                       window.sharedAIClient.checkAvailableGroqModels().then(models => {
                           if (models && models.length > 0) {
@@ -441,8 +440,8 @@
                     if (!cachedQ.qType) cachedQ.qType = 'fill';
                     if (cachedQ.qType === 'reorder') {
                         let ansStr = typeof cachedQ.rawAnswerObj === 'string' ? cachedQ.rawAnswerObj : (cachedQ.answer || "");
-                        let words = ansStr.trim().split(/\s+/).filter(w => w.length > 0);
-                        if (words.length < 2 && typeof cachedQ.sentence === 'string') words = cachedQ.sentence.split('/').map(w=>w.trim()).filter(w=>w.length>0);
+                        let words = ansStr.trim().replace(/[.!?]+$/, '').split(/\s+/).filter(w => w.length > 0);
+                        if (words.length < 2 && typeof cachedQ.sentence === 'string') words = cachedQ.sentence.replace(/[.!?]+$/, '').split('/').map(w=>w.trim()).filter(w=>w.length>0);
                         cachedQ.options = window.shuffleArray(words);
                     }
                     readyQs.push({...cachedQ, isAI: true, modelName: cachedQ.modelName + " ⚡(快取)"});
@@ -619,7 +618,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                             finalAnswer = ls.right; finalRawObj = ls.right; finalOptions = ls.options;
                                         } else if (ls.type === 'reorder') {
                                             finalSentence = ctxSentence; finalAnswer = ls.fullCore; finalRawObj = ls.fullCore;
-                                            let words = ls.fullCore.trim().replace(/[.!?]$/, '').split(/\s+/).filter(w => w.length > 0);
+                                            let words = ls.fullCore.trim().replace(/[.!?]+$/, '').split(/\s+/).filter(w => w.length > 0);
                                             finalOptions = window.shuffleArray(words);
                                         } else if (ls.type === 'correction') {
                                             let coreWithWrong = ls.coreSentWithBlank.replace('______', ls.wrong);
@@ -639,37 +638,52 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                         let rawOptions = Array.isArray(q.o) ? q.o : (Array.isArray(q.options) ? q.options : []);
                                         let safeOptions = [];
                                         
-                                        let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ansStrForOptions.toLowerCase());
-                                        if (distractors.length < 3 && typeof parsedAns === 'string') { 
-                                            distractors = [...distractors, ...window.generateVocabOptions(ansStrForOptions, activeDB).filter(o=>o!==ansStrForOptions)]; 
-                                        }
-                                        safeOptions = window.shuffleArray([ansStrForOptions, ...distractors.slice(0, 3)]);
-                                        const objPronouns = ['him', 'her', 'them', 'us', 'me', 'he', 'she', 'they', 'it', 'i', 'you'];
-                                        if (objPronouns.includes(ansStrForOptions.toLowerCase())) {
-                                            const safePool = window.generateVocabOptions(ansStrForOptions, activeDB).filter(o => !objPronouns.includes(String(o).toLowerCase()));
-                                            let rIdx = 0;
-                                            safeOptions = safeOptions.map(opt => {
-                                                if (opt.toLowerCase() !== ansStrForOptions.toLowerCase() && objPronouns.includes(opt.toLowerCase())) {
-                                                    return safePool[rIdx++] || "apple";
-                                                }
-                                                return opt;
-                                            });
+                                        if (parsedQType === 'fill') {
+                                            let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ansStrForOptions.toLowerCase());
+                                            if (distractors.length < 3 && typeof parsedAns === 'string') { 
+                                                distractors = [...distractors, ...window.generateVocabOptions(ansStrForOptions, activeDB).filter(o=>o!==ansStrForOptions)]; 
+                                            }
+                                            safeOptions = window.shuffleArray([ansStrForOptions, ...distractors.slice(0, 3)]);
+                                            const objPronouns = ['him', 'her', 'them', 'us', 'me', 'he', 'she', 'they', 'it', 'i', 'you'];
+                                            if (objPronouns.includes(ansStrForOptions.toLowerCase())) {
+                                                const safePool = window.generateVocabOptions(ansStrForOptions, activeDB).filter(o => !objPronouns.includes(String(o).toLowerCase()));
+                                                let rIdx = 0;
+                                                safeOptions = safeOptions.map(opt => {
+                                                    if (opt.toLowerCase() !== ansStrForOptions.toLowerCase() && objPronouns.includes(opt.toLowerCase())) {
+                                                        return safePool[rIdx++] || "apple";
+                                                    }
+                                                    return opt;
+                                                });
+                                            }
+                                        } else if (parsedQType === 'reorder') {
+                                            let ansStr = typeof parsedAns === 'string' ? parsedAns : "";
+                                            let words = ansStr.trim().replace(/[.!?]+$/, '').split(/\s+/).filter(w => w.length > 0);
+                                            if (words.length === 0 && typeof q.s === 'string') {
+                                                words = q.s.split('/').map(w => w.trim().replace(/[.!?]+$/, '')).filter(w => w.length > 0);
+                                            }
+                                            safeOptions = window.shuffleArray(words);
                                         }
 
                                         let sentence = (q.s || q.sentence) ? String(q.s || q.sentence).trim() : "";
-                                        sentence = sentence.replace(/\s+([.!?])/g, '$1');
-                                        if (sentence && !/[.!?]$/.test(sentence)) sentence += ".";
-                                        
-                                        sentence = sentence.replace(/[a-zA-Z]*_{2,}[a-zA-Z]*/g, '______');
-                                        if (sentence.indexOf('______') === -1 && typeof parsedAns === 'string') { 
-                                            const reg = new RegExp('\\b' + window.escapeRegExp(parsedAns) + '\\b', 'gi'); 
-                                            sentence = sentence.replace(reg, '______'); 
+                                        if (parsedQType !== 'reorder') {
+                                            sentence = sentence.replace(/\s+([.!?])/g, '$1');
+                                            if (sentence && !/[.!?]$/.test(sentence)) sentence += ".";
                                         }
-                                        if (sentence.indexOf('______') === -1) return; 
+                                        
+                                        if (parsedQType === 'fill') {
+                                            sentence = sentence.replace(/[a-zA-Z]*_{2,}[a-zA-Z]*/g, '______');
+                                            if (sentence.indexOf('______') === -1 && typeof parsedAns === 'string') { 
+                                                const reg = new RegExp('\\b' + window.escapeRegExp(parsedAns) + '\\b', 'gi'); 
+                                                sentence = sentence.replace(reg, '______'); 
+                                            }
+                                            if (sentence.indexOf('______') === -1) return; 
+                                        }
                                         
                                         let finalHint = expectedItem && expectedItem.hint ? expectedItem.hint : "無提示";
-                                        const dictHint = window.SH_DICTIONARY && window.SH_DICTIONARY[ansStrForOptions.toLowerCase()]; 
-                                        if (dictHint) finalHint = dictHint; 
+                                        if (targetMenu !== 'grammar') { 
+                                            const dictHint = window.SH_DICTIONARY && window.SH_DICTIONARY[ansStrForOptions.toLowerCase()]; 
+                                            if (dictHint) finalHint = dictHint; 
+                                        }
                                         
                                         let rawT = q.t || q.translation || q.trans || q.chinese || q.c || "";
                                         let cleanTrans = String(rawT).replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').trim();
@@ -1475,7 +1489,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                         })}
                     </div>
                 ) : (
-                    <span>{q.qType === 'reorder' && isLocked ? (isFinallyCorrect ? answers[i].join(' ') : safeAnswerStr) : cleanSentence}</span>
+                    <span>{q.qType === 'reorder' && isLocked ? safeAnswerStr : cleanSentence}</span>
                 )}
                 {mainMenu !== 'grammar' && !(q.qType === 'reorder' && !isLocked) && ( <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className={`ml-3 inline-flex items-center justify-center p-2 rounded-full transition-all active:scale-90 align-middle ${isLocked ? 'bg-[#e6e9e4] text-[#6b7566]' : 'bg-[#f4ebd9] text-[#cca677]'}`}><Volume2 size={24}/></button> )}
               </div>
