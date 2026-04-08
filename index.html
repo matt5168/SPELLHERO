@@ -485,19 +485,6 @@
 
                     // ---- 本地端文法邏輯接管 (職責分離) ----
                     if (targetMenu === 'grammar' && !chunkPending[0].localState) {
-                        const GRAMMAR_GROUPS = [
-                            ["is", "are", "am", "was", "were", "be", "been"],
-                            ["do", "does", "did", "done"],
-                            ["have", "has", "had"],
-                            ["always", "sometimes", "never", "usually", "often"],
-                            ["in", "on", "at", "above", "below", "under", "next to", "behind", "in front of", "to", "for", "with", "from"],
-                            ["must", "can", "should", "could", "would", "may", "might"],
-                            ["he", "she", "it", "they", "we", "I", "you"],
-                            ["his", "her", "its", "their", "our", "my", "your"],
-                            ["a", "an", "the", "some", "any", "many", "much"],
-                            ["go", "goes", "went", "gone"],
-                            ["want", "wants", "wanted"]
-                        ];
                         const validTypes = ['fill', 'reorder'];
                         chunkPending.forEach(item => {
                             const assignedType = reqGrammarType === 'mixed' ? validTypes[Math.floor(Math.random() * validTypes.length)] : reqGrammarType;
@@ -505,41 +492,7 @@
                             let coreSent = String(item.sentence || "").trim();
                             let fullCore = coreSent.replace('______', coreAns);
                             
-                            let localWrong = "";
-                            let localOptions = new Set([coreAns]);
-                            
-                            let targetMatch = null; let matchedGroup = [];
-                            for (let group of GRAMMAR_GROUPS) {
-                                for (let word of group) {
-                                    if (new RegExp(`\\b${word}\\b`, 'i').test(coreAns)) {
-                                        targetMatch = word; matchedGroup = group; break;
-                                    }
-                                }
-                                if (targetMatch) break;
-                            }
-                            
-                            if (targetMatch) {
-                                let peers = matchedGroup.filter(t => t.toLowerCase() !== targetMatch.toLowerCase());
-                                if (peers.length > 0) {
-                                    let rw = peers[Math.floor(Math.random() * peers.length)];
-                                    localWrong = coreAns.replace(new RegExp(`\\b${targetMatch}\\b`, 'i'), rw);
-                                    peers.forEach(p => localOptions.add(coreAns.replace(new RegExp(`\\b${targetMatch}\\b`, 'i'), p)));
-                                }
-                            }
-                            
-                            if (!localWrong) {
-                                let firstWord = coreAns.split(' ')[0];
-                                let rw = firstWord.endsWith('s') ? firstWord.slice(0, -1) : firstWord + "s";
-                                localWrong = coreAns.replace(firstWord, rw);
-                                localOptions.add(localWrong);
-                                localOptions.add(coreAns.replace(firstWord, firstWord + "ed"));
-                                localOptions.add("not " + coreAns);
-                            }
-                            
-                            let finalOptionsArr = Array.from(localOptions).filter(o => o);
-                            while(finalOptionsArr.length < 4) { finalOptionsArr.push("dummy_" + Math.random().toString().slice(2,5)); }
-                            
-                            item.localState = { type: assignedType, fullCore: fullCore, coreSentWithBlank: coreSent, right: coreAns, options: window.shuffleArray(finalOptionsArr.slice(0, 4)) };
+                            item.localState = { type: assignedType, fullCore: fullCore, coreSentWithBlank: coreSent, right: coreAns };
                         });
                     }
                     // ----------------------------------------
@@ -550,13 +503,23 @@
                         
                         let systemPrompt = ""; let userQuery = "";
                         if (targetMenu === 'grammar') {
-                            const patterns = chunkPending.map((s, idx) => `[IDX:${idx}] Core Sentence: "${s.localState.fullCore}"`);
+                            const currentUnit = nbs && nbs.length > 0 ? nbs[0] : "Mixed Grammar";
+                            const unitTargets = window.GRAMMAR_TARGETS && window.GRAMMAR_TARGETS[currentUnit] ? window.GRAMMAR_TARGETS[currentUnit].join(", ") : "basic English grammar";
+                            
+                            const patterns = chunkPending.map((s, idx) => {
+                                const targetWord = String(s.answer || "").trim();
+                                return `[IDX:${idx}] Target Grammar Word: "${targetWord}" | Core Sentence: "${s.localState.fullCore}"`;
+                            });
+
                             systemPrompt = `You are an expert ESL context generator for 3rd-grade students in Taiwan.
+Unit Focus: ${unitTargets}
+
 TASK: For each given "Core Sentence", write EXACTLY 2 DIFFERENT, simple, realistic preceding sentences that set up the context.
 RULES:
-1. The context must logically lead to the Core Sentence.
-2. Use everyday, realistic situations (e.g., family, school, weather). NO sci-fi or magic.
-3. Keep it extremely simple (A1/A2 level).
+1. The context must logically lead to the Core Sentence, specifically creating a scenario where the "Target Grammar Word" is naturally required.
+2. CRITICAL: Do NOT use the "Target Grammar Word" inside the context sentences you generate.
+3. Use everyday, realistic situations (e.g., family, school, weather). NO sci-fi or magic.
+4. Keep it extremely simple (A1/A2 level).
 
 JSON OUTPUT FORMAT:
 [
@@ -616,9 +579,11 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                         
                                         if (ls.type === 'fill') {
                                             finalSentence = ctxSentence ? `${ctxSentence} ${ls.coreSentWithBlank}` : ls.coreSentWithBlank;
-                                            finalAnswer = ls.right; finalRawObj = ls.right; finalOptions = ls.options;
+                                            finalAnswer = ls.right; finalRawObj = ls.right; finalOptions = [];
                                         } else if (ls.type === 'reorder') {
-                                            finalSentence = ctxSentence; finalAnswer = ls.fullCore; finalRawObj = ls.fullCore;
+                                            finalSentence = ctxSentence; 
+                                            finalAnswer = ls.fullCore; 
+                                            finalRawObj = ls.fullCore; 
                                             let words = ls.fullCore.trim().replace(/[.!?]+$/, '').split(/\s+/).filter(w => w.length > 0);
                                             finalOptions = window.shuffleArray(words);
                                         }
