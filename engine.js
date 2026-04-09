@@ -348,6 +348,18 @@ window.resolveGrammarTags = function(qObj) {
     newQ.answer = fixArticles(newQ.answer);
     newQ.sentence = fixArticles(newQ.sentence);
     
+    // === 方法B：介系詞受格自動修正（開關：window.GRAMMAR_FIX_MODE） ===
+    const _fixMode = (typeof window !== 'undefined' && window.GRAMMAR_FIX_MODE) ? window.GRAMMAR_FIX_MODE : 'rule';
+    if (_fixMode === 'rule' || _fixMode === 'both') {
+        const _OBJ_MAP = { he:'him', she:'her', i:'me', we:'us', they:'them', you:'you', it:'it' };
+        const _fixObjCase = (str) => str.replace(
+            /(with|for|to|at|of|about|from|by|without|after|before)\s+(he|she|I|we|they)/gi,
+            (m, prep, pronoun) => prep + ' ' + (_OBJ_MAP[pronoun.toLowerCase()] || pronoun)
+        );
+        newQ.sentence = _fixObjCase(newQ.sentence);
+        newQ.answer   = _fixObjCase(newQ.answer);
+    }
+
     newQ.resolvedValues = Object.values(memory).join('_').replace(/\s+/g, '');
     return newQ;
 };
