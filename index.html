@@ -30,7 +30,7 @@
         const { useState, useEffect, Component, useRef } = React;
 
         const IconMock = emoji => props => <span className={props.className||""} style={{fontSize: props.size||20, display:'inline-flex', alignItems:'center', justifyContent:'center', lineHeight: 1}}>{emoji}</span>;
-        const CheckCircle=IconMock('✅'), XCircle=IconMock('❌'), RefreshCcw=IconMock('🔄'), Star=IconMock('⭐'), Trophy=IconMock('🏆'), Lightbulb=IconMock('💡'), Sparkles=IconMock('✨'), Shuffle=IconMock('🔀'), BookOpen=IconMock('📖'), AlertOctagon=IconMock('⚠️'), GraduationCap=IconMock('🎓'), Loader2=IconMock('⏳'), Volume2=IconMock('🔊'), Megaphone=IconMock('📢'), Settings=IconMock('⚙️'), Zap=IconMock('⚡'), Globe=IconMock('🌐'), History=IconMock('🕒'), Calendar=IconMock('📅'), BrainCircuit=IconMock('🧠'), Target=IconMock('🎯'), ChevronDown=IconMock('🔽'), ChevronUp=IconMock('🔼'), Send=IconMock('🚀'), Coins=IconMock('🪙'), BarChart2=IconMock('📊'), Activity=IconMock('📈'), Award=IconMock('🏅'), TrendingUp=IconMock('📈'), Flame=IconMock('🔥'), ShieldCheck=IconMock('🛡️'), Edit3=IconMock('📝'), MousePointerClick=IconMock('🖱️'), AlignLeft=IconMock('📑'), Database=IconMock('🗄️'), ScrollText=IconMock('📜'), Layout=IconMock('🗂️');
+        const CheckCircle=IconMock('✅'), XCircle=IconMock('❌'), RefreshCcw=IconMock('🔄'), Star=IconMock('⭐'), Trophy=IconMock('🏆'), Lightbulb=IconMock('💡'), Sparkles=IconMock('✨'), Shuffle=IconMock('🔀'), BookOpen=IconMock('📖'), AlertOctagon=IconMock('⚠️'), GraduationCap=IconMock('🎓'), Loader2=IconMock('⏳'), Volume2=IconMock('🔊'), Megaphone=IconMock('📢'), Settings=IconMock('⚙️'), Zap=IconMock('⚡'), BrainCircuit=IconMock('🧠'), Target=IconMock('🎯'), ChevronDown=IconMock('🔽'), ChevronUp=IconMock('🔼'), Send=IconMock('🚀'), Coins=IconMock('🪙'), Activity=IconMock('📈'), TrendingUp=IconMock('📈'), Flame=IconMock('🔥'), ShieldCheck=IconMock('🛡️'), Edit3=IconMock('📝'), MousePointerClick=IconMock('🖱️'), Database=IconMock('🗄️'), ScrollText=IconMock('📜'), Layout=IconMock('🗂️');
 
         class ErrorBoundary extends Component {
           constructor(props) { super(props); this.state = { hasError: false, errorInfo: "" }; }
@@ -106,8 +106,6 @@
               if (m === 'v2') m = 'v1';
               return m;
           });
-          const [grammarFixMode, setGrammarFixMode] = useState(() => localStorage.getItem('sh_grammar_fix_mode') || 'rule');
-          React.useEffect(() => { window.GRAMMAR_FIX_MODE = grammarFixMode; }, [grammarFixMode]);
           const defaultCustomPrompt = `You are an English tutor for a child in Taiwan.\nQuestion: "{q.sentence}"\nTarget Answer: "{safeAnswerStr}"\nStudent's Answer: "{studentAns}"\n\nTASK:\n1. CRITICAL: Analyze the combined Question + Target Answer. If the Target Answer creates a grammatically WRONG sentence (e.g., missing a verb like "has" before "a cold"), OR if the Student's Answer is actually the only grammatically correct option, YOU MUST OVERRIDE. To override, your VERY FIRST WORD must be "[OVERRIDE_CORRECT]". If the student's answer is ALSO wrong but you need to correct the Target Answer, output "[OVERRIDE_CORRECT: correct_answer]".\n2. Explain in TRADITIONAL CHINESE. Use very simple language.\n3. Format exactly as below:\n🔍 題目線索：[...]\n💡 文法秘訣：[...]\n🎯 答題結果：[...]`;
           const [customPromptText, setCustomPromptText] = useState(localStorage.getItem('sh_custom_prompt') || defaultCustomPrompt);
           const [qPromptModes, setQPromptModes] = useState({});
@@ -281,7 +279,8 @@
 
           const handleMainMenuChange = menu => { 
               setMainMenu(menu); setIsReview(menu === 'review'); 
-              if (menu === 'grammar') { setQuizMode('fill_in'); setGrammarMode('mixed'); setSelectedNotebooks(['PB1 U1 句型庫']); } else { setQuizMode('fill_in'); setSelectedNotebooks(['All']); } setIsCustomMulti(false); setQuestions([]); setReady(false); overrideTriggeredRef.current = {};
+              if (menu === 'grammar') { setQuizMode('fill_in'); setGrammarMode('mixed'); } else { setQuizMode('fill_in'); }
+              setSelectedNotebooks(['All']); setIsCustomMulti(false); setQuestions([]); setReady(false); overrideTriggeredRef.current = {};
               if (menu === 'review') generateAIBatch(storage.memory, ['All'], vocabMode, menu, activeGeminiModel, mistakePool, 'mixed'); 
           };
           
@@ -379,32 +378,24 @@
             if (!Array.isArray(activeDB) || activeDB.length === 0) { setIsGenerating(false); isGeneratingRef.current = false; setReady(true); return; }
 
             const targetTotal = targetMenu === 'grammar' ? 10 : Math.min(10, activeDB.length);
-            const selected = []; let tempPool = [...activeDB]; const patternUsageCount = {};
-            const GRAMMAR_VARIATIONS = ["Change location.", "Use different objects.", "Make it silly.", "Add adjectives.", "Change time."];
+            const selected = []; let tempPool = [...activeDB];
 
             while (selected.length < targetTotal && tempPool.length > 0) {
                 let pick = Math.floor(Math.random() * tempPool.length);
                 if (targetMenu !== 'review') {
                     const hasPriority = tempPool.some(q => {
                         const safeAns = String(q.answer||"").trim().toLowerCase();
-                        const s = m[safeAns];
-                        return s === undefined || s <= 0;
+                        return m[safeAns] === undefined || m[safeAns] <= 0;
                     });
 
                     let tw = 0; const ws = tempPool.map(q => { 
                         const safeAns = String(q.answer||"").trim().toLowerCase(); 
                         const s = m[safeAns]; 
-                        
                         let w = 0;
-                        if (s < 0) {
-                            w = 100;
-                        } else if (s === undefined || s === 0) {
-                            w = 50; 
-                        } else if (s > 0 && s <= 2) {
-                            w = hasPriority ? 1 : 10;
-                        } else {
-                            w = hasPriority ? 0 : 5; 
-                        }
+                        if (s < 0) w = 100;
+                        else if (s === undefined || s === 0) w = 50; 
+                        else if (s > 0 && s <= 2) w = hasPriority ? 1 : 10;
+                        else w = hasPriority ? 0 : 5; 
                         tw += w; return w; 
                     });
 
@@ -415,19 +406,16 @@
                             if(r <= 0) { pick = i; break; } 
                         }
                         if (pick === -1) pick = Math.floor(Math.random() * tempPool.length);
-                    } else {
-                        pick = Math.floor(Math.random() * tempPool.length);
                     }
                 }
                 let item = tempPool[pick]; 
-                if (!patternUsageCount[item.id]) patternUsageCount[item.id] = 0;
                 
                 if (targetMenu === 'grammar' && window.resolveGrammarTags) {
                     item = window.resolveGrammarTags(item);
                 }
                 
-                selected.push({ ...item, variationTag: targetMenu === 'grammar' ? GRAMMAR_VARIATIONS[patternUsageCount[item.id] % GRAMMAR_VARIATIONS.length] : "Keep simple" });
-                patternUsageCount[item.id]++; tempPool.splice(pick, 1);
+                selected.push({ ...item });
+                tempPool.splice(pick, 1);
                 if (tempPool.length === 0 && selected.length < targetTotal) tempPool = [...activeDB];
             }
 
@@ -486,26 +474,6 @@
 
                     // ---- 本地端文法邏輯接管 (職責分離) ----
                     if (targetMenu === 'grammar' && !chunkPending[0].localState) {
-                        const GRAMMAR_GROUPS = [
-                            ["is", "are", "am", "was", "were"],
-                            ["do", "does", "did"],
-                            ["have", "has", "had"],
-                            ["always", "sometimes", "never", "usually", "often"],
-                            ["in", "on", "at", "above", "below", "under", "next to", "behind", "in front of"],
-                            ["must", "must not", "can", "can't", "should", "could"],
-                            ["have to", "has to"],
-                            ["he", "she", "it", "they", "we", "I", "you"],
-                            ["his", "her", "its", "their", "our", "my", "your"],
-                            ["a", "an", "the", "some", "any", "many", "much"],
-                            ["want", "wants"],
-                            ["go", "goes"],
-                            ["isn't", "aren't", "is", "are"],
-                            ["than", "then", "that"],
-                            ["favorite", "wild", "beautiful"]
-                        ];
-                        const currentUnit4Opts = nbs && nbs.length > 0 && !nbs.includes('All') ? nbs[0] : 'DEFAULT';
-                        const unitTargetWords = (window.GRAMMAR_TARGETS && window.GRAMMAR_TARGETS[currentUnit4Opts]) || window.GRAMMAR_TARGETS['DEFAULT'] || [];
-                        
                         const validTypes = ['fill', 'reorder'];
                         chunkPending.forEach(item => {
                             const assignedType = reqGrammarType === 'mixed' ? validTypes[Math.floor(Math.random() * validTypes.length)] : reqGrammarType;
@@ -513,34 +481,7 @@
                             let coreSent = String(item.sentence || "").trim();
                             let fullCore = coreSent.replace('______', coreAns);
                             
-                            // --- 生成 fill_in 干擾項 ---
-                            let distractors = new Set();
-                            
-                            // 優先從同單元目標詞挑干擾項（最精準、不超綱）
-                            unitTargetWords.forEach(w => {
-                                if (w.toLowerCase() !== coreAns.toLowerCase()) distractors.add(w);
-                            });
-                            
-                            // 再從 GRAMMAR_GROUPS 找同組詞補充
-                            if (distractors.size < 3) {
-                                for (let group of GRAMMAR_GROUPS) {
-                                    const hit = group.find(w => new RegExp('\\b' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(coreAns));
-                                    if (hit) {
-                                        group.filter(w => w.toLowerCase() !== coreAns.toLowerCase())
-                                             .forEach(w => distractors.add(w));
-                                        break;
-                                    }
-                                }
-                            }
-                            
-                            // 若仍不足，加語義對立備援詞
-                            const fallbacks = ["not", "never", "don't", "doesn't", "no"];
-                            fallbacks.forEach(w => { if (distractors.size < 3 && w.toLowerCase() !== coreAns.toLowerCase()) distractors.add(w); });
-                            
-                            let finalOptionsArr = window.shuffleArray([coreAns, ...[...distractors].slice(0, 3)]);
-                            while (finalOptionsArr.length < 4) finalOptionsArr.push("---");
-                            
-                            item.localState = { type: assignedType, fullCore: fullCore, coreSentWithBlank: coreSent, right: coreAns, options: finalOptionsArr.slice(0, 4) };
+                            item.localState = { type: assignedType, fullCore: fullCore, coreSentWithBlank: coreSent, right: coreAns };
                         });
                     }
                     // ----------------------------------------
@@ -568,14 +509,12 @@ RULES:
 2. CRITICAL: Do NOT use the "Target Grammar Word" inside the context sentences you generate.
 3. Use everyday, realistic situations (e.g., family, school, weather). NO sci-fi or magic.
 4. Keep it extremely simple (A1/A2 level).
-5. GRAMMAR CHECK: The "Core Sentence" may contain pronoun case errors (e.g. "with she" should be "with her"). Silently fix any such errors in your generated context sentences, and output the corrected core sentence in a "fixed_core" field if you detect an error.
 
 JSON OUTPUT FORMAT:
 [
-  {"idx": 0, "c": "Context 1.", "t": "Traditional Chinese translation of BOTH Context 1 AND the core sentence.", "fixed_core": "corrected sentence if grammar error found, else omit"},
-  {"idx": 0, "c": "Context 2.", "t": "...", "fixed_core": "same corrected sentence or omit"}
+  {"idx": 0, "c": "Write the English context sentence here.", "t": "Traditional Chinese translation of BOTH the context AND the core sentence."}
 ]
-CRITICAL: Output EXACTLY TWO objects per IDX.`;
+CRITICAL: You MUST use exactly the keys "idx", "c", and "t". Do NOT invent new keys like "Context 1". Output EXACTLY TWO objects per IDX.`;
                             userQuery = `Provide EXACTLY 2 DIFFERENT contexts for each sentence:\n${patterns.join('\n')}`;
                         } else {
                             const wordsToGenerate = chunkPending.map((s, idx) => `[IDX:${idx}] Target Word: "${s.answer}"`);
@@ -619,36 +558,37 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                     if (targetMenu === 'grammar') {
                                         // --- 文法題：本地端邏輯組裝 ---
                                         let ls = expectedItem.localState;
-                                        let ctxSentence = String(q.c || q.ctx || q.context || "").trim();
-                                        // 方法A：若 AI 回傳 fixed_core，用它修正錯誤的 fullCore
-                                        if ((window.GRAMMAR_FIX_MODE === 'ai' || window.GRAMMAR_FIX_MODE === 'both') && q.fixed_core && String(q.fixed_core).trim()) {
-                                            const fixedCore = String(q.fixed_core).trim();
-                                            if (expectedItem && expectedItem.localState) {
-                                                expectedItem.localState.fullCore = fixedCore;
-                                                expectedItem.localState.coreSentWithBlank = fixedCore.replace(new RegExp('\\b' + window.escapeRegExp(expectedItem.localState.right) + '\\b'), '______');
+                                        
+                                        // 強制暴力擷取情境句 (預防 Llama 發明新 Key)
+                                        let ctxSentence = String(q.c || q.context || q.ctx || q.s || q.sentence || "").trim();
+                                        if (!ctxSentence) {
+                                            const excludedKeys = ['idx', 't', 'translation', 'full_t', 'e', 'explanation', 'o', 'options', 'a', 'answer', 'qtype', 'type'];
+                                            for (let k in q) {
+                                                if (!excludedKeys.includes(k) && typeof q[k] === 'string' && q[k].trim() !== '') {
+                                                    ctxSentence = q[k].trim();
+                                                    break;
+                                                }
                                             }
                                         }
+
                                         let fullTrans = String(q.t || q.full_t || q.translation || "").trim();
                                         if (!fullTrans) fullTrans = "正在努力翻譯中...";
                                         
                                         let finalSentence = ""; let finalAnswer = ""; let finalRawObj = ""; let finalOptions = [];
                                         let finalHint = expectedItem.hint || "文法重點";
                                         
-                                        let contextSentenceForCard = ctxSentence;
                                         if (ls.type === 'fill') {
                                             finalSentence = ctxSentence ? `${ctxSentence} ${ls.coreSentWithBlank}` : ls.coreSentWithBlank;
-                                            finalAnswer = ls.right; finalRawObj = ls.right; 
-                                            finalOptions = ls.options || [];
+                                            finalAnswer = ls.right; finalRawObj = ls.right; finalOptions = [];
                                         } else if (ls.type === 'reorder') {
-                                            // sentence 存放情境句(用於顯示)，coreSentence 存放要排列的目標句
-                                            finalSentence = ctxSentence;
+                                            finalSentence = ctxSentence; 
                                             finalAnswer = ls.fullCore; 
                                             finalRawObj = ls.fullCore; 
                                             let words = ls.fullCore.trim().replace(/[.!?]+$/, '').split(/\s+/).filter(w => w.length > 0);
                                             finalOptions = window.shuffleArray(words);
                                         }
                                         
-                                        finalQ = { id: "ai_" + Math.random(), poolKey: refKey, runtimeId: Math.random(), answer: finalAnswer, rawAnswerObj: finalRawObj, qType: ls.type, sentence: finalSentence, contextSentence: contextSentenceForCard, coreSentence: ls.fullCore, translation: fullTrans, hint: finalHint, explanation: "", options: finalOptions, isAI: true, modelName: cardModelName };
+                                        finalQ = { id: "ai_" + Math.random(), poolKey: refKey, runtimeId: Math.random(), answer: finalAnswer, rawAnswerObj: finalRawObj, qType: ls.type, sentence: finalSentence, translation: fullTrans, hint: finalHint, explanation: "", options: finalOptions, isAI: true, modelName: cardModelName };
                                     } else {
                                         // --- 單字題：保留原有運作極佳的 AI 組裝邏輯 ---
                                         let parsedAns = q.a !== undefined ? q.a : (q.answer !== undefined ? q.answer : (expectedItem ? expectedItem.answer : ""));
@@ -849,7 +789,9 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
               setLoadingStates(prev => ({...prev, [key]: true})); if (!isRetry) setDynamicContent(prev => ({...prev, [key]: ""}));
 
               const q = questions[index]; const safeAnswerStr = typeof q.rawAnswerObj === 'string' ? q.rawAnswerObj : (typeof q.answer === 'string' ? q.answer : JSON.stringify(q.rawAnswerObj));
-              const studentAns = typeof answers[index] === 'object' ? JSON.stringify(answers[index]) : String(answers[index]||"[未作答]");
+              
+              // 🌟 關鍵修正：陣列平面化防呆，避免 AI 對學生的重組錯誤產生幻覺
+              const studentAns = typeof answers[index] === 'object' ? (Array.isArray(answers[index]) ? answers[index].join(' ') : JSON.stringify(answers[index])) : String(answers[index]||"[未作答]");
               
               let currentPMode = targetPromptMode || promptMode;
               if (type === 'exp') { setQPromptModes(prev => ({...prev, [index]: currentPMode})); }
@@ -1178,16 +1120,6 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                         </select>
                                     </div>
                                     <div className="flex flex-col gap-2">
-                                        <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><ShieldCheck size={16}/> 文法受格修正模式：</span>
-                                        <select value={grammarFixMode} onChange={(e) => { setGrammarFixMode(e.target.value); localStorage.setItem('sh_grammar_fix_mode', e.target.value); window.GRAMMAR_FIX_MODE = e.target.value; }} className="w-full bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono">
-                                            <option value="rule">⚡ 規則修正（穩定，推薦）</option>
-                                            <option value="ai">🤖 AI 判斷（彈性，依賴模型）</option>
-                                            <option value="both">🔀 雙重修正（規則 + AI）</option>
-                                            <option value="off">🚫 關閉（不修正）</option>
-                                        </select>
-                                        <span className="text-[#a4b1a1] text-[10px] leading-tight px-1">規則修正：介系詞後自動轉受格。AI 判斷：請 AI 模型偵測並修正語法錯誤。</span>
-                                    </div>
-                                    <div className="flex flex-col gap-2">
                                         <span className="text-[#e6e9e4] font-bold text-sm">👩‍🏫 預設解說老師：</span>
                                         <select value={defaultTeacher} onChange={e => {setDefaultTeacher(e.target.value); localStorage.setItem('sh_default_teacher', e.target.value);}} className="w-full bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono">
                                             <option value="openrouter">OpenRouter</option>
@@ -1441,14 +1373,12 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
 
       <div className={isLayout2 ? 'grid grid-cols-1 md:grid-cols-2 gap-6 w-full' : 'w-full flex flex-col items-center'}>
           <div className={`w-full flex flex-col ${isLayout2 ? 'items-start' : 'items-center'} relative z-10`}>
-              <div className={`text-xl md:text-3xl font-bold leading-normal md:leading-relaxed break-words mt-2 ${!q.isAI ? 'text-[#8a847c]' : 'text-[#524d46]'} ${!isLayout2 && 'text-center'} w-full`}>
+              <div className={`text-xl md:text-3xl font-bold leading-normal md:leading-relaxed break-words mt-2 ${!q.isAI ? 'text-[#8a847c]' : 'text-[#524d46]'} ${!isLayout2 ? 'text-center' : ''} w-full`}>
                 {q.qType === 'reorder' && !isLocked ? (
-                    <span>
-                        {q.sentence && (
-                            <span className="block text-base md:text-lg font-semibold text-[#7a7466] italic mb-3 leading-relaxed border-l-4 border-[#8b9586] pl-3 bg-[#e6e9e4]/60 py-2 rounded-r-xl">📖 {q.sentence}</span>
-                        )}
-                        <span className="block text-sm font-bold text-[#968b95] mt-3 mb-1 bg-[#f0eaf0] px-3 py-1.5 rounded-lg border border-[#c4b5c2] w-fit">🧩 請將下列單字排成正確句子：</span>
-                    </span>
+                    <div className={`flex flex-col gap-2 ${isLayout2 ? 'items-start' : 'items-center'} w-full`}>
+                        {cleanSentence && <span className="text-[#8a847c] text-lg md:text-xl">{cleanSentence}</span>}
+                        <span className="text-sm font-bold text-[#b5b0a8] italic">🧩 觀察下方亂序單字，依序點擊拼出完整句子。</span>
+                    </div>
                 ) : (q.qType === 'fill' || q.qType === undefined) && cleanSentence.includes('______') ? (
                     <span className="leading-[3.5rem] md:leading-[4rem]">
                         {(() => {
@@ -1502,25 +1432,19 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                             );
                         })()}
                     </span>
+                ) : q.qType === 'reorder' && isLocked ? (
+                    <div className={`flex flex-col gap-2 ${isLayout2 ? 'items-start' : 'items-center'} w-full`}>
+                        {cleanSentence && <span className="text-[#8a847c] text-lg md:text-xl">{cleanSentence}</span>}
+                        <span className={isFinallyCorrect ? "text-[#7a8575]" : "text-[#b5847e]"}>{isFinallyCorrect ? answers[i].join(' ') : safeAnswerStr}</span>
+                    </div>
                 ) : (
-                    <span>{q.qType === 'reorder' && isLocked ? (isFinallyCorrect ? answers[i].join(' ') : safeAnswerStr) : cleanSentence}</span>
+                    <span>{cleanSentence}</span>
                 )}
                 {mainMenu !== 'grammar' && !(q.qType === 'reorder' && !isLocked) && ( <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className={`ml-3 inline-flex items-center justify-center p-2 rounded-full transition-all active:scale-90 align-middle ${isLocked ? 'bg-[#e6e9e4] text-[#6b7566]' : 'bg-[#f4ebd9] text-[#cca677]'}`}><Volume2 size={24}/></button> )}
               </div>
 
               {(!isLocked || (isLocked && !isLayout3)) && (
                   <div className={`mt-6 w-full ${isLayout2 ? 'max-w-sm' : 'max-w-lg'}`}>
-                      {quizMode === 'multiple_choice' && !isLocked && (q.qType === 'fill' || q.qType === undefined) && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
-                              {(q.options || []).map((opt, optIdx) => (
-                                  <div key={optIdx} className="relative flex w-full">
-                                      <button disabled={submitted} onClick={() => handleCheckSingle(i, opt)} className={`bg-white border-2 border-[#d6cfc5] hover:border-[#8b9586] hover:bg-[#e6e9e4] text-[#524d46] font-black text-lg py-3 px-5 rounded-xl shadow-sm active:scale-95 transition-all text-left flex-grow ${mainMenu !== 'grammar' ? 'pr-12' : ''}`}>{opt}</button>
-                                      {mainMenu !== 'grammar' && ( <button onClick={e => { e.stopPropagation(); playTTS(opt, false, ''); }} className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-[#8a847c] hover:bg-[#c4cec1] rounded-full active:scale-90"><Megaphone size={18} /></button> )}
-                                  </div>
-                              ))}
-                          </div>
-                      )}
-
                       {!isLocked && q.qType === 'reorder' && (() => {
                           const currentArr = Array.isArray(answers[i]) ? answers[i] : [];
                           let tempUsed = [...currentArr];
@@ -1594,7 +1518,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                           
                           <div className="text-lg md:text-xl font-black text-[#524d46] mb-2 leading-relaxed">
                               {q.qType === 'reorder' ? (
-                                  <span>{safeAnswerStr}</span>
+                                  <span>{cleanSentence ? `${cleanSentence} ${safeAnswerStr}` : safeAnswerStr}</span>
                               ) : cleanSentence.includes('______') ? (
                                   cleanSentence.split('______').map((part, idx, arr) => (
                                       <span key={idx}>
