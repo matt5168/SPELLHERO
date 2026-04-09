@@ -281,8 +281,7 @@
 
           const handleMainMenuChange = menu => { 
               setMainMenu(menu); setIsReview(menu === 'review'); 
-              if (menu === 'grammar') { setQuizMode('fill_in'); setGrammarMode('mixed'); } else { setQuizMode('fill_in'); }
-              setSelectedNotebooks(['All']); setIsCustomMulti(false); setQuestions([]); setReady(false); overrideTriggeredRef.current = {};
+              if (menu === 'grammar') { setQuizMode('fill_in'); setGrammarMode('mixed'); setSelectedNotebooks(['PB1 U1 句型庫']); } else { setQuizMode('fill_in'); setSelectedNotebooks(['All']); } setIsCustomMulti(false); setQuestions([]); setReady(false); overrideTriggeredRef.current = {};
               if (menu === 'review') generateAIBatch(storage.memory, ['All'], vocabMode, menu, activeGeminiModel, mistakePool, 'mixed'); 
           };
           
@@ -1445,10 +1444,10 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
               <div className={`text-xl md:text-3xl font-bold leading-normal md:leading-relaxed break-words mt-2 ${!q.isAI ? 'text-[#8a847c]' : 'text-[#524d46]'} ${!isLayout2 && 'text-center'} w-full`}>
                 {q.qType === 'reorder' && !isLocked ? (
                     <span>
-                        {q.contextSentence && (
-                            <span className="block text-base md:text-lg font-semibold text-[#7a7466] italic mb-3 leading-relaxed">📖 {q.contextSentence}</span>
+                        {q.sentence && (
+                            <span className="block text-base md:text-lg font-semibold text-[#7a7466] italic mb-3 leading-relaxed border-l-4 border-[#8b9586] pl-3 bg-[#e6e9e4]/60 py-2 rounded-r-xl">📖 {q.sentence}</span>
                         )}
-                        <span className="text-sm font-bold text-[#b5b0a8] italic">🧩 觀察下方亂序單字，依序點擊拼出完整句子。</span>
+                        <span className="block text-sm font-bold text-[#968b95] mt-3 mb-1 bg-[#f0eaf0] px-3 py-1.5 rounded-lg border border-[#c4b5c2] w-fit">🧩 請將下列單字排成正確句子：</span>
                     </span>
                 ) : (q.qType === 'fill' || q.qType === undefined) && cleanSentence.includes('______') ? (
                     <span className="leading-[3.5rem] md:leading-[4rem]">
