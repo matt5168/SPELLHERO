@@ -99,6 +99,19 @@ class Mutex {
     lockMicro() { let unlockNext = () => {}; return unlockNext; }
 }
 
+// ===== Gemini / Gemma 可用模型靜態清單 (fallback 用) =====
+// checkAvailableGeminiModels() 動態抓取後會與此清單合併
+window.GEMINI_DEFAULT_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemma-3-27b-it",
+    "gemma-3-12b-it",
+    "gemma-3-4b-it",
+    "gemma-3n-e4b-it"
+];
+
 class PersistentAIClient {
     constructor() { 
         this.geminiKey = window.getGeminiKey(); this.openRouterKey = window.getOpenRouterKey(); this.groqKey = window.getGroqKey(); this.openAITtsKey = window.getOpenAITtsKey();
@@ -112,7 +125,38 @@ class PersistentAIClient {
     recordSuccess(engine) { this.circuitBreakers[engine].failures = 0; }
     getEngineStatus(provider) { const now = Date.now(); if (now < this.circuitBreakers[provider].lockUntil) return 'red'; if (now - this.lastCallTime[provider] < this.cooldowns[provider]) return 'yellow'; return 'green'; }
     updateKeys(gKey, oKey, grKey, oaKey) { if (gKey) this.geminiKey = gKey; if (oKey) this.openRouterKey = oKey; if (grKey) this.groqKey = grKey; if (oaKey) this.openAITtsKey = oaKey; }
-    
+
+    // =============================================
+    // [新增] 動態抓取 Gemini / Gemma 可用模型清單
+    // =============================================
+    async checkAvailableGeminiModels() {
+        if (!this.geminiKey) return window.GEMINI_DEFAULT_MODELS;
+        try {
+            const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?key=" + this.geminiKey);
+            if (!res.ok) return window.GEMINI_DEFAULT_MODELS;
+            const data = await res.json();
+            const allModels = (data.models || [])
+                .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
+                .map(m => m.name.replace('models/', ''));
+            // 合併靜態清單，確保 gemma-3n 等新模型即使 API 清單沒回傳也能手動選
+            const merged = Array.from(new Set([...allModels, ...window.GEMINI_DEFAULT_MODELS]));
+            // 排序：gemini-2.5 優先，再 gemini-2.0，再 gemini-1.x，最後 gemma
+            merged.sort((a, b) => {
+                const rank = s => {
+                    if (s.startsWith('gemini-2.5')) return 0;
+                    if (s.startsWith('gemini-2.0')) return 1;
+                    if (s.startsWith('gemini-1.')) return 2;
+                    if (s.startsWith('gemma')) return 3;
+                    return 4;
+                };
+                return rank(a) - rank(b) || a.localeCompare(b);
+            });
+            return merged;
+        } catch(e) {
+            return window.GEMINI_DEFAULT_MODELS;
+        }
+    }
+
     async checkAvailableGroqModels() {
         if (!this.groqKey) return null;
         try {
@@ -127,6 +171,7 @@ class PersistentAIClient {
         return null;
     }
 
+    // checkAvailableModels：只決定「批次預設模型」快取，不影響手動選擇
     async checkAvailableModels(signal) { 
         const today = new Date().toLocaleDateString(); const cachedModel = localStorage.getItem('sh_gemini_model_cache'); const cacheDate = localStorage.getItem('sh_gemini_model_cache_date');
         if (cachedModel && cacheDate === today) return { gemini: cachedModel };
@@ -151,10 +196,11 @@ class PersistentAIClient {
             const localController = new AbortController(); const onAbort = () => localController.abort(new Error("AbortError")); if (signal) signal.addEventListener('abort', onAbort);
             let firstChunk = false; const baseTTFT = 12000; const ttftLimit = isMicro ? 6000 : baseTTFT;
             const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
-            // micro 模式優先使用快取的最佳可用模型，避免 404 造成卡死
-            const resolvedModel = isMicro ? (localStorage.getItem('sh_gemini_model_cache') || 'gemini-2.0-flash') : modelName;
+            // [修改] micro 模式優先讀手動選擇的模型 (sh_gemini_model_selected)，fallback 才用快取
+            const resolvedModel = isMicro 
+                ? (localStorage.getItem('sh_gemini_model_selected') || localStorage.getItem('sh_gemini_model_cache') || 'gemini-2.0-flash') 
+                : modelName;
             const url = "https://generativelanguage.googleapis.com/v1beta/models/" + resolvedModel + ":streamGenerateContent?alt=sse&key=" + this.geminiKey;
-            // 統一使用 text/plain，解說不需要 JSON 格式回應
             const payload = { contents: [{ role: "user", parts: [{ text: userQuery }] }], systemInstruction: { role: "system", parts: [{ text: systemPrompt }] }, generationConfig: { responseMimeType: "text/plain", temperature: 0.1, maxOutputTokens: 1500 } };
             const startTime = Date.now(); onLog && onLog(`📡 [Gemini] 發送請求 (${resolvedModel})...`);
             const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
