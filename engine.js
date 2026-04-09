@@ -93,7 +93,10 @@ window.getOpenAITtsKey = () => window.Obfuscator.decode(localStorage.getItem('sh
 
 class Mutex {
     constructor() { this.queue = Promise.resolve(); }
+    // batch 呼叫：進入有冷卻的隊列，避免 API rate limit
     async lock(delayMs = 4500) { let unlockNext; const willLock = new Promise(resolve => unlockNext = resolve); const willUnlock = this.queue.then(() => new Promise(res => setTimeout(res, delayMs))); this.queue = this.queue.then(() => willLock); await willUnlock; return unlockNext; }
+    // micro 呼叫（答題後即時解說）：直接通行，不等 batch 冷卻
+    lockMicro() { let unlockNext = () => {}; return unlockNext; }
 }
 
 class PersistentAIClient {
@@ -141,13 +144,19 @@ class PersistentAIClient {
 
     async callGemini(modelName, systemPrompt, userQuery, signal, onChunk, onLog, taskType = "batch", retryCount = 0) {
         this.checkCircuitBreaker('google'); let unlock = () => {};
+        // micro 模式：bypass mutex，避免被 batch 任務的 4.5s 冷卻鎖住
+        const isMicro = taskType === 'micro';
         try {
-            unlock = await this.mutex.lock(4500); const localController = new AbortController(); const onAbort = () => localController.abort(new Error("AbortError")); if (signal) signal.addEventListener('abort', onAbort);
-            let firstChunk = false; const baseTTFT = 12000; const ttftLimit = taskType === 'micro' ? 8000 : baseTTFT;
+            unlock = isMicro ? this.mutex.lockMicro() : await this.mutex.lock(4500);
+            const localController = new AbortController(); const onAbort = () => localController.abort(new Error("AbortError")); if (signal) signal.addEventListener('abort', onAbort);
+            let firstChunk = false; const baseTTFT = 12000; const ttftLimit = isMicro ? 6000 : baseTTFT;
             const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
-            const url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":streamGenerateContent?alt=sse&key=" + this.geminiKey;
-            const payload = { contents: [{ role: "user", parts: [{ text: userQuery }] }], systemInstruction: { role: "system", parts: [{ text: systemPrompt }] }, generationConfig: { responseMimeType: taskType === 'micro' ? "text/plain" : "application/json", temperature: 0.1, maxOutputTokens: 1500 } };
-            const startTime = Date.now(); onLog && onLog(`📡 [Gemini] 發送請求 (${modelName})...`);
+            // micro 模式優先使用快取的最佳可用模型，避免 404 造成卡死
+            const resolvedModel = isMicro ? (localStorage.getItem('sh_gemini_model_cache') || 'gemini-2.0-flash') : modelName;
+            const url = "https://generativelanguage.googleapis.com/v1beta/models/" + resolvedModel + ":streamGenerateContent?alt=sse&key=" + this.geminiKey;
+            // 統一使用 text/plain，解說不需要 JSON 格式回應
+            const payload = { contents: [{ role: "user", parts: [{ text: userQuery }] }], systemInstruction: { role: "system", parts: [{ text: systemPrompt }] }, generationConfig: { responseMimeType: "text/plain", temperature: 0.1, maxOutputTokens: 1500 } };
+            const startTime = Date.now(); onLog && onLog(`📡 [Gemini] 發送請求 (${resolvedModel})...`);
             const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
             if (!res.ok) {
                 clearTimeout(ttftTimeout); let errBody = ""; try { errBody = await res.text(); } catch(e){} const errMsg = `HTTP ${res.status} ${errBody.substring(0, 100).replace(/\n/g, ' ')}`;
@@ -169,10 +178,10 @@ class PersistentAIClient {
                 buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop(); 
                 for (let i=0; i<lines.length; i++) { 
                     let line = lines[i].trim(); 
-                    if (line.startsWith('data: ')) { try { const data = JSON.parse(line.slice(6)); if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) { fullText += data.candidates[0].content.parts[0].text; if(onChunk) onChunk(fullText, modelName); } } catch(e) {} } 
+                    if (line.startsWith('data: ')) { try { const data = JSON.parse(line.slice(6)); if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) { fullText += data.candidates[0].content.parts[0].text; if(onChunk) onChunk(fullText, resolvedModel); } } catch(e) {} } 
                 }
             } 
-            if (signal) signal.removeEventListener('abort', onAbort); unlock(); return { rawText: fullText, modelName: modelName.toUpperCase(), provider: "google" };
+            if (signal) signal.removeEventListener('abort', onAbort); unlock(); return { rawText: fullText, modelName: resolvedModel.toUpperCase(), provider: "google" };
         } catch (e) {
             unlock(); if (retryCount < 3 && !e.message.includes('Circuit Breaker') && !e.message.includes('FATAL') && e.name !== 'AbortError') { const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000); onLog && onLog(`[重試] Gemini 等待 ${Math.round(backoffMs/1000)}s...`); await new Promise(r => setTimeout(r, backoffMs)); return this.callGemini(modelName, systemPrompt, userQuery, signal, onChunk, onLog, taskType, retryCount + 1); } throw e;
         }
@@ -180,9 +189,11 @@ class PersistentAIClient {
 
     async callOpenRouter(systemPrompt, userQuery, signal, onChunk, onLog, specificModel = "openrouter/auto", taskType = "batch", retryCount = 0) {
         this.checkCircuitBreaker('openrouter'); let unlock = () => {};
+        const isMicro = taskType === 'micro';
         try {
-            unlock = await this.mutex.lock(4500); const localController = new AbortController(); const onAbort = () => localController.abort(new Error("AbortError")); if (signal) signal.addEventListener('abort', onAbort);
-            let firstChunk = false; const baseTTFT = 15000; const ttftLimit = taskType === 'micro' ? 10000 : baseTTFT;
+            unlock = isMicro ? this.mutex.lockMicro() : await this.mutex.lock(4500);
+            const localController = new AbortController(); const onAbort = () => localController.abort(new Error("AbortError")); if (signal) signal.addEventListener('abort', onAbort);
+            let firstChunk = false; const baseTTFT = 15000; const ttftLimit = isMicro ? 7000 : baseTTFT;
             const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
             const url = 'https://openrouter.ai/api/v1/chat/completions';
             const combinedContent = "System Instructions:\n" + systemPrompt + "\n\nUser Request:\n" + userQuery;
@@ -222,9 +233,11 @@ class PersistentAIClient {
 
     async callGroq(systemPrompt, userQuery, signal, onChunk, onLog, specificModel = "llama-3.3-70b-versatile", taskType = "batch", retryCount = 0) {
         this.checkCircuitBreaker('groq'); let unlock = () => {};
+        const isMicro = taskType === 'micro';
         try {
-            unlock = await this.mutex.lock(4500); const localController = new AbortController(); const onAbort = () => localController.abort(new Error("AbortError")); if (signal) signal.addEventListener('abort', onAbort);
-            let firstChunk = false; const baseTTFT = 8000; const ttftLimit = taskType === 'micro' ? 5000 : baseTTFT;
+            unlock = isMicro ? this.mutex.lockMicro() : await this.mutex.lock(4500);
+            const localController = new AbortController(); const onAbort = () => localController.abort(new Error("AbortError")); if (signal) signal.addEventListener('abort', onAbort);
+            let firstChunk = false; const baseTTFT = 8000; const ttftLimit = isMicro ? 4000 : baseTTFT;
             const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
             const url = 'https://api.groq.com/openai/v1/chat/completions';
             const payload = { model: specificModel, messages: [ { role: "system", content: systemPrompt }, { role: "user", content: userQuery } ], stream: true, temperature: 0.1, max_tokens: 1500 };
@@ -263,9 +276,11 @@ class PersistentAIClient {
     
     async callOpenAI(systemPrompt, userQuery, signal, onChunk, onLog, specificModel = "gpt-4o-mini", taskType = "batch", retryCount = 0) {
         this.checkCircuitBreaker('openai'); let unlock = () => {};
+        const isMicro = taskType === 'micro';
         try {
-            unlock = await this.mutex.lock(4500); const localController = new AbortController(); const onAbort = () => localController.abort(new Error("AbortError")); if (signal) signal.addEventListener('abort', onAbort);
-            let firstChunk = false; const baseTTFT = 15000; const ttftLimit = taskType === 'micro' ? 10000 : baseTTFT;
+            unlock = isMicro ? this.mutex.lockMicro() : await this.mutex.lock(4500);
+            const localController = new AbortController(); const onAbort = () => localController.abort(new Error("AbortError")); if (signal) signal.addEventListener('abort', onAbort);
+            let firstChunk = false; const baseTTFT = 15000; const ttftLimit = isMicro ? 7000 : baseTTFT;
             const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
             const url = 'https://api.openai.com/v1/chat/completions';
             const payload = { model: specificModel, messages: [ { role: "system", content: systemPrompt }, { role: "user", content: userQuery } ], stream: true, temperature: 0.1, max_tokens: 1500 };
@@ -337,23 +352,24 @@ window.resolveGrammarTags = function(qObj) {
         return match;
     });
 
+    // a/an 自動修正：依照下一個單字的首字母決定用 a 或 an
     const fixArticles = (str) => {
-        return str.replace(/\b([Aa])\s+([aeiouAEIOU])/g, (m, article, vowel) => {
-            return (article === 'A' ? 'An ' : 'an ') + vowel;
-        }).replace(/\b([Aa])n\s+([^aeiouAEIOU])/g, (m, article, consonant) => {
-            return (article === 'A' ? 'A ' : 'a ') + consonant;
+        return str.replace(/\b([Aa])n?\s+([a-zA-Z])/g, (m, article, nextChar) => {
+            const isVowel = /[aeiouAEIOU]/.test(nextChar);
+            if (article === 'A') return isVowel ? 'An ' + nextChar : 'A ' + nextChar;
+            return isVowel ? 'an ' + nextChar : 'a ' + nextChar;
         });
     };
 
     newQ.answer = fixArticles(newQ.answer);
     newQ.sentence = fixArticles(newQ.sentence);
     
-    // === 方法B：介系詞受格自動修正（開關：window.GRAMMAR_FIX_MODE） ===
+    // === 介系詞受格自動修正（開關：window.GRAMMAR_FIX_MODE） ===
     const _fixMode = (typeof window !== 'undefined' && window.GRAMMAR_FIX_MODE) ? window.GRAMMAR_FIX_MODE : 'rule';
     if (_fixMode === 'rule' || _fixMode === 'both') {
         const _OBJ_MAP = { he:'him', she:'her', i:'me', we:'us', they:'them', you:'you', it:'it' };
         const _fixObjCase = (str) => str.replace(
-            /(with|for|to|at|of|about|from|by|without|after|before)\s+(he|she|I|we|they)/gi,
+            /\b(with|for|to|at|of|about|from|by|without|after|before)\b\s+\b(he|she|I|we|they)\b/gi,
             (m, prep, pronoun) => prep + ' ' + (_OBJ_MAP[pronoun.toLowerCase()] || pronoun)
         );
         newQ.sentence = _fixObjCase(newQ.sentence);
