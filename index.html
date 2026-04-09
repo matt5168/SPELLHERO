@@ -106,6 +106,8 @@
               if (m === 'v2') m = 'v1';
               return m;
           });
+          const [grammarFixMode, setGrammarFixMode] = useState(() => localStorage.getItem('sh_grammar_fix_mode') || 'rule');
+          React.useEffect(() => { window.GRAMMAR_FIX_MODE = grammarFixMode; }, [grammarFixMode]);
           const defaultCustomPrompt = `You are an English tutor for a child in Taiwan.\nQuestion: "{q.sentence}"\nTarget Answer: "{safeAnswerStr}"\nStudent's Answer: "{studentAns}"\n\nTASK:\n1. CRITICAL: Analyze the combined Question + Target Answer. If the Target Answer creates a grammatically WRONG sentence (e.g., missing a verb like "has" before "a cold"), OR if the Student's Answer is actually the only grammatically correct option, YOU MUST OVERRIDE. To override, your VERY FIRST WORD must be "[OVERRIDE_CORRECT]". If the student's answer is ALSO wrong but you need to correct the Target Answer, output "[OVERRIDE_CORRECT: correct_answer]".\n2. Explain in TRADITIONAL CHINESE. Use very simple language.\n3. Format exactly as below:\n🔍 題目線索：[...]\n💡 文法秘訣：[...]\n🎯 答題結果：[...]`;
           const [customPromptText, setCustomPromptText] = useState(localStorage.getItem('sh_custom_prompt') || defaultCustomPrompt);
           const [qPromptModes, setQPromptModes] = useState({});
@@ -567,11 +569,12 @@ RULES:
 2. CRITICAL: Do NOT use the "Target Grammar Word" inside the context sentences you generate.
 3. Use everyday, realistic situations (e.g., family, school, weather). NO sci-fi or magic.
 4. Keep it extremely simple (A1/A2 level).
+5. GRAMMAR CHECK: The "Core Sentence" may contain pronoun case errors (e.g. "with she" should be "with her"). Silently fix any such errors in your generated context sentences, and output the corrected core sentence in a "fixed_core" field if you detect an error.
 
 JSON OUTPUT FORMAT:
 [
-  {"idx": 0, "c": "Context 1.", "t": "Traditional Chinese translation of BOTH Context 1 AND the core sentence."},
-  {"idx": 0, "c": "Context 2.", "t": "Traditional Chinese translation of BOTH Context 2 AND the core sentence."}
+  {"idx": 0, "c": "Context 1.", "t": "Traditional Chinese translation of BOTH Context 1 AND the core sentence.", "fixed_core": "corrected sentence if grammar error found, else omit"},
+  {"idx": 0, "c": "Context 2.", "t": "...", "fixed_core": "same corrected sentence or omit"}
 ]
 CRITICAL: Output EXACTLY TWO objects per IDX.`;
                             userQuery = `Provide EXACTLY 2 DIFFERENT contexts for each sentence:\n${patterns.join('\n')}`;
@@ -618,6 +621,14 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                         // --- 文法題：本地端邏輯組裝 ---
                                         let ls = expectedItem.localState;
                                         let ctxSentence = String(q.c || q.ctx || q.context || "").trim();
+                                        // 方法A：若 AI 回傳 fixed_core，用它修正錯誤的 fullCore
+                                        if ((window.GRAMMAR_FIX_MODE === 'ai' || window.GRAMMAR_FIX_MODE === 'both') && q.fixed_core && String(q.fixed_core).trim()) {
+                                            const fixedCore = String(q.fixed_core).trim();
+                                            if (expectedItem && expectedItem.localState) {
+                                                expectedItem.localState.fullCore = fixedCore;
+                                                expectedItem.localState.coreSentWithBlank = fixedCore.replace(new RegExp('\\b' + window.escapeRegExp(expectedItem.localState.right) + '\\b'), '______');
+                                            }
+                                        }
                                         let fullTrans = String(q.t || q.full_t || q.translation || "").trim();
                                         if (!fullTrans) fullTrans = "正在努力翻譯中...";
                                         
@@ -1166,6 +1177,16 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                             <option value="v3">v3 重點條列版</option>
                                             <option value="custom">⚙️ 自訂專屬指令</option>
                                         </select>
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><ShieldCheck size={16}/> 文法受格修正模式：</span>
+                                        <select value={grammarFixMode} onChange={(e) => { setGrammarFixMode(e.target.value); localStorage.setItem('sh_grammar_fix_mode', e.target.value); window.GRAMMAR_FIX_MODE = e.target.value; }} className="w-full bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono">
+                                            <option value="rule">⚡ 規則修正（穩定，推薦）</option>
+                                            <option value="ai">🤖 AI 判斷（彈性，依賴模型）</option>
+                                            <option value="both">🔀 雙重修正（規則 + AI）</option>
+                                            <option value="off">🚫 關閉（不修正）</option>
+                                        </select>
+                                        <span className="text-[#a4b1a1] text-[10px] leading-tight px-1">規則修正：介系詞後自動轉受格。AI 判斷：請 AI 模型偵測並修正語法錯誤。</span>
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         <span className="text-[#e6e9e4] font-bold text-sm">👩‍🏫 預設解說老師：</span>
