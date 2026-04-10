@@ -117,7 +117,6 @@
           const [showComboAnim, setShowComboAnim] = useState(false); const [diagStatus, setDiagStatus] = useState(null); 
           const [diagMsg, setDiagMsg] = useState(""); const [quizMode, setQuizMode] = useState('fill_in'); 
           
-          // [修正1] 狀態初始化
           const [aiStatus, setAiStatus] = useState("準備中..."); 
           const [activeGeminiModel, setActiveGeminiModel] = useState(localStorage.getItem('sh_gemini_model_selected') || "gemini-2.0-flash"); 
           const [geminiModelsList, setGeminiModelsList] = useState(window.GEMINI_DEFAULT_MODELS || ["gemini-2.5-flash","gemini-2.0-flash","gemma-3-27b-it","gemma-3n-e4b-it"]);
@@ -150,14 +149,20 @@
               return () => clearInterval(timer);
           }, [dash]);
 
+          // Groq 模型抓取與防呆
           useEffect(() => {
               if (dash && window.sharedAIClient && inputGroqKey && enginesEnabled.groq) {
                   if (typeof window.sharedAIClient.checkAvailableGroqModels === 'function') {
                       window.sharedAIClient.checkAvailableGroqModels().then(models => {
                           if (models && models.length > 0) {
                               setGroqModelsList(models);
-                              if (!models.includes(groqModel)) {
+                              const saved = localStorage.getItem('sh_groq_model');
+                              if (saved && !models.includes(saved)) {
                                   setGroqModel(models[0]);
+                                  localStorage.setItem('sh_groq_model', models[0]);
+                              } else if (!saved) {
+                                  setGroqModel(models[0]);
+                                  localStorage.setItem('sh_groq_model', models[0]);
                               }
                           }
                       });
@@ -165,7 +170,7 @@
               }
           }, [dash, inputGroqKey, enginesEnabled.groq]);
 
-          // [修正2] Gemini 動態模型清單擷取，且支援防呆切換
+          // Gemini 模型抓取與防呆
           useEffect(() => {
               if (dash && window.sharedAIClient && inputKey && enginesEnabled.google) {
                   if (typeof window.sharedAIClient.checkAvailableGeminiModels === 'function') {
@@ -268,7 +273,6 @@
                 
                 const currentPool = JSON.parse(localStorage.getItem('sh_qpool_v34') || '{}'); let sz = 0; Object.values(currentPool).forEach(arr => sz += arr.length); setPoolStats(p => ({...p, size: sz}));
 
-                // [修正3] 取消載入時對 Gemini Model 的強制覆蓋
                 if (window.sharedAIClient) {
                     window.sharedAIClient.updateKeys(inputKey || window.getGeminiKey(), inputOrKey || window.getOpenRouterKey(), inputGroqKey || window.getGroqKey(), openAITtsKey || window.getOpenAITtsKey());
                     window.sharedAIClient.checkAvailableModels();
@@ -279,7 +283,6 @@
 
           useEffect(() => { if(window.sharedAIClient) window.sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey, openAITtsKey); }, [inputKey, inputOrKey, inputGroqKey, openAITtsKey]);
 
-          // [修正4] 將選擇的模型存入 localStorage，並取消 UI 強制覆寫
           const saveCustomKey = () => { 
               try { 
                   localStorage.setItem('gemini_api_key', window.Obfuscator.encode(inputKey)); localStorage.setItem('openrouter_api_key', window.Obfuscator.encode(inputOrKey)); 
@@ -352,7 +355,6 @@
               } catch(e) { clearTimeout(timeoutId); setDiagStatus('error'); setDiagMsg(`❌ 失敗：${e.message}`); setShowLogsPanel(true); }
           };
 
-          // [修正5] 取消診斷時強制覆寫 Gemini Model
           const runDiagnostic = async () => {
             if(!window.sharedAIClient) return;
             setDiagStatus('testing'); setDiagMsg(`測試已啟用之連線...`); clearLogs();
@@ -1228,13 +1230,37 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                 )}
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#7a8575] pt-4">
+                                    {/* Groq 整合了重整按鈕與防呆儲存 */}
                                     <div className="flex flex-col gap-2">
                                         <span className="text-[#e6e9e4] font-bold text-sm">🧠 Groq 模型：</span>
-                                        <select value={groqModel} onChange={e => setGroqModel(e.target.value)} className="w-full bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono">
-                                            {groqModelsList.map(m => (
-                                                <option key={m} value={m}>{m === 'llama-3.3-70b-versatile' ? 'Llama 3.3 70B (推薦)' : m === 'llama-3.1-8b-instant' ? 'Llama 3.1 8B (最快)' : m}</option>
-                                            ))}
-                                        </select>
+                                        <div className="flex gap-2">
+                                            <select 
+                                                value={groqModel} 
+                                                onChange={e => {
+                                                    setGroqModel(e.target.value);
+                                                    localStorage.setItem('sh_groq_model', e.target.value);
+                                                }} 
+                                                className="flex-1 min-w-0 bg-[#6b7566] border border-[#5a6356] rounded-lg px-2 py-2 text-xs md:text-sm outline-none text-white font-mono truncate"
+                                            >
+                                                {groqModelsList.map(m => (
+                                                    <option key={m} value={m}>{m === 'llama-3.3-70b-versatile' ? 'Llama 3.3 70B (推薦)' : m === 'llama-3.1-8b-instant' ? 'Llama 3.1 8B (最快)' : m}</option>
+                                                ))}
+                                            </select>
+                                            <button 
+                                                onClick={() => {
+                                                    if (window.sharedAIClient && typeof window.sharedAIClient.checkAvailableGroqModels === 'function') {
+                                                        window.sharedAIClient.checkAvailableGroqModels().then(models => {
+                                                            if (models && models.length > 0) { 
+                                                                setGroqModelsList(models); 
+                                                                addLog('✅ Groq 模型清單已更新'); 
+                                                            }
+                                                        });
+                                                    }
+                                                }}
+                                                className="bg-[#4a5346] hover:bg-[#5a6356] text-white px-3 py-2 rounded-lg border border-[#5a6356] text-sm font-bold transition-all shrink-0"
+                                                title="重新抓取可用模型清單"
+                                            >🔄</button>
+                                        </div>
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         <span className="text-[#e6e9e4] font-bold text-sm">🧠 OR 模型：</span>
@@ -1297,7 +1323,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                                   });
                                                 }
                                               }}
-                                              className="bg-[#4a5346] hover:bg-[#5a6356] text-white px-2 py-1.5 rounded border border-[#5a6356] text-xs font-bold transition-all"
+                                              className="bg-[#4a5346] hover:bg-[#5a6356] text-white px-2 py-1.5 rounded border border-[#5a6356] text-xs font-bold transition-all shrink-0"
                                               title="重新抓取可用模型清單"
                                             >🔄</button>
                                           </div>
