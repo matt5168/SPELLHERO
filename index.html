@@ -10,7 +10,7 @@
     <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
     
     <script src="database.js?v=12"></script>
-    <script src="engine.js?v=9"></script>
+    <script src="engine.js?v=10"></script>
 
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: manipulation; }
@@ -30,7 +30,6 @@
         const { useState, useEffect, Component, useRef } = React;
 
         const IconMock = emoji => props => <span className={props.className||""} style={{fontSize: props.size||20, display:'inline-flex', alignItems:'center', justifyContent:'center', lineHeight: 1}}>{emoji}</span>;
-        // 已移除未使用的圖示 (Globe, History, Calendar, BarChart2, Award, AlignLeft)
         const CheckCircle=IconMock('✅'), XCircle=IconMock('❌'), RefreshCcw=IconMock('🔄'), Star=IconMock('⭐'), Trophy=IconMock('🏆'), Lightbulb=IconMock('💡'), Sparkles=IconMock('✨'), Shuffle=IconMock('🔀'), BookOpen=IconMock('📖'), AlertOctagon=IconMock('⚠️'), GraduationCap=IconMock('🎓'), Loader2=IconMock('⏳'), Volume2=IconMock('🔊'), Megaphone=IconMock('📢'), Settings=IconMock('⚙️'), Zap=IconMock('⚡'), BrainCircuit=IconMock('🧠'), Target=IconMock('🎯'), ChevronDown=IconMock('🔽'), ChevronUp=IconMock('🔼'), Send=IconMock('🚀'), Coins=IconMock('🪙'), Activity=IconMock('📈'), TrendingUp=IconMock('📈'), Flame=IconMock('🔥'), ShieldCheck=IconMock('🛡️'), Edit3=IconMock('📝'), MousePointerClick=IconMock('🖱️'), Database=IconMock('🗄️'), ScrollText=IconMock('📜'), Layout=IconMock('🗂️');
 
         class ErrorBoundary extends Component {
@@ -43,7 +42,6 @@
                 <div className="p-6 bg-[#b5847e]/20 text-[#524d46] min-h-screen font-mono text-center flex flex-col items-center justify-center">
                   <h1 className="text-2xl font-black mb-4">⚠️ 系統錯誤</h1>
                   <p className="bg-[#f4f1ea] border border-[#dcb5b0] p-4 rounded-xl mb-6 text-xs max-w-lg overflow-auto shadow-sm text-left">{this.state.errorInfo}</p>
-                  <p className="text-sm text-[#a3756f] mb-6">請確認 engine.js 與 database.js 是否正確載入且包含 window 綁定。</p>
                   <button onClick={() => window.location.reload()} className="bg-[#b5847e] text-white hover:bg-[#a3756f] px-6 py-2 rounded-full font-bold shadow transition-all">重新載入</button>
                 </div>
               );
@@ -67,7 +65,6 @@
           const [dash, setDash] = useState(false); const [earnedCoins, setEarnedCoins] = useState(0); 
           const [earnedExp, setEarnedExp] = useState(0); const [levelUpData, setLevelUpData] = useState(null);
           
-          // 保留金幣兌換邏輯與狀態
           const [redeemAmount, setRedeemAmount] = useState(100); const [redeemMessage, setRedeemMessage] = useState("");
           
           const isGeneratingRef = useRef(false);
@@ -88,13 +85,20 @@
           const [inputGroqKey, setInputGroqKey] = useState(getVal('getGroqKey', ''));
           const [groqModel, setGroqModel] = useState(localStorage.getItem('sh_groq_model') || 'llama-3.3-70b-versatile');
           const [groqModelsList, setGroqModelsList] = useState(["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"]);
+          
+          // 新增 NVIDIA 狀態
+          const [inputNvidiaKey, setInputNvidiaKey] = useState(getVal('getNvidiaKey', ''));
+          const [nvidiaModel, setNvidiaModel] = useState(localStorage.getItem('sh_nvidia_model') || 'meta/llama-3.1-70b-instruct');
+          const [nvidiaModelsList, setNvidiaModelsList] = useState(["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/llama-3.1-nemotron-70b-instruct"]);
+
           const [defaultTeacher, setDefaultTeacher] = useState(localStorage.getItem('sh_default_teacher') || 'openrouter');
           
           const [enginesEnabled, setEnginesEnabled] = useState({
               groq: localStorage.getItem('sh_enable_groq') !== 'false',
               google: localStorage.getItem('sh_enable_google') !== 'false',
               openrouter: localStorage.getItem('sh_enable_or') !== 'false',
-              openai: localStorage.getItem('sh_enable_openai') !== 'false'
+              openai: localStorage.getItem('sh_enable_openai') !== 'false',
+              nvidia: localStorage.getItem('sh_enable_nvidia') !== 'false'
           });
           const toggleEngine = (eng) => {
               setEnginesEnabled(p => {
@@ -115,7 +119,7 @@
           const [customPromptText, setCustomPromptText] = useState(localStorage.getItem('sh_custom_prompt') || defaultCustomPrompt);
           const [qPromptModes, setQPromptModes] = useState({});
 
-          const [apiUsage, setApiUsage] = useState({ date: new Date().toLocaleDateString(), openRouter: 0, gemini: 0, groq: 0, openai: 0 });
+          const [apiUsage, setApiUsage] = useState({ date: new Date().toLocaleDateString(), openRouter: 0, gemini: 0, groq: 0, openai: 0, nvidia: 0 });
           const [combo, setCombo] = useState(0); const [maxCombo, setMaxCombo] = useState(0);
           const [showComboAnim, setShowComboAnim] = useState(false); const [diagStatus, setDiagStatus] = useState(null); 
           const [diagMsg, setDiagMsg] = useState(""); const [quizMode, setQuizMode] = useState('fill_in'); 
@@ -134,7 +138,7 @@
           const [dynamicProviders, setDynamicProviders] = useState({}); 
           
           const [routingMode, setRoutingMode] = useState(localStorage.getItem('sh_routing_mode') || 'dynamic');
-          const [engineLights, setEngineLights] = useState({ groq: 'green', google: 'green', openrouter: 'green', openai: 'green' });
+          const [engineLights, setEngineLights] = useState({ groq: 'green', google: 'green', openrouter: 'green', openai: 'green', nvidia: 'green' });
 
           const overrideTriggeredRef = useRef({});
           const readyRef = useRef(false);
@@ -146,7 +150,8 @@
                       groq: window.sharedAIClient.getEngineStatus('groq'),
                       google: window.sharedAIClient.getEngineStatus('google'),
                       openrouter: window.sharedAIClient.getEngineStatus('openrouter'),
-                      openai: window.sharedAIClient.getEngineStatus('openai')
+                      openai: window.sharedAIClient.getEngineStatus('openai'),
+                      nvidia: window.sharedAIClient.getEngineStatus('nvidia')
                   });
               }, 1000);
               return () => clearInterval(timer);
@@ -160,11 +165,9 @@
                               setGroqModelsList(models);
                               const saved = localStorage.getItem('sh_groq_model');
                               if (saved && !models.includes(saved)) {
-                                  setGroqModel(models[0]);
-                                  localStorage.setItem('sh_groq_model', models[0]);
+                                  setGroqModel(models[0]); localStorage.setItem('sh_groq_model', models[0]);
                               } else if (!saved) {
-                                  setGroqModel(models[0]);
-                                  localStorage.setItem('sh_groq_model', models[0]);
+                                  setGroqModel(models[0]); localStorage.setItem('sh_groq_model', models[0]);
                               }
                           }
                       });
@@ -180,17 +183,34 @@
                               setGeminiModelsList(models);
                               const saved = localStorage.getItem('sh_gemini_model_selected');
                               if (saved && !models.includes(saved)) {
-                                  setActiveGeminiModel(models[0]);
-                                  localStorage.setItem('sh_gemini_model_selected', models[0]);
+                                  setActiveGeminiModel(models[0]); localStorage.setItem('sh_gemini_model_selected', models[0]);
                               } else if (!saved) {
-                                  setActiveGeminiModel(models[0]);
-                                  localStorage.setItem('sh_gemini_model_selected', models[0]);
+                                  setActiveGeminiModel(models[0]); localStorage.setItem('sh_gemini_model_selected', models[0]);
                               }
                           }
                       });
                   }
               }
           }, [dash, inputKey, enginesEnabled.google]);
+
+          // 新增 NVIDIA 模型自動抓取
+          useEffect(() => {
+              if (dash && window.sharedAIClient && inputNvidiaKey && enginesEnabled.nvidia) {
+                  if (typeof window.sharedAIClient.checkAvailableNvidiaModels === 'function') {
+                      window.sharedAIClient.checkAvailableNvidiaModels().then(models => {
+                          if (models && models.length > 0) {
+                              setNvidiaModelsList(models);
+                              const saved = localStorage.getItem('sh_nvidia_model');
+                              if (saved && !models.includes(saved)) {
+                                  setNvidiaModel(models[0]); localStorage.setItem('sh_nvidia_model', models[0]);
+                              } else if (!saved) {
+                                  setNvidiaModel(models[0]); localStorage.setItem('sh_nvidia_model', models[0]);
+                              }
+                          }
+                      });
+                  }
+              }
+          }, [dash, inputNvidiaKey, enginesEnabled.nvidia]);
 
           const handleRoutingModeChange = (mode) => { setRoutingMode(mode); localStorage.setItem('sh_routing_mode', mode); };
 
@@ -203,9 +223,9 @@
                   mistakes: JSON.parse(localStorage.getItem('sh_mistakes_v29')||'[]'), apiUsage: JSON.parse(localStorage.getItem('sh_api_usage_v29')||'{}'),
                   settings: {
                       uiLayout: localStorage.getItem('sh_ui_layout')||'layout1', ttsEngine: localStorage.getItem('sh_tts_engine')||'native', ttsVoice: localStorage.getItem('sh_openai_tts_voice')||'nova',
-                      orModel: localStorage.getItem('sh_or_model')||'openrouter/auto', groqModel: localStorage.getItem('sh_groq_model')||'llama-3.3-70b-versatile',
-                      geminiKey: localStorage.getItem('gemini_api_key')||'', orKey: localStorage.getItem('openrouter_api_key')||'', groqKey: localStorage.getItem('groq_api_key')||'', openAITtsKey: localStorage.getItem('sh_openai_tts_key')||'', routingMode: localStorage.getItem('sh_routing_mode')||'dynamic',
-                      enableGroq: localStorage.getItem('sh_enable_groq'), enableGoogle: localStorage.getItem('sh_enable_google'), enableOr: localStorage.getItem('sh_enable_or'), enableOpenAI: localStorage.getItem('sh_enable_openai'),
+                      orModel: localStorage.getItem('sh_or_model')||'openrouter/auto', groqModel: localStorage.getItem('sh_groq_model')||'llama-3.3-70b-versatile', nvidiaModel: localStorage.getItem('sh_nvidia_model')||'meta/llama-3.1-70b-instruct',
+                      geminiKey: localStorage.getItem('gemini_api_key')||'', orKey: localStorage.getItem('openrouter_api_key')||'', groqKey: localStorage.getItem('groq_api_key')||'', openAITtsKey: localStorage.getItem('sh_openai_tts_key')||'', nvidiaKey: localStorage.getItem('nvidia_api_key')||'', routingMode: localStorage.getItem('sh_routing_mode')||'dynamic',
+                      enableGroq: localStorage.getItem('sh_enable_groq'), enableGoogle: localStorage.getItem('sh_enable_google'), enableOr: localStorage.getItem('sh_enable_or'), enableOpenAI: localStorage.getItem('sh_enable_openai'), enableNvidia: localStorage.getItem('sh_enable_nvidia'),
                       promptMode: localStorage.getItem('sh_prompt_mode')||'v1', customPrompt: localStorage.getItem('sh_custom_prompt')||defaultCustomPrompt, defaultTeacher: localStorage.getItem('sh_default_teacher')||'openrouter'
                   }
               };
@@ -224,10 +244,10 @@
                       if (d.settings) {
                           const s = d.settings;
                           if (s.uiLayout) localStorage.setItem('sh_ui_layout', s.uiLayout); if (s.ttsEngine) localStorage.setItem('sh_tts_engine', s.ttsEngine); if (s.ttsVoice) localStorage.setItem('sh_openai_tts_voice', s.ttsVoice);
-                          if (s.orModel) localStorage.setItem('sh_or_model', s.orModel); if (s.groqModel) localStorage.setItem('sh_groq_model', s.groqModel);
-                          if (s.geminiKey) localStorage.setItem('gemini_api_key', s.geminiKey); if (s.orKey) localStorage.setItem('openrouter_api_key', s.orKey); if (s.groqKey) localStorage.setItem('groq_api_key', s.groqKey); if (s.openAITtsKey) localStorage.setItem('sh_openai_tts_key', s.openAITtsKey);
+                          if (s.orModel) localStorage.setItem('sh_or_model', s.orModel); if (s.groqModel) localStorage.setItem('sh_groq_model', s.groqModel); if (s.nvidiaModel) localStorage.setItem('sh_nvidia_model', s.nvidiaModel);
+                          if (s.geminiKey) localStorage.setItem('gemini_api_key', s.geminiKey); if (s.orKey) localStorage.setItem('openrouter_api_key', s.orKey); if (s.groqKey) localStorage.setItem('groq_api_key', s.groqKey); if (s.openAITtsKey) localStorage.setItem('sh_openai_tts_key', s.openAITtsKey); if (s.nvidiaKey) localStorage.setItem('nvidia_api_key', s.nvidiaKey);
                           if (s.routingMode) localStorage.setItem('sh_routing_mode', s.routingMode);
-                          if (s.enableGroq) localStorage.setItem('sh_enable_groq', s.enableGroq); if (s.enableGoogle) localStorage.setItem('sh_enable_google', s.enableGoogle); if (s.enableOr) localStorage.setItem('sh_enable_or', s.enableOr); if (s.enableOpenAI) localStorage.setItem('sh_enable_openai', s.enableOpenAI);
+                          if (s.enableGroq) localStorage.setItem('sh_enable_groq', s.enableGroq); if (s.enableGoogle) localStorage.setItem('sh_enable_google', s.enableGoogle); if (s.enableOr) localStorage.setItem('sh_enable_or', s.enableOr); if (s.enableOpenAI) localStorage.setItem('sh_enable_openai', s.enableOpenAI); if (s.enableNvidia) localStorage.setItem('sh_enable_nvidia', s.enableNvidia);
                           if (s.promptMode) { let m = s.promptMode; if (m === 'v2') m = 'v1'; localStorage.setItem('sh_prompt_mode', m); }
                           if (s.customPrompt) localStorage.setItem('sh_custom_prompt', s.customPrompt); if (s.defaultTeacher) localStorage.setItem('sh_default_teacher', s.defaultTeacher);
                       }
@@ -267,22 +287,22 @@
                 const lvl = parseInt(localStorage.getItem('sh_level_v28') || '1'); const today = new Date().toLocaleDateString();
                 
                 let mist = JSON.parse(localStorage.getItem('sh_mistakes_v29') || '[]');
-                let apiU = JSON.parse(localStorage.getItem('sh_api_usage_v29') || 'null'); if (!apiU || apiU.date !== today) apiU = { date: today, openRouter: 0, gemini: 0, groq: 0, openai: 0 };
-                if (apiU.openai === undefined) apiU.openai = 0;
+                let apiU = JSON.parse(localStorage.getItem('sh_api_usage_v29') || 'null'); if (!apiU || apiU.date !== today) apiU = { date: today, openRouter: 0, gemini: 0, groq: 0, openai: 0, nvidia: 0 };
+                if (apiU.openai === undefined) apiU.openai = 0; if (apiU.nvidia === undefined) apiU.nvidia = 0;
                 
                 setStorage({ history: h, memory: m, stats: s, coins: c, exp: exp, level: lvl }); setMistakePool(mist); setApiUsage(apiU); 
                 
                 const currentPool = JSON.parse(localStorage.getItem('sh_qpool_v34') || '{}'); let sz = 0; Object.values(currentPool).forEach(arr => sz += arr.length); setPoolStats(p => ({...p, size: sz}));
 
                 if (window.sharedAIClient) {
-                    window.sharedAIClient.updateKeys(inputKey || window.getGeminiKey(), inputOrKey || window.getOpenRouterKey(), inputGroqKey || window.getGroqKey(), openAITtsKey || window.getOpenAITtsKey());
+                    window.sharedAIClient.updateKeys(inputKey || window.getGeminiKey(), inputOrKey || window.getOpenRouterKey(), inputGroqKey || window.getGroqKey(), openAITtsKey || window.getOpenAITtsKey(), inputNvidiaKey || window.getNvidiaKey());
                     window.sharedAIClient.checkAvailableModels();
                 }
               } catch (e) { }
             }; load();
           }, []);
 
-          useEffect(() => { if(window.sharedAIClient) window.sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey, openAITtsKey); }, [inputKey, inputOrKey, inputGroqKey, openAITtsKey]);
+          useEffect(() => { if(window.sharedAIClient) window.sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey, openAITtsKey, inputNvidiaKey); }, [inputKey, inputOrKey, inputGroqKey, openAITtsKey, inputNvidiaKey]);
 
           const saveCustomKey = () => { 
               try { 
@@ -290,6 +310,7 @@
                   localStorage.setItem('sh_or_model', openRouterModel); localStorage.setItem('groq_api_key', window.Obfuscator.encode(inputGroqKey)); 
                   localStorage.setItem('sh_groq_model', groqModel); localStorage.setItem('sh_gemini_model_selected', activeGeminiModel); localStorage.setItem('sh_tts_engine', ttsEngine); 
                   localStorage.setItem('sh_openai_tts_key', window.Obfuscator.encode(openAITtsKey)); localStorage.setItem('sh_openai_tts_voice', openAITtsVoice); 
+                  localStorage.setItem('nvidia_api_key', window.Obfuscator.encode(inputNvidiaKey)); localStorage.setItem('sh_nvidia_model', nvidiaModel);
                   
                   localStorage.setItem('sh_prompt_mode', promptMode);
                   localStorage.setItem('sh_custom_prompt', customPromptText);
@@ -297,7 +318,7 @@
 
                   setDiagMsg("✅ 金鑰與設定已儲存！"); 
                   if(window.sharedAIClient) {
-                      window.sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey, openAITtsKey); 
+                      window.sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey, openAITtsKey, inputNvidiaKey); 
                       window.sharedAIClient.checkAvailableModels();
                   }
               } catch(e) { setDiagMsg("❌ 儲存失敗。"); } 
@@ -351,6 +372,7 @@
                   else if (provider === 'google') result = await window.sharedAIClient.callGemini(activeGeminiModel, "Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, 'micro');
                   else if (provider === 'openrouter') result = await window.sharedAIClient.callOpenRouter("Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, openRouterModel, 'micro');
                   else if (provider === 'openai') result = await window.sharedAIClient.callOpenAI("Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, 'gpt-4o-mini', 'micro');
+                  else if (provider === 'nvidia') result = await window.sharedAIClient.callNvidia("Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, nvidiaModel, 'micro');
                   
                   clearTimeout(timeoutId); setAiModel(result.modelName); setDiagStatus('success'); setDiagMsg(`✅ ${result.modelName} OK`); setShowLogsPanel(true);
               } catch(e) { clearTimeout(timeoutId); setDiagStatus('error'); setDiagMsg(`❌ 失敗：${e.message}`); setShowLogsPanel(true); }
@@ -364,7 +386,7 @@
                 const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 60000); 
                 const testMsg = 'Reply exact JSON: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["a","b","c","d"]}]}';
                 
-                const providersToTry = ['groq', 'google', 'openrouter', 'openai'].filter(p => enginesEnabled[p]);
+                const providersToTry = ['groq', 'google', 'openrouter', 'openai', 'nvidia'].filter(p => enginesEnabled[p]);
                 if(providersToTry.length === 0) throw new Error("無啟用引擎");
 
                 let result = null;
@@ -376,6 +398,7 @@
                         else if (currentP === 'google') result = await window.sharedAIClient.callGemini(activeGeminiModel, "Diagnostic", testMsg, controller.signal, () => {}, addLog, 'micro');
                         else if (currentP === 'openrouter') result = await window.sharedAIClient.callOpenRouter("Diagnostic", testMsg, controller.signal, () => {}, addLog, openRouterModel, 'micro');
                         else if (currentP === 'openai') result = await window.sharedAIClient.callOpenAI("Diagnostic", testMsg, controller.signal, () => {}, addLog, 'gpt-4o-mini', 'micro');
+                        else if (currentP === 'nvidia') result = await window.sharedAIClient.callNvidia("Diagnostic", testMsg, controller.signal, () => {}, addLog, nvidiaModel, 'micro');
                         break;
                     } catch (e) { addLog(`[錯誤] ${currentP.toUpperCase()}: ${e.message}`); if (i === providersToTry.length - 1) throw e; }
                 }
@@ -383,7 +406,6 @@
             } catch (e) { setDiagStatus('error'); setDiagMsg(`❌ ${e.message}`); setShowLogsPanel(true); }
           };
 
-          // === AI 批次產生邏輯 ===
           const generateAIBatch = async (m, nbs, mode, targetMenu, forceGeminiModel, currentMistakes, reqGrammarType = 'mixed') => {
             if (isGeneratingRef.current || !window.sharedAIClient) return;
             isGeneratingRef.current = true; setIsGenerating(true);
@@ -421,15 +443,10 @@
                         const s = m[safeAns]; 
                         
                         let w = 0;
-                        if (s < 0) {
-                            w = 100;
-                        } else if (s === undefined || s === 0) {
-                            w = 50; 
-                        } else if (s > 0 && s <= 2) {
-                            w = hasPriority ? 1 : 10;
-                        } else {
-                            w = hasPriority ? 0 : 5; 
-                        }
+                        if (s < 0) { w = 100; } 
+                        else if (s === undefined || s === 0) { w = 50; } 
+                        else if (s > 0 && s <= 2) { w = hasPriority ? 1 : 10; } 
+                        else { w = hasPriority ? 0 : 5; }
                         tw += w; return w; 
                     });
 
@@ -497,7 +514,7 @@
 
             if (needed.length === 0) { setAiStatus("準備完成！"); setIsGenerating(false); isGeneratingRef.current = false; setTimeout(() => { window.scrollTo(0, 0); }, 300); return; }
 
-            if (!enginesEnabled.groq && !enginesEnabled.google && !enginesEnabled.openrouter && !enginesEnabled.openai) {
+            if (!enginesEnabled.groq && !enginesEnabled.google && !enginesEnabled.openrouter && !enginesEnabled.openai && !enginesEnabled.nvidia) {
                 addLog(`❌ 所有 AI 引擎皆已關閉，無法生成。`); setAiStatus("失敗：無啟用引擎"); setIsGenerating(false); isGeneratingRef.current = false; return;
             }
 
@@ -511,21 +528,13 @@
 
                     if (targetMenu === 'grammar' && !chunkPending[0].localState) {
                         const GRAMMAR_GROUPS = [
-                            ["is", "are", "am", "was", "were"],
-                            ["do", "does", "did"],
-                            ["have", "has", "had"],
+                            ["is", "are", "am", "was", "were"], ["do", "does", "did"], ["have", "has", "had"],
                             ["always", "sometimes", "never", "usually", "often"],
                             ["in", "on", "at", "above", "below", "under", "next to", "behind", "in front of"],
-                            ["must", "must not", "can", "can't", "should", "could"],
-                            ["have to", "has to"],
-                            ["he", "she", "it", "they", "we", "I", "you"],
-                            ["his", "her", "its", "their", "our", "my", "your"],
-                            ["a", "an", "the", "some", "any", "many", "much"],
-                            ["want", "wants"],
-                            ["go", "goes"],
-                            ["isn't", "aren't", "is", "are"],
-                            ["than", "then", "that"],
-                            ["favorite", "wild", "beautiful"]
+                            ["must", "must not", "can", "can't", "should", "could"], ["have to", "has to"],
+                            ["he", "she", "it", "they", "we", "I", "you"], ["his", "her", "its", "their", "our", "my", "your"],
+                            ["a", "an", "the", "some", "any", "many", "much"], ["want", "wants"], ["go", "goes"],
+                            ["isn't", "aren't", "is", "are"], ["than", "then", "that"], ["favorite", "wild", "beautiful"]
                         ];
                         const currentUnit4Opts = nbs && nbs.length > 0 && !nbs.includes('All') ? nbs[0] : 'DEFAULT';
                         const unitTargetWords = (window.GRAMMAR_TARGETS && window.GRAMMAR_TARGETS[currentUnit4Opts]) || window.GRAMMAR_TARGETS['DEFAULT'] || [];
@@ -538,19 +547,12 @@
                             let fullCore = coreSent.replace('______', coreAns);
                             
                             let distractors = new Set();
-                            
-                            unitTargetWords.forEach(w => {
-                                if (w.toLowerCase() !== coreAns.toLowerCase()) distractors.add(w);
-                            });
+                            unitTargetWords.forEach(w => { if (w.toLowerCase() !== coreAns.toLowerCase()) distractors.add(w); });
                             
                             if (distractors.size < 3) {
                                 for (let group of GRAMMAR_GROUPS) {
                                     const hit = group.find(w => new RegExp('\\b' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(coreAns));
-                                    if (hit) {
-                                        group.filter(w => w.toLowerCase() !== coreAns.toLowerCase())
-                                             .forEach(w => distractors.add(w));
-                                        break;
-                                    }
+                                    if (hit) { group.filter(w => w.toLowerCase() !== coreAns.toLowerCase()).forEach(w => distractors.add(w)); break; }
                                 }
                             }
                             
@@ -653,12 +655,9 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                         let contextSentenceForCard = ctxSentence;
                                         if (ls.type === 'fill') {
                                             finalSentence = ctxSentence ? `${ctxSentence} ${ls.coreSentWithBlank}` : ls.coreSentWithBlank;
-                                            finalAnswer = ls.right; finalRawObj = ls.right; 
-                                            finalOptions = ls.options || [];
+                                            finalAnswer = ls.right; finalRawObj = ls.right; finalOptions = ls.options || [];
                                         } else if (ls.type === 'reorder') {
-                                            finalSentence = ctxSentence;
-                                            finalAnswer = ls.fullCore; 
-                                            finalRawObj = ls.fullCore; 
+                                            finalSentence = ctxSentence; finalAnswer = ls.fullCore; finalRawObj = ls.fullCore; 
                                             let words = ls.fullCore.trim().replace(/[.!?]+$/, '').split(/\s+/).filter(w => w.length > 0);
                                             finalOptions = window.shuffleArray(words);
                                         }
@@ -684,18 +683,14 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                                 const safePool = window.generateVocabOptions(ansStrForOptions, activeDB).filter(o => !objPronouns.includes(String(o).toLowerCase()));
                                                 let rIdx = 0;
                                                 safeOptions = safeOptions.map(opt => {
-                                                    if (opt.toLowerCase() !== ansStrForOptions.toLowerCase() && objPronouns.includes(opt.toLowerCase())) {
-                                                        return safePool[rIdx++] || "apple";
-                                                    }
+                                                    if (opt.toLowerCase() !== ansStrForOptions.toLowerCase() && objPronouns.includes(opt.toLowerCase())) { return safePool[rIdx++] || "apple"; }
                                                     return opt;
                                                 });
                                             }
                                         } else if (parsedQType === 'reorder') {
                                             let ansStr = typeof parsedAns === 'string' ? parsedAns : "";
                                             let words = ansStr.trim().replace(/[.!?]+$/, '').split(/\s+/).filter(w => w.length > 0);
-                                            if (words.length === 0 && typeof q.s === 'string') {
-                                                words = q.s.split('/').map(w => w.trim().replace(/[.!?]+$/, '')).filter(w => w.length > 0);
-                                            }
+                                            if (words.length === 0 && typeof q.s === 'string') { words = q.s.split('/').map(w => w.trim().replace(/[.!?]+$/, '')).filter(w => w.length > 0); }
                                             safeOptions = window.shuffleArray(words);
                                         }
 
@@ -763,8 +758,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                         const n = [...p]; 
                                         while(n.length < currentUIQs.length) {
                                             const qt = currentUIQs[n.length] ? currentUIQs[n.length].qType : undefined;
-                                            if (qt === 'reorder') n.push([]);
-                                            else n.push('');
+                                            if (qt === 'reorder') n.push([]); else n.push('');
                                         }
                                         return n; 
                                     });
@@ -784,7 +778,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                         let result = null; let lastError = null;
 
                         if (routingMode === 'sequential') {
-                            const genProvidersToTry = ['groq', 'google', 'openrouter', 'openai'].filter(p => !logicFailedEngines.has(p) && enginesEnabled[p]);
+                            const genProvidersToTry = ['groq', 'google', 'openrouter', 'openai', 'nvidia'].filter(p => !logicFailedEngines.has(p) && enginesEnabled[p]);
                             for (let i = 0; i < genProvidersToTry.length; i++) {
                                 const currentP = genProvidersToTry[i];
                                 try {
@@ -793,17 +787,17 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                     else if (currentP === 'google') result = await attemptCall('google', () => window.sharedAIClient.callGemini(targetGeminiModel, systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'batch'));
                                     else if (currentP === 'openrouter') result = await attemptCall('openrouter', () => window.sharedAIClient.callOpenRouter(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, openRouterModel, 'batch'));
                                     else if (currentP === 'openai') result = await attemptCall('openai', () => window.sharedAIClient.callOpenAI(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'gpt-4o-mini', 'batch'));
+                                    else if (currentP === 'nvidia') result = await attemptCall('nvidia', () => window.sharedAIClient.callNvidia(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, nvidiaModel, 'batch'));
                                     break; 
                                 } catch (err) { 
-                                    lastError = err; 
-                                    logicFailedEngines.add(currentP);
+                                    lastError = err; logicFailedEngines.add(currentP);
                                     if (batchController.signal.aborted) throw err; 
                                 }
                             }
                         } else {
                             const tryDynamicRoute = async () => {
                                 if (batchController.signal.aborted) throw new Error('任務取消');
-                                const available = ['groq', 'google', 'openrouter', 'openai'].filter(p => enginesEnabled[p] && window.sharedAIClient.getEngineStatus(p) !== 'red' && !logicFailedEngines.has(p));
+                                const available = ['groq', 'google', 'openrouter', 'openai', 'nvidia'].filter(p => enginesEnabled[p] && window.sharedAIClient.getEngineStatus(p) !== 'red' && !logicFailedEngines.has(p));
                                 if (available.length === 0) throw new Error("無可用引擎");
 
                                 const selectedP = available[0]; const status = window.sharedAIClient.getEngineStatus(selectedP);
@@ -815,6 +809,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                     if (selectedP === 'google') return await attemptCall('google', () => window.sharedAIClient.callGemini(targetGeminiModel, systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'batch'));
                                     if (selectedP === 'openrouter') return await attemptCall('openrouter', () => window.sharedAIClient.callOpenRouter(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, openRouterModel, 'batch'));
                                     if (selectedP === 'openai') return await attemptCall('openai', () => window.sharedAIClient.callOpenAI(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'gpt-4o-mini', 'batch'));
+                                    if (selectedP === 'nvidia') return await attemptCall('nvidia', () => window.sharedAIClient.callNvidia(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, nvidiaModel, 'batch'));
                                 } catch (err) { logicFailedEngines.add(selectedP); return await tryDynamicRoute(); }
                             };
                             try { result = await tryDynamicRoute(); } catch (err) { lastError = err; }
@@ -833,10 +828,8 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                     const n = [...p]; 
                     while(n.length < currentUIQs.length) { 
                         const qt = currentUIQs[n.length] ? currentUIQs[n.length].qType : undefined; 
-                        if (qt === 'reorder') n.push([]); 
-                        else n.push(''); 
-                    } 
-                    return n; 
+                        if (qt === 'reorder') n.push([]); else n.push(''); 
+                    } return n; 
                 }); 
                 setHints(p => { const n = [...p]; while(n.length < currentUIQs.length) n.push(false); return n; }); 
                 setQStatus(p => { const n = [...p]; while(n.length < currentUIQs.length) n.push(null); return n; }); 
@@ -917,9 +910,9 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                       setDynamicContent(prev => ({...prev, [key]: clean})); if (chunkModelName) setDynamicModels(prev => ({...prev, [key]: chunkModelName.split('/').pop().toUpperCase()}));
                   };
                   
-                  let providersToTry = ['groq', 'google', 'openrouter', 'openai'].filter(p => enginesEnabled[p]);
+                  let providersToTry = ['groq', 'google', 'openrouter', 'openai', 'nvidia'].filter(p => enginesEnabled[p]);
                   if (type === 'exp') { 
-                      const others = ['groq', 'google', 'openrouter', 'openai'].filter(p => p !== defaultTeacher);
+                      const others = ['groq', 'google', 'openrouter', 'openai', 'nvidia'].filter(p => p !== defaultTeacher);
                       providersToTry = [defaultTeacher, ...others].filter(p => enginesEnabled[p]); 
                   }
 
@@ -944,6 +937,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                           else if (currentP === 'google') await window.sharedAIClient.callGemini('gemini-2.5-flash', "You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, 'micro');
                           else if (currentP === 'openrouter') await window.sharedAIClient.callOpenRouter("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, openRouterModel, 'micro');
                           else if (currentP === 'openai') await window.sharedAIClient.callOpenAI("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, 'gpt-4o-mini', 'micro');
+                          else if (currentP === 'nvidia') await window.sharedAIClient.callNvidia("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, nvidiaModel, 'micro');
                           
                           clearTimeout(ttftTimer); success = true; break;
                       } catch (e) { lastErr = e.message; } 
@@ -1039,7 +1033,6 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
             }); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
           };
 
-          // 保留金幣兌換執行邏輯
           const handleRedeem = () => { 
             const am = parseInt(redeemAmount); if (isNaN(am) || am <= 0 || am % 100 !== 0 || am > storage.coins) { setRedeemMessage("金幣不足或數量錯誤喔！"); return; }
             const nc = storage.coins - am; setStorage(p => { const ns = {...p, coins: nc}; try { localStorage.setItem('sh_coins_v28', nc.toString()); } catch(e){} return ns; });
@@ -1150,6 +1143,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                         <button onClick={() => runSingleDiag('openrouter')} disabled={diagStatus === 'testing' || !enginesEnabled.openrouter} className="flex-1 px-3 py-2 rounded-xl font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 border-b-4 bg-[#f4ebd9] border-[#e0c9aa] text-[#a68258] text-xs hover:bg-[#ede0c8] disabled:opacity-30"><Zap size={14}/> OR</button>
                                         <button onClick={() => runSingleDiag('google')} disabled={diagStatus === 'testing' || !enginesEnabled.google} className="flex-1 px-3 py-2 rounded-xl font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 border-b-4 bg-[#e6e9e4] border-[#c4cec1] text-[#6b7566] text-xs hover:bg-[#d8ddd6] disabled:opacity-30"><Zap size={14}/> Gemini</button>
                                         <button onClick={() => runSingleDiag('openai')} disabled={diagStatus === 'testing' || !enginesEnabled.openai} className="flex-1 px-3 py-2 rounded-xl font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 border-b-4 bg-[#f2e7e6] border-[#dcb5b0] text-[#966b66] text-xs hover:bg-[#e8d5d3] disabled:opacity-30"><Zap size={14}/> OpenAI</button>
+                                        <button onClick={() => runSingleDiag('nvidia')} disabled={diagStatus === 'testing' || !enginesEnabled.nvidia} className="flex-1 px-3 py-2 rounded-xl font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 border-b-4 bg-[#e6ffe6] border-[#c1dec1] text-[#4a7c4a] text-xs hover:bg-[#d8eed8] disabled:opacity-30"><Zap size={14}/> NVIDIA</button>
                                     </div>
                                 </div>
                                 <div className={`flex-1 p-3 rounded-xl font-bold text-xs md:text-sm border-2 ${diagStatus === 'success' ? 'bg-[#9BAA97]/20 border-[#9BAA97] text-[#e6e9e4]' : diagStatus === 'error' ? 'bg-[#b5847e]/20 border-[#b5847e] text-[#f2e7e6]' : 'bg-white/10 border-white/20 text-[#e6e9e4]'}`}>{diagMsg || "點擊按鈕測試 API KEY。灰色的代表已在下方關閉。"}</div>
@@ -1168,7 +1162,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                         <span className="text-[#e6e9e4] font-bold text-sm">{routingMode === 'dynamic' ? '🚦 即時狀態：' : '🤖 備援順序：'}</span>
                                         {routingMode === 'dynamic' ? (
                                             <div className="flex flex-wrap gap-1">
-                                                {['groq', 'google', 'openrouter', 'openai'].map(provider => {
+                                                {['groq', 'google', 'openrouter', 'openai', 'nvidia'].map(provider => {
                                                     const light = engineLights[provider];
                                                     const colorClass = light === 'green' ? 'bg-[#8b9586] text-white border-[#c4cec1]' : light === 'yellow' ? 'bg-[#cca677] text-white border-[#e0c9aa] animate-pulse' : 'bg-[#b5847e] text-white border-[#dcb5b0]';
                                                     const icon = light === 'green' ? '🟢' : light === 'yellow' ? '🟡' : '🔴';
@@ -1178,7 +1172,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                             </div>
                                         ) : (
                                             <div className="flex bg-[#6b7566] px-3 py-1.5 rounded-lg shadow-inner items-center gap-1 text-xs font-bold text-[#e6e9e4] overflow-hidden whitespace-nowrap truncate">
-                                                <span><span className="text-white">Groq</span> ➡️ <span className="text-[#c4cec1]">Gem</span> ➡️ <span className="text-[#a4b1a1]">OR</span> ➡️ <span className="text-[#b5847e]">OAI</span></span>
+                                                <span><span className="text-white">Groq</span> ➡️ <span className="text-[#c4cec1]">Gem</span> ➡️ <span className="text-[#a4b1a1]">OR</span> ➡️ <span className="text-[#b5847e]">OAI</span> ➡️ <span className="text-[#a4d1a1]">NVIDIA</span></span>
                                             </div>
                                         )}
                                     </div>
@@ -1210,6 +1204,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                             <option value="groq">Groq</option>
                                             <option value="google">Gemini</option>
                                             <option value="openai">OpenAI</option>
+                                            <option value="nvidia">NVIDIA</option>
                                         </select>
                                     </div>
                                 </div>
@@ -1244,6 +1239,37 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                                             if (models && models.length > 0) { 
                                                                 setGroqModelsList(models); 
                                                                 addLog('✅ Groq 模型清單已更新'); 
+                                                            }
+                                                        });
+                                                    }
+                                                }}
+                                                className="bg-[#4a5346] hover:bg-[#5a6356] text-white px-3 py-2 rounded-lg border border-[#5a6356] text-sm font-bold transition-all shrink-0"
+                                                title="重新抓取可用模型清單"
+                                            >🔄</button>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col gap-2">
+                                        <span className="text-[#e6e9e4] font-bold text-sm">🧠 NVIDIA 模型：</span>
+                                        <div className="flex gap-2">
+                                            <select 
+                                                value={nvidiaModel} 
+                                                onChange={e => {
+                                                    setNvidiaModel(e.target.value);
+                                                    localStorage.setItem('sh_nvidia_model', e.target.value);
+                                                }} 
+                                                className="flex-1 min-w-0 bg-[#6b7566] border border-[#5a6356] rounded-lg px-2 py-2 text-xs md:text-sm outline-none text-white font-mono truncate"
+                                            >
+                                                {nvidiaModelsList.map(m => (
+                                                    <option key={m} value={m}>{m === 'meta/llama-3.1-70b-instruct' ? 'Llama 3.1 70B (推薦)' : m}</option>
+                                                ))}
+                                            </select>
+                                            <button 
+                                                onClick={() => {
+                                                    if (window.sharedAIClient && typeof window.sharedAIClient.checkAvailableNvidiaModels === 'function') {
+                                                        window.sharedAIClient.checkAvailableNvidiaModels().then(models => {
+                                                            if (models && models.length > 0) { 
+                                                                setNvidiaModelsList(models); 
+                                                                addLog('✅ NVIDIA 模型清單已更新'); 
                                                             }
                                                         });
                                                     }
@@ -1290,6 +1316,14 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                         <input type="password" value={inputOrKey} onChange={e => setInputOrKey(e.target.value)} disabled={!enginesEnabled.openrouter} className="w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white font-mono tracking-widest disabled:opacity-50"/>
                                     </div>
                                     <div className="flex flex-col gap-1">
+                                        <label className="text-[#c4cec1] font-bold text-xs flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.nvidia} onChange={() => toggleEngine('nvidia')} className="w-4 h-4 accent-[#cca677]"/> NVIDIA Key：</label>
+                                        <input type="password" value={inputNvidiaKey} onChange={e => setInputNvidiaKey(e.target.value)} disabled={!enginesEnabled.nvidia} className="w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white font-mono tracking-widest disabled:opacity-50"/>
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[#c4cec1] font-bold text-xs flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.openai} onChange={() => toggleEngine('openai')} className="w-4 h-4 accent-[#cca677]"/> OpenAI Key：</label>
+                                        <input type="password" value={openAITtsKey} onChange={e => setOpenAITtsKey(e.target.value)} disabled={!enginesEnabled.openai} className="w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white font-mono tracking-widest disabled:opacity-50"/>
+                                    </div>
+                                    <div className="flex flex-col gap-1 col-span-1 md:col-span-2">
                                         <label className="text-[#c4cec1] font-bold text-xs flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.google} onChange={() => toggleEngine('google')} className="w-4 h-4 accent-[#cca677]"/> Gemini Key：</label>
                                         <input type="password" value={inputKey} onChange={e => setInputKey(e.target.value)} disabled={!enginesEnabled.google} className="w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white font-mono tracking-widest disabled:opacity-50"/>
                                         <div className="mt-1 bg-[#2d2a26]/30 p-2 rounded border border-[#3d3935]">
@@ -1321,10 +1355,6 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                           <p className="text-[10px] text-[#a4b1a1] mt-1 italic">支援 Gemma 4 等最新模型</p>
                                         </div>
                                     </div>
-                                    <div className="flex flex-col gap-1">
-                                        <label className="text-[#c4cec1] font-bold text-xs flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.openai} onChange={() => toggleEngine('openai')} className="w-4 h-4 accent-[#cca677]"/> OpenAI Key：</label>
-                                        <input type="password" value={openAITtsKey} onChange={e => setOpenAITtsKey(e.target.value)} disabled={!enginesEnabled.openai} className="w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white font-mono tracking-widest disabled:opacity-50"/>
-                                    </div>
                                 </div>
 
                                 <div className="mt-4 pt-4 border-t border-[#7a8575] grid grid-cols-2 md:grid-cols-3 gap-2 w-full">
@@ -1339,7 +1369,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                     
                     <div className={`p-4 md:p-6 rounded-2xl border flex flex-col md:flex-row items-center gap-6 ${currentLevelInfo.bg} ${currentLevelInfo.border} shadow-sm`}><div className="text-6xl md:text-7xl mb-2 drop-shadow-sm">{currentLevelInfo.icon}</div><div className="flex-1 w-full"><div className="flex justify-between items-end mb-2"><span className={`font-black text-lg md:text-xl ${currentLevelInfo.color}`}>Lv.{currentLevelInfo.level} {currentLevelInfo.title}</span><span className="font-bold text-[#8a847c] text-sm">{storage.exp} {nextLevel ? `/ ${nextLevel.reqExp}` : ' (MAX)'}</span></div>{nextLevel ? <div className="w-full bg-black/5 rounded-full h-4 shadow-inner overflow-hidden border border-black/5"><div className="h-full bg-gradient-to-r from-[#d9cfbb] to-[#c9a785] transition-all duration-1000 shadow-sm" style={{ width: `${expPercent}%` }}></div></div> : <div className="w-full bg-[#cca677] rounded-full h-4 border border-[#b89063] shadow-inner"></div>}</div></div>
                     
-                    {/* 新增：金幣兌換中心 UI */}
+                    {/* 金幣兌換中心 UI */}
                     <div className="bg-[#f4f1ea] p-4 md:p-6 rounded-2xl border border-[#d6cfc5] shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
                             <div className="bg-[#cca677] p-3 rounded-full text-white shadow-inner"><Coins size={28}/></div>
@@ -1371,7 +1401,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-[#f4f1ea] p-4 rounded-2xl border border-[#d6cfc5] shadow-sm"><div className="flex items-center justify-between mb-4 text-[#524d46] font-black text-sm tracking-widest"><div className="flex items-center"><Activity size={18} className="text-[#8b9586] mr-2" /> AI 呼叫來源統計</div><div className="text-xs font-bold text-[#a6a198] text-right italic uppercase">Daily Reset</div></div><div className="grid grid-cols-4 gap-2"><div className="bg-white p-2 rounded-xl border border-[#e0c9aa] shadow-sm relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 left-0 w-1 h-full bg-[#cca677]"></div><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1 flex items-center gap-1 truncate pl-1">OR</div><div className="text-xl md:text-2xl font-black text-[#a68258] ml-2">{apiUsage.openRouter}</div></div><div className="bg-white p-2 rounded-xl border border-[#c4cec1] shadow-sm relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 left-0 w-1 h-full bg-[#8b9586]"></div><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1 flex items-center gap-1 truncate pl-1">Gemini</div><div className="text-xl md:text-2xl font-black text-[#6b7566] ml-2">{apiUsage.gemini}</div></div><div className="bg-white p-2 rounded-xl border border-[#abc8d9] shadow-sm relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 left-0 w-1 h-full bg-[#6b8b9c]"></div><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1 flex items-center gap-1 truncate pl-1">Groq</div><div className="text-xl md:text-2xl font-black text-[#6b8b9c] ml-2">{apiUsage.groq}</div></div><div className="bg-white p-2 rounded-xl border border-[#dcb5b0] shadow-sm relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 left-0 w-1 h-full bg-[#b5847e]"></div><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1 flex items-center gap-1 truncate pl-1">OpenAI</div><div className="text-xl md:text-2xl font-black text-[#b5847e] ml-2">{apiUsage.openai}</div></div></div></div>
+                        <div className="bg-[#f4f1ea] p-4 rounded-2xl border border-[#d6cfc5] shadow-sm"><div className="flex items-center justify-between mb-4 text-[#524d46] font-black text-sm tracking-widest"><div className="flex items-center"><Activity size={18} className="text-[#8b9586] mr-2" /> AI 呼叫來源統計</div><div className="text-xs font-bold text-[#a6a198] text-right italic uppercase">Daily Reset</div></div><div className="grid grid-cols-5 gap-2"><div className="bg-white p-2 rounded-xl border border-[#e0c9aa] shadow-sm relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 left-0 w-1 h-full bg-[#cca677]"></div><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1 flex items-center gap-1 truncate pl-1">OR</div><div className="text-xl font-black text-[#a68258] ml-2">{apiUsage.openRouter}</div></div><div className="bg-white p-2 rounded-xl border border-[#c4cec1] shadow-sm relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 left-0 w-1 h-full bg-[#8b9586]"></div><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1 flex items-center gap-1 truncate pl-1">Gem</div><div className="text-xl font-black text-[#6b7566] ml-2">{apiUsage.gemini}</div></div><div className="bg-white p-2 rounded-xl border border-[#abc8d9] shadow-sm relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 left-0 w-1 h-full bg-[#6b8b9c]"></div><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1 flex items-center gap-1 truncate pl-1">Groq</div><div className="text-xl font-black text-[#6b8b9c] ml-2">{apiUsage.groq}</div></div><div className="bg-white p-2 rounded-xl border border-[#dcb5b0] shadow-sm relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 left-0 w-1 h-full bg-[#b5847e]"></div><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1 flex items-center gap-1 truncate pl-1">OAI</div><div className="text-xl font-black text-[#b5847e] ml-2">{apiUsage.openai}</div></div><div className="bg-white p-2 rounded-xl border border-[#b2e8b2] shadow-sm relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 left-0 w-1 h-full bg-[#4a7c4a]"></div><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1 flex items-center gap-1 truncate pl-1">NV</div><div className="text-xl font-black text-[#4a7c4a] ml-2">{apiUsage.nvidia}</div></div></div></div>
                         <div className="bg-[#e6e9e4] p-4 rounded-2xl border border-[#c4cec1] shadow-sm flex flex-col justify-between"><div className="flex items-center justify-between mb-4 text-[#524d46] font-black text-sm tracking-widest"><div className="flex items-center"><Database size={18} className="text-[#8b9586] mr-2" /> 動態預載快取監控</div><button onClick={handleClearPoolCache} className="text-[10px] bg-[#b5847e] text-white px-2 py-1 rounded shadow-sm active:scale-95 flex items-center gap-1 hover:bg-[#a3756f] transition-colors"><RefreshCcw size={12}/> 清空快取</button></div><div className="grid grid-cols-3 gap-2 text-center h-full"><div className="bg-white p-2 rounded-xl border border-[#c4cec1] shadow-sm flex flex-col justify-center"><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1">總庫存</div><div className="text-lg md:text-xl font-black text-[#6b7566]">{poolStats.size} <span className="text-xs font-bold text-[#a6a198]">題</span></div></div><div className="bg-white p-2 rounded-xl border border-[#c4cec1] shadow-sm flex flex-col justify-center"><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1">本次快取攔截</div><div className="text-lg md:text-xl font-black text-[#8b9586]">{poolStats.cached} <span className="text-xs font-bold text-[#a6a198]">題</span></div></div><div className="bg-white p-2 rounded-xl border border-[#c4cec1] shadow-sm flex flex-col justify-center relative overflow-hidden">{poolStats.fetched > 0 && <div className="absolute inset-0 bg-[#cca677]/10 animate-pulse"></div>}<div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1 relative z-10">本次向AI請求</div><div className="text-lg md:text-xl font-black text-[#cca677] relative z-10">{poolStats.fetched} <span className="text-xs font-bold text-[#a6a198]">題</span></div></div></div></div>
                     </div>
                   </div>
@@ -1688,7 +1718,6 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                       )}
                       
                       <div className="mt-5 w-full bg-white/60 p-4 md:p-5 rounded-2xl border border-[#c4cec1] shadow-sm text-left">
-                          {/* 判斷是否顯示翻譯：排除「文法題且完全答對」的情況 */}
                           {(() => {
                               const showTranslation = !(mainMenu === 'grammar' && isFinallyCorrect);
                               return (
@@ -1712,7 +1741,6 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                           )}
                                       </div>
                                       
-                                      {/* 根據條件渲染中文翻譯 */}
                                       {showTranslation && (
                                           <div className="text-base font-bold text-[#8b9586] leading-relaxed">
                                               {String(q.translation || "目前尚無翻譯").split(/[_＿]{2,}/).map((part, idx, arr) => (
@@ -1752,7 +1780,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                           }}
                                       >
                                           <option value="" disabled>🔄 更換老師</option>
-                                          {['groq', 'google', 'openrouter'].filter(p => enginesEnabled[p] && window.sharedAIClient && window.sharedAIClient.getEngineStatus(p) !== 'red' && p !== dynamicProviders[`exp_${i}`]).map(p => (
+                                          {['groq', 'google', 'openrouter', 'openai', 'nvidia'].filter(p => enginesEnabled[p] && window.sharedAIClient && window.sharedAIClient.getEngineStatus(p) !== 'red' && p !== dynamicProviders[`exp_${i}`]).map(p => (
                                               <option key={p} value={p}>{p === 'google' ? 'GEMINI' : p.toUpperCase()}</option>
                                           ))}
                                       </select>
