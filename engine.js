@@ -1,1853 +1,469 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spelling Hero - 互動家教版 (多重文法題型 v25.4 極簡架構版)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+// engine.js - 核心邏輯與 API 引擎 (移除挑錯字版)
+
+window.LEVEL_DATA = [{level:1,reqExp:0,title:"新手學徒",icon:"🌱",color:"text-[#8b9586]",bg:"bg-[#e6e9e4]",border:"border-[#c4cec1]"},{level:2,reqExp:150,title:"拼字新手",icon:"🥉",color:"text-[#cca677]",bg:"bg-[#f4ebd9]",border:"border-[#e0c9aa]"},{level:3,reqExp:400,title:"熟練拼手",icon:"🥈",color:"text-[#8a847c]",bg:"bg-[#dedad4]",border:"border-[#b8b3aa]"},{level:4,reqExp:800,title:"單字達人",icon:"🥇",color:"text-[#c2b49a]",bg:"bg-[#f2efe6]",border:"border-[#d9cfbb]"},{level:5,reqExp:1500,title:"英語小將",icon:"🏅",color:"text-[#768e8b]",bg:"bg-[#e2eae8]",border:"border-[#b2cbc7]"},{level:6,reqExp:2500,title:"智慧神童",icon:"💡",color:"text-[#8b9586]",bg:"bg-[#e6e9e4]",border:"border-[#c4cec1]"},{level:7,reqExp:4000,title:"拼字菁英",icon:"💎",color:"text-[#6b8b9c]",bg:"bg-[#dfe8ef]",border:"border-[#abc8d9]"},{level:8,reqExp:6000,title:"詞彙大師",icon:"👑",color:"text-[#968b95]",bg:"bg-[#e9e6e8]",border:"border-[#cfc6ce]"},{level:9,reqExp:8500,title:"傳奇英雄",icon:"🐉",color:"text-[#b5847e]",bg:"bg-[#f2e7e6]",border:"border-[#dcb5b0]"},{level:10,reqExp:12000,title:"終極神人",icon:"🌌",color:"text-[#a67c52]",bg:"bg-[#f0e6d8]",border:"border-[#c9a785]"}];
+window.getCurrentLevelInfo = exp => { let c = window.LEVEL_DATA[0]; for(let i=0;i<window.LEVEL_DATA.length;i++) { if(exp>=window.LEVEL_DATA[i].reqExp) c=window.LEVEL_DATA[i]; else break; } return { current: c, nextLevel: window.LEVEL_DATA.find(l=>l.level===c.level+1)||null }; };
+
+window.GRAMMAR_NOTEBOOKS = window.GRAMMAR_NOTEBOOKS || {};
+window.RAW_NOTEBOOKS = window.RAW_NOTEBOOKS || {};
+
+window.getActiveGrammarDB = function(notebooks) {
+    let target = [];
+    const nbArray = Array.isArray(notebooks) ? notebooks : ['All'];
+    if (nbArray.includes('All')) { Object.keys(window.GRAMMAR_NOTEBOOKS).forEach(k => { if (Array.isArray(window.GRAMMAR_NOTEBOOKS[k])) { target = target.concat(window.GRAMMAR_NOTEBOOKS[k]); } }); } 
+    else { nbArray.forEach(nb => { if (window.GRAMMAR_NOTEBOOKS[nb] && Array.isArray(window.GRAMMAR_NOTEBOOKS[nb])) { target = target.concat(window.GRAMMAR_NOTEBOOKS[nb]); } }); }
+    return target;
+};
+
+window.DB_BY_NOTEBOOK = {}; window.ALL_WORDS = []; window.ALL_PHRASES = [];
+window.GLOBAL_DICT = new Map();
+
+Object.keys(window.RAW_NOTEBOOKS).forEach(notebook => {
+    window.DB_BY_NOTEBOOK[notebook] = { words: [], phrases: [] };
+    if(Array.isArray(window.RAW_NOTEBOOKS[notebook])) {
+        window.RAW_NOTEBOOKS[notebook].forEach(word => {
+            const cw = String(word).trim(); if (!cw) return; const key = cw.toLowerCase();
+            let qObj; 
+            if (window.GLOBAL_DICT.has(key)) { qObj = window.GLOBAL_DICT.get(key); } 
+            else { qObj = { id: "q_" + key + "_" + Math.random(), answer: cw, hint: (window.SH_DICTIONARY && window.SH_DICTIONARY[key]) || "" }; window.GLOBAL_DICT.set(key, qObj); if (cw.indexOf(' ') !== -1 || cw.indexOf('-') !== -1 || cw.indexOf('...') !== -1) { window.ALL_PHRASES.push(qObj); } else { window.ALL_WORDS.push(qObj); } }
+            const isPhrase = cw.indexOf(' ') !== -1 || cw.indexOf('-') !== -1 || cw.indexOf('...') !== -1; 
+            const targetArr = isPhrase ? window.DB_BY_NOTEBOOK[notebook].phrases : window.DB_BY_NOTEBOOK[notebook].words;
+            if (!targetArr.includes(qObj)) targetArr.push(qObj);
+        });
+    }
+});
+
+window.getActiveDB = function(notebooks, mode) {
+    let targetWords = []; let targetPhrases = [];
+    const nbArray = Array.isArray(notebooks) ? notebooks : ['All'];
+    if (nbArray.includes('All')) { targetWords = window.ALL_WORDS; targetPhrases = window.ALL_PHRASES; } 
+    else { nbArray.forEach(nb => { if (window.DB_BY_NOTEBOOK[nb]) { if (Array.isArray(window.DB_BY_NOTEBOOK[nb].words)) targetWords = targetWords.concat(window.DB_BY_NOTEBOOK[nb].words); if (Array.isArray(window.DB_BY_NOTEBOOK[nb].phrases)) targetPhrases = targetPhrases.concat(window.DB_BY_NOTEBOOK[nb].phrases); } }); targetWords = Array.from(new Set(targetWords)); targetPhrases = Array.from(new Set(targetPhrases)); }
+    if (mode === 'word') return targetWords; if (mode === 'phrase') return targetPhrases; return [...targetWords, ...targetPhrases];
+};
+
+window.SOUND_ENGINE = {
+  ctx: null, init: function() { if (!this.ctx) { const AudioContext = window.AudioContext || window.webkitAudioContext; if (AudioContext) this.ctx = new AudioContext(); } if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); return this.ctx; },
+  playCorrect: function() { try { const ctx = this.init(); if (!ctx) return; const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine'; const now = ctx.currentTime; osc.frequency.setValueAtTime(523.25, now); osc.frequency.setValueAtTime(659.25, now + 0.1); osc.frequency.setValueAtTime(783.99, now + 0.2); osc.frequency.setValueAtTime(1046.50, now + 0.3); gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(0.3, now + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5); osc.start(now); osc.stop(now + 0.5); } catch (e) {} },
+  playWrong: function() { try { const ctx = this.init(); if (!ctx) return; const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sawtooth'; const now = ctx.currentTime; osc.frequency.setValueAtTime(150, now); osc.frequency.exponentialRampToValueAtTime(80, now + 0.3); gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(0.3, now + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3); osc.start(now); osc.stop(now + 0.3); } catch (e) {} },
+  playVictory: function() { try { const ctx = this.init(); if (!ctx) return; const notes = [523.25, 659.25, 783.99, 1046.50, 783.99, 1046.50]; const times = [0, 0.15, 0.3, 0.45, 0.6, 0.75]; notes.forEach(function(freq, i) { const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.type = 'square'; const t = ctx.currentTime + times[i]; osc.frequency.setValueAtTime(freq, t); gain.gain.setValueAtTime(0, t); gain.gain.linearRampToValueAtTime(0.15, t + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2); osc.start(t); osc.stop(t + 0.2); }); } catch (e) {} },
+  playCoin: function() { try { const ctx = this.init(); if (!ctx) return; const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine'; const now = ctx.currentTime; osc.frequency.setValueAtTime(1200, now); osc.frequency.exponentialRampToValueAtTime(2000, now + 0.1); gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(0.3, now + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2); osc.start(now); osc.stop(now + 0.2); } catch (e) {} },
+  playLevelUp: function() { try { const ctx = this.init(); if (!ctx) return; const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98]; notes.forEach(function(freq, i) { const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.type = 'sine'; const t = ctx.currentTime + i * 0.12; osc.frequency.setValueAtTime(freq, t); gain.gain.setValueAtTime(0, t); gain.gain.linearRampToValueAtTime(0.4, t + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.4); osc.start(t); osc.stop(t + 0.4); }); } catch (e) {} },
+  playCombo: function() { try { const ctx = this.init(); if (!ctx) return; const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.type = 'triangle'; const now = ctx.currentTime; osc.frequency.setValueAtTime(800, now); osc.frequency.linearRampToValueAtTime(1200, now + 0.1); gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(0.2, now + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3); osc.start(now); osc.stop(now + 0.3); } catch (e) {} }
+};
+
+window.SYSTEM_ENGINE = {
+  isCorrect: (ui, ca, qType, sentence = "") => {
+      if (!qType || qType === 'fill') {
+          return String(ui||'').trim().toLowerCase().replace(/\s+/g, ' ') === String(ca||'').trim().toLowerCase().replace(/\s+/g, ' ') ? 1 : 0;
+      }
+      if (qType === 'reorder') {
+          if (!Array.isArray(ui)) return 0;
+          const cleanStr = s => String(s || "").replace(/\s+/g, ' ').replace(/[.!?]+$/, '').trim().toLowerCase();
+          return cleanStr(ui.join(' ')) === cleanStr(ca) ? 1 : 0;
+      }
+      return 0;
+  },
+  capitalize: s => { const str = String(s||""); const fc = str.search(/[a-zA-Z]/); return fc === -1 ? str : str.substring(0, fc) + str.charAt(fc).toUpperCase() + str.substring(fc + 1); },
+  
+  createHintMask: w => String(w||"").split(' ').map(wd => { let f=false, r=""; for(let i=0;i<wd.length;i++){ if(/[a-zA-Z]/.test(wd[i])){ if(!f){ r+=wd[i]; f=true; }else{ r+='_'; } }else{ r+=wd[i]; } } return r; }).join(' '),
+  
+  extractJSONObjects: function(text) {
+      let cleaned = String(text||"").replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+      let objects = []; let braceCount = 0; let inString = false; let escape = false; let startIdx = -1;
+      for (let i = 0; i < cleaned.length; i++) {
+          let char = cleaned[i]; if (escape) { escape = false; continue; } if (char === '\\') { escape = true; continue; } if (char === '"') { inString = !inString; continue; }
+          if (!inString) { if (char === '{') { if (braceCount === 0) startIdx = i; braceCount++; } else if (char === '}') { braceCount--; if (braceCount === 0 && startIdx !== -1) { try { objects.push(JSON.parse(cleaned.substring(startIdx, i + 1))); } catch(e) {} startIdx = -1; } } }
+      } return objects;
+  }
+};
+
+window.shuffleArray = arr => { const n = [...arr]; for (let i = n.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); let t = n[i]; n[i] = n[j]; n[j] = t; } return n; };
+window.generateVocabOptions = (ca, fDB) => { const s = String(ca||""); const opts = new Set([s]); const safeDB = Array.isArray(fDB) ? fDB : []; const pool = safeDB.filter(i => String(i.answer||"").toLowerCase() !== s.toLowerCase()); const sp = window.shuffleArray([...pool]); for (let i = 0; i < sp.length; i++) { if (opts.size >= 4) break; opts.add(String(sp[i].answer||"")); } return window.shuffleArray(Array.from(opts)); };
+window.escapeRegExp = str => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+window.Obfuscator = {
+    prefix: "SH_ENC:", salt: "SpellingHero2026",
+    encode: function(str) { if (!str) return ""; if (str.startsWith(this.prefix)) return str; let xorStr = ""; for (let i = 0; i < str.length; i++) { xorStr += String.fromCharCode(str.charCodeAt(i) ^ this.salt.charCodeAt(i % this.salt.length)); } return this.prefix + btoa(xorStr); },
+    decode: function(str) { if (!str) return ""; if (!str.startsWith(this.prefix)) return str; try { let b64 = str.substring(this.prefix.length); let xorStr = atob(b64); let result = ""; for (let i = 0; i < xorStr.length; i++) { result += String.fromCharCode(xorStr.charCodeAt(i) ^ this.salt.charCodeAt(i % this.salt.length)); } return result; } catch(e) { return str; } }
+};
+
+window.getGeminiKey = () => window.Obfuscator.decode(localStorage.getItem('gemini_api_key')) || "";
+window.getOpenRouterKey = () => window.Obfuscator.decode(localStorage.getItem('openrouter_api_key')) || "";
+window.getGroqKey = () => window.Obfuscator.decode(localStorage.getItem('groq_api_key')) || "";
+window.getOpenAITtsKey = () => window.Obfuscator.decode(localStorage.getItem('sh_openai_tts_key')) || "";
+window.getNvidiaKey = () => window.Obfuscator.decode(localStorage.getItem('nvidia_api_key')) || "";
+
+class Mutex {
+    constructor() { this.queue = Promise.resolve(); }
+    async lock(delayMs = 4500) { let unlockNext; const willLock = new Promise(resolve => unlockNext = resolve); const willUnlock = this.queue.then(() => new Promise(res => setTimeout(res, delayMs))); this.queue = this.queue.then(() => willLock); await willUnlock; return unlockNext; }
+    lockMicro() { let unlockNext = () => {}; return unlockNext; }
+}
+
+window.GEMINI_DEFAULT_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemma-3-27b-it",
+    "gemma-3-12b-it",
+    "gemma-3-4b-it",
+    "gemma-3n-e4b-it"
+];
+
+class PersistentAIClient {
+    constructor() { 
+        this.geminiKey = window.getGeminiKey(); this.openRouterKey = window.getOpenRouterKey(); this.groqKey = window.getGroqKey(); this.openAITtsKey = window.getOpenAITtsKey(); this.nvidiaKey = window.getNvidiaKey();
+        this.lastCallTime = { groq: 0, google: 0, openrouter: 0, openai: 0, nvidia: 0 }; 
+        this.cooldowns = { groq: 3000, google: 4000, openrouter: 2000, openai: 2000, nvidia: 2000 }; 
+        this.mutex = new Mutex();
+        this.circuitBreakers = { groq: { failures: 0, lockUntil: 0 }, google: { failures: 0, lockUntil: 0 }, openrouter: { failures: 0, lockUntil: 0 }, openai: { failures: 0, lockUntil: 0 }, nvidia: { failures: 0, lockUntil: 0 } };
+    }
+    checkCircuitBreaker(engine) { if (Date.now() < this.circuitBreakers[engine].lockUntil) { const remain = Math.ceil((this.circuitBreakers[engine].lockUntil - Date.now()) / 1000); throw new Error(`[Circuit Breaker] ${engine.toUpperCase()} 引擎處於冷卻中 (剩餘 ${remain}s)`); } }
+    recordFailure(engine, retryAfterMs = 0) { const cb = this.circuitBreakers[engine]; cb.failures += 1; if (retryAfterMs > 0) { cb.lockUntil = Date.now() + retryAfterMs; cb.failures = 0; return; } if (cb.failures >= 3) { cb.lockUntil = Date.now() + (5 * 60 * 1000); cb.failures = 0; } }
+    recordSuccess(engine) { this.circuitBreakers[engine].failures = 0; }
+    getEngineStatus(provider) { const now = Date.now(); if (now < this.circuitBreakers[provider].lockUntil) return 'red'; if (now - this.lastCallTime[provider] < this.cooldowns[provider]) return 'yellow'; return 'green'; }
+    updateKeys(gKey, oKey, grKey, oaKey, nvKey) { if (gKey) this.geminiKey = gKey; if (oKey) this.openRouterKey = oKey; if (grKey) this.groqKey = grKey; if (oaKey) this.openAITtsKey = oaKey; if (nvKey) this.nvidiaKey = nvKey; }
+
+    async checkAvailableGeminiModels() {
+        if (!this.geminiKey) return window.GEMINI_DEFAULT_MODELS;
+        try {
+            const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?key=" + this.geminiKey);
+            if (!res.ok) return window.GEMINI_DEFAULT_MODELS;
+            const data = await res.json();
+            const allModels = (data.models || [])
+                .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
+                .map(m => m.name.replace('models/', ''));
+            const merged = Array.from(new Set([...allModels, ...window.GEMINI_DEFAULT_MODELS]));
+            merged.sort((a, b) => {
+                const rank = s => {
+                    if (s.startsWith('gemini-2.5')) return 0;
+                    if (s.startsWith('gemini-2.0')) return 1;
+                    if (s.startsWith('gemini-1.')) return 2;
+                    if (s.startsWith('gemma')) return 3;
+                    return 4;
+                };
+                return rank(a) - rank(b) || a.localeCompare(b);
+            });
+            return merged;
+        } catch(e) {
+            return window.GEMINI_DEFAULT_MODELS;
+        }
+    }
+
+    async checkAvailableGroqModels() {
+        if (!this.groqKey) return null;
+        try {
+            const res = await fetch('https://api.groq.com/openai/v1/models', {
+                headers: { 'Authorization': `Bearer ${this.groqKey}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                return data.data.map(m => m.id).filter(id => !id.includes('whisper') && !id.includes('vision')).sort();
+            }
+        } catch(e) {}
+        return null;
+    }
+
+    async checkAvailableNvidiaModels() {
+        if (!this.nvidiaKey) return ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/llama-3.1-nemotron-70b-instruct"];
+        try {
+            const res = await fetch('https://integrate.api.nvidia.com/v1/models', {
+                headers: { 'Authorization': `Bearer ${this.nvidiaKey}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                return data.data.map(m => m.id).filter(id => !id.includes('vision') && !id.includes('embedding') && !id.includes('tts')).sort();
+            }
+        } catch(e) {}
+        return ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/llama-3.1-nemotron-70b-instruct"];
+    }
+
+    async checkAvailableModels(signal) { 
+        const today = new Date().toLocaleDateString(); const cachedModel = localStorage.getItem('sh_gemini_model_cache'); const cacheDate = localStorage.getItem('sh_gemini_model_cache_date');
+        if (cachedModel && cacheDate === today) return { gemini: cachedModel };
+        let bg = "gemini-2.0-flash"; 
+        try { 
+            const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?key=" + this.geminiKey, signal ? {signal} : {}); 
+            if (res.ok) { 
+                const data = await res.json(); 
+                const vm = (data.models || []).filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent')).map(m => m.name.replace('models/', '')); 
+                if (vm.indexOf('gemini-2.5-flash') !== -1) bg = 'gemini-2.5-flash'; else if (vm.indexOf('gemini-2.0-flash') !== -1) bg = 'gemini-2.0-flash'; else if (vm.indexOf('gemini-1.5-flash') !== -1) bg = 'gemini-1.5-flash'; 
+                localStorage.setItem('sh_gemini_model_cache', bg); localStorage.setItem('sh_gemini_model_cache_date', today);
+            } 
+        } catch (e) {} return { gemini: bg }; 
+    }
+
+    async callGemini(modelName, systemPrompt, userQuery, signal, onChunk, onLog, taskType = "batch", retryCount = 0) {
+        this.checkCircuitBreaker('google'); let unlock = () => {};
+        const isMicro = taskType === 'micro';
+        try {
+            unlock = isMicro ? this.mutex.lockMicro() : await this.mutex.lock(4500);
+            const localController = new AbortController(); const onAbort = () => localController.abort(new Error("AbortError")); if (signal) signal.addEventListener('abort', onAbort);
+            let firstChunk = false; const baseTTFT = 12000; const ttftLimit = isMicro ? 6000 : baseTTFT;
+            const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
+            const resolvedModel = isMicro ? (localStorage.getItem('sh_gemini_model_selected') || localStorage.getItem('sh_gemini_model_cache') || 'gemini-2.0-flash') : modelName;
+            const url = "https://generativelanguage.googleapis.com/v1beta/models/" + resolvedModel + ":streamGenerateContent?alt=sse&key=" + this.geminiKey;
+            const payload = { contents: [{ role: "user", parts: [{ text: userQuery }] }], systemInstruction: { role: "system", parts: [{ text: systemPrompt }] }, generationConfig: { responseMimeType: "text/plain", temperature: 0.1, maxOutputTokens: 1500 } };
+            const startTime = Date.now(); onLog && onLog(`📡 [Gemini] 發送請求 (${resolvedModel})...`);
+            const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
+            if (!res.ok) {
+                clearTimeout(ttftTimeout); let errBody = ""; try { errBody = await res.text(); } catch(e){} const errMsg = `HTTP ${res.status} ${errBody.substring(0, 100).replace(/\n/g, ' ')}`;
+                onLog && onLog(`📥 [Gemini] 異常: ${errMsg}`);
+                if (res.status === 429 || res.status >= 500) {
+                    const retryAfter = res.headers.get('Retry-After'); let delayMs = retryAfter ? (isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000)) : 30000;
+                    this.recordFailure('google', Math.max(delayMs, 30000)); 
+                    throw new Error('FATAL_ROUTING: ' + errMsg);
+                } else if (res.status === 400 || res.status === 401 || res.status === 403 || res.status === 404) { 
+                    this.recordFailure('google', 60000); throw new Error('FATAL: ' + errMsg); 
+                }
+                this.recordFailure('google'); throw new Error(errMsg);
+            }
+            this.recordSuccess('google');
+            const reader = res.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = "";
+            while (true) {
+                const { done, value } = await reader.read(); if (done) break;
+                if (!firstChunk) { firstChunk = true; clearTimeout(ttftTimeout); onLog && onLog(`⚡ [Gemini] 收到首批串流封包！`); }
+                buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop(); 
+                for (let i=0; i<lines.length; i++) { 
+                    let line = lines[i].trim(); 
+                    if (line.startsWith('data: ')) { try { const data = JSON.parse(line.slice(6)); if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) { fullText += data.candidates[0].content.parts[0].text; if(onChunk) onChunk(fullText, resolvedModel); } } catch(e) {} } 
+                }
+            } 
+            if (signal) signal.removeEventListener('abort', onAbort); unlock(); return { rawText: fullText, modelName: resolvedModel.toUpperCase(), provider: "google" };
+        } catch (e) {
+            unlock(); if (retryCount < 3 && !e.message.includes('Circuit Breaker') && !e.message.includes('FATAL') && e.name !== 'AbortError') { const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000); onLog && onLog(`[重試] Gemini 等待 ${Math.round(backoffMs/1000)}s...`); await new Promise(r => setTimeout(r, backoffMs)); return this.callGemini(modelName, systemPrompt, userQuery, signal, onChunk, onLog, taskType, retryCount + 1); } throw e;
+        }
+    }
+
+    async callOpenRouter(systemPrompt, userQuery, signal, onChunk, onLog, specificModel = "openrouter/auto", taskType = "batch", retryCount = 0) {
+        this.checkCircuitBreaker('openrouter'); let unlock = () => {};
+        const isMicro = taskType === 'micro';
+        try {
+            unlock = isMicro ? this.mutex.lockMicro() : await this.mutex.lock(4500);
+            const localController = new AbortController(); const onAbort = () => localController.abort(new Error("AbortError")); if (signal) signal.addEventListener('abort', onAbort);
+            let firstChunk = false; const baseTTFT = 15000; const ttftLimit = isMicro ? 7000 : baseTTFT;
+            const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
+            const url = 'https://openrouter.ai/api/v1/chat/completions';
+            const combinedContent = "System Instructions:\n" + systemPrompt + "\n\nUser Request:\n" + userQuery;
+            const payload = { model: specificModel, messages: [ { role: "user", content: combinedContent } ], stream: true, temperature: 0.1, max_tokens: 1500 };
+            const startTime = Date.now(); onLog && onLog(`📡 [OR] 發送請求 (${specificModel})...`);
+            const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + this.openRouterKey, 'Content-Type': 'application/json', 'HTTP-Referer': window.location.href, 'X-Title': 'Spelling Hero' }, body: JSON.stringify(payload), signal: localController.signal });
+            if (!res.ok) {
+                clearTimeout(ttftTimeout); let errBody = ""; try { errBody = await res.text(); } catch(e){} const errMsg = `HTTP ${res.status} ${errBody.substring(0, 100).replace(/\n/g, ' ')}`;
+                onLog && onLog(`📥 [OR] 異常: ${errMsg}`);
+                if (res.status === 429 || res.status >= 500) {
+                    const retryAfter = res.headers.get('Retry-After'); let delayMs = retryAfter ? (isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000)) : 30000;
+                    this.recordFailure('openrouter', Math.max(delayMs, 30000)); 
+                    throw new Error('FATAL_ROUTING: ' + errMsg);
+                } else if (res.status === 400 || res.status === 401 || res.status === 402 || res.status === 403) { 
+                    this.recordFailure('openrouter', 60000); throw new Error('FATAL: ' + errMsg); 
+                }
+                this.recordFailure('openrouter'); throw new Error(errMsg);
+            }
+            this.recordSuccess('openrouter');
+            const reader = res.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = ""; let actualModel = specificModel;
+            while (true) {
+                const { done, value } = await reader.read(); if (done) break;
+                if (!firstChunk) { firstChunk = true; clearTimeout(ttftTimeout); onLog && onLog(`⚡ [OR] 收到首批串流封包！`); }
+                buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop();
+                for (let i=0; i<lines.length; i++) {
+                    let line = lines[i].trim();
+                    if (line.startsWith('data: ') && line !== 'data: [DONE]') { 
+                        try { const data = JSON.parse(line.slice(6)); if (data.model) actualModel = data.model; let content = ""; if (data.choices && data.choices[0]) { if (data.choices[0].delta && data.choices[0].delta.content !== undefined) content = data.choices[0].delta.content; else if (data.choices[0].message && data.choices[0].message.content !== undefined) content = data.choices[0].message.content; } if (content) { fullText += content; if(onChunk) onChunk(fullText, actualModel); } } catch(e) {} 
+                    }
+                }
+            } 
+            if (signal) signal.removeEventListener('abort', onAbort); unlock(); return { rawText: fullText, modelName: actualModel.toUpperCase(), provider: "openrouter" };
+        } catch (e) {
+            unlock(); if (retryCount < 3 && !e.message.includes('Circuit Breaker') && !e.message.includes('FATAL') && e.name !== 'AbortError') { const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000); onLog && onLog(`[重試] OR 等待 ${Math.round(backoffMs/1000)}s...`); await new Promise(r => setTimeout(r, backoffMs)); return this.callOpenRouter(systemPrompt, userQuery, signal, onChunk, onLog, specificModel, taskType, retryCount + 1); } throw e;
+        }
+    }
+
+    async callGroq(systemPrompt, userQuery, signal, onChunk, onLog, specificModel = "llama-3.3-70b-versatile", taskType = "batch", retryCount = 0) {
+        this.checkCircuitBreaker('groq'); let unlock = () => {};
+        const isMicro = taskType === 'micro';
+        try {
+            unlock = isMicro ? this.mutex.lockMicro() : await this.mutex.lock(4500);
+            const localController = new AbortController(); const onAbort = () => localController.abort(new Error("AbortError")); if (signal) signal.addEventListener('abort', onAbort);
+            let firstChunk = false; const baseTTFT = 8000; const ttftLimit = isMicro ? 4000 : baseTTFT;
+            const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
+            const url = 'https://api.groq.com/openai/v1/chat/completions';
+            const payload = { model: specificModel, messages: [ { role: "system", content: systemPrompt }, { role: "user", content: userQuery } ], stream: true, temperature: 0.1, max_tokens: 1500 };
+            const startTime = Date.now(); onLog && onLog(`📡 [Groq] 發送請求 (${specificModel})...`);
+            const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + this.groqKey, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
+            if (!res.ok) {
+                clearTimeout(ttftTimeout); let errBody = ""; try { errBody = await res.text(); } catch(e){} const errMsg = `HTTP ${res.status} ${errBody.substring(0, 100).replace(/\n/g, ' ')}`;
+                onLog && onLog(`📥 [Groq] 異常: ${errMsg}`);
+                if (res.status === 429 || res.status >= 500) {
+                    const retryAfter = res.headers.get('Retry-After') || res.headers.get('x-ratelimit-reset'); let delayMs = retryAfter ? (isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000)) : 30000;
+                    this.recordFailure('groq', Math.max(delayMs, 30000)); 
+                    throw new Error('FATAL_ROUTING: ' + errMsg);
+                } else if (res.status === 400 || res.status === 401 || res.status === 403) { 
+                    this.recordFailure('groq', 60000); throw new Error('FATAL: ' + errMsg); 
+                }
+                this.recordFailure('groq'); throw new Error(errMsg);
+            }
+            this.recordSuccess('groq');
+            const reader = res.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = ""; let actualModel = specificModel;
+            while (true) {
+                const { done, value } = await reader.read(); if (done) break;
+                if (!firstChunk) { firstChunk = true; clearTimeout(ttftTimeout); onLog && onLog(`⚡ [Groq] 收到首批串流封包！`); }
+                buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop();
+                for (let i=0; i<lines.length; i++) {
+                    let line = lines[i].trim();
+                    if (line.startsWith('data: ') && line !== 'data: [DONE]') { 
+                        try { const data = JSON.parse(line.slice(6)); if (data.model) actualModel = data.model; let content = ""; if (data.choices && data.choices[0]) { if (data.choices[0].delta && data.choices[0].delta.content !== undefined) content = data.choices[0].delta.content; else if (data.choices[0].message && data.choices[0].message.content !== undefined) content = data.choices[0].message.content; } if (content) { fullText += content; if(onChunk) onChunk(fullText, actualModel); } } catch(e) {} 
+                    }
+                }
+            } 
+            if (signal) signal.removeEventListener('abort', onAbort); unlock(); return { rawText: fullText, modelName: actualModel.toUpperCase(), provider: "groq" };
+        } catch (e) {
+            unlock(); if (retryCount < 3 && !e.message.includes('Circuit Breaker') && !e.message.includes('FATAL') && e.name !== 'AbortError') { const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000); onLog && onLog(`[重試] Groq 等待 ${Math.round(backoffMs/1000)}s...`); await new Promise(r => setTimeout(r, backoffMs)); return this.callGroq(systemPrompt, userQuery, signal, onChunk, onLog, specificModel, taskType, retryCount + 1); } throw e;
+        }
+    }
     
-    <script src="database.js?v=12"></script>
-    <script src="engine.js?v=10"></script>
-
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: manipulation; }
-        .combo-text { text-shadow: 2px 2px 4px rgba(0,0,0,0.2); }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #ebe6df; }
-        ::-webkit-scrollbar-thumb { background: #c5bbae; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #a69a8a; }
-        .terminal-scroll::-webkit-scrollbar { width: 4px; }
-        .terminal-scroll::-webkit-scrollbar-track { background: #3d3935; }
-        .terminal-scroll::-webkit-scrollbar-thumb { background: #6b655f; border-radius: 2px; }
-    </style>
-</head>
-<body class="bg-[#ebe6df] text-[#524d46] overflow-x-hidden relative text-left min-h-screen pb-[40vh]">
-    <div id="root"></div>
-    <script type="text/babel">
-        const { useState, useEffect, Component, useRef } = React;
-
-        const IconMock = emoji => props => <span className={props.className||""} style={{fontSize: props.size||20, display:'inline-flex', alignItems:'center', justifyContent:'center', lineHeight: 1}}>{emoji}</span>;
-        const CheckCircle=IconMock('✅'), XCircle=IconMock('❌'), RefreshCcw=IconMock('🔄'), Star=IconMock('⭐'), Trophy=IconMock('🏆'), Lightbulb=IconMock('💡'), Sparkles=IconMock('✨'), Shuffle=IconMock('🔀'), BookOpen=IconMock('📖'), AlertOctagon=IconMock('⚠️'), GraduationCap=IconMock('🎓'), Loader2=IconMock('⏳'), Volume2=IconMock('🔊'), Megaphone=IconMock('📢'), Settings=IconMock('⚙️'), Zap=IconMock('⚡'), BrainCircuit=IconMock('🧠'), Target=IconMock('🎯'), ChevronDown=IconMock('🔽'), ChevronUp=IconMock('🔼'), Send=IconMock('🚀'), Coins=IconMock('🪙'), Activity=IconMock('📈'), TrendingUp=IconMock('📈'), Flame=IconMock('🔥'), ShieldCheck=IconMock('🛡️'), Edit3=IconMock('📝'), MousePointerClick=IconMock('🖱️'), Database=IconMock('🗄️'), ScrollText=IconMock('📜'), Layout=IconMock('🗂️');
-
-        class ErrorBoundary extends Component {
-          constructor(props) { super(props); this.state = { hasError: false, errorInfo: "" }; }
-          static getDerivedStateFromError(error) { return { hasError: true }; }
-          componentDidCatch(error, info) { this.setState({ errorInfo: error.toString() }); }
-          render() { 
-            if (this.state.hasError) {
-              return (
-                <div className="p-6 bg-[#b5847e]/20 text-[#524d46] min-h-screen font-mono text-center flex flex-col items-center justify-center">
-                  <h1 className="text-2xl font-black mb-4">⚠️ 系統錯誤</h1>
-                  <p className="bg-[#f4f1ea] border border-[#dcb5b0] p-4 rounded-xl mb-6 text-xs max-w-lg overflow-auto shadow-sm text-left">{this.state.errorInfo}</p>
-                  <button onClick={() => window.location.reload()} className="bg-[#b5847e] text-white hover:bg-[#a3756f] px-6 py-2 rounded-full font-bold shadow transition-all">重新載入</button>
-                </div>
-              );
-            } return this.props.children;
-          }
+    async callOpenAI(systemPrompt, userQuery, signal, onChunk, onLog, specificModel = "gpt-4o-mini", taskType = "batch", retryCount = 0) {
+        this.checkCircuitBreaker('openai'); let unlock = () => {};
+        const isMicro = taskType === 'micro';
+        try {
+            unlock = isMicro ? this.mutex.lockMicro() : await this.mutex.lock(4500);
+            const localController = new AbortController(); const onAbort = () => localController.abort(new Error("AbortError")); if (signal) signal.addEventListener('abort', onAbort);
+            let firstChunk = false; const baseTTFT = 15000; const ttftLimit = isMicro ? 7000 : baseTTFT;
+            const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
+            const url = 'https://api.openai.com/v1/chat/completions';
+            const payload = { model: specificModel, messages: [ { role: "system", content: systemPrompt }, { role: "user", content: userQuery } ], stream: true, temperature: 0.1, max_tokens: 1500 };
+            const startTime = Date.now(); onLog && onLog(`📡 [OpenAI] 發送請求 (${specificModel})...`);
+            const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${this.openAITtsKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
+            if (!res.ok) {
+                clearTimeout(ttftTimeout); let errBody = ""; try { errBody = await res.text(); } catch(e){} const errMsg = `HTTP ${res.status} ${errBody.substring(0, 100).replace(/\n/g, ' ')}`;
+                onLog && onLog(`📥 [OpenAI] 異常: ${errMsg}`);
+                if (res.status === 429 || res.status >= 500) {
+                    const retryAfter = res.headers.get('Retry-After'); let delayMs = retryAfter ? (isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000)) : 30000;
+                    this.recordFailure('openai', Math.max(delayMs, 30000)); 
+                    throw new Error('FATAL_ROUTING: ' + errMsg);
+                } else if (res.status === 400 || res.status === 401 || res.status === 403) { 
+                    this.recordFailure('openai', 60000); throw new Error('FATAL: ' + errMsg); 
+                }
+                this.recordFailure('openai'); throw new Error(errMsg);
+            }
+            this.recordSuccess('openai');
+            const reader = res.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = ""; let actualModel = specificModel;
+            while (true) {
+                const { done, value } = await reader.read(); if (done) break;
+                if (!firstChunk) { firstChunk = true; clearTimeout(ttftTimeout); onLog && onLog(`⚡ [OpenAI] 收到首批串流封包！`); }
+                buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop();
+                for (let i=0; i<lines.length; i++) {
+                    let line = lines[i].trim();
+                    if (line.startsWith('data: ') && line !== 'data: [DONE]') { 
+                        try { const data = JSON.parse(line.slice(6)); if (data.model) actualModel = data.model; let content = ""; if (data.choices && data.choices[0]) { if (data.choices[0].delta && data.choices[0].delta.content !== undefined) content = data.choices[0].delta.content; else if (data.choices[0].message && data.choices[0].message.content !== undefined) content = data.choices[0].message.content; } if (content) { fullText += content; if(onChunk) onChunk(fullText, actualModel); } } catch(e) {} 
+                    }
+                }
+            } 
+            if (signal) signal.removeEventListener('abort', onAbort); unlock(); return { rawText: fullText, modelName: actualModel.toUpperCase(), provider: "openai" };
+        } catch (e) {
+            unlock(); if (retryCount < 3 && !e.message.includes('Circuit Breaker') && !e.message.includes('FATAL') && e.name !== 'AbortError') { const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000); onLog && onLog(`[重試] OpenAI 等待 ${Math.round(backoffMs/1000)}s...`); await new Promise(r => setTimeout(r, backoffMs)); return this.callOpenAI(systemPrompt, userQuery, signal, onChunk, onLog, specificModel, taskType, retryCount + 1); } throw e;
         }
+    }
 
-        function SpellingHeroApp() {
-          const [questions, setQuestions] = useState([]); const [answers, setAnswers] = useState([]);
-          const [submitted, setSubmitted] = useState(false); const [hints, setHints] = useState([]);
-          const [qStatus, setQStatus] = useState([]); 
-          const [ready, setReady] = useState(false); const [mistakePool, setMistakePool] = useState([]); 
-          const [isReview, setIsReview] = useState(false); const [config, setConfig] = useState({ accent: 'US', speed: 0.9, autoRead: true });
-          
-          const [selectedNotebooks, setSelectedNotebooks] = useState(['All']); 
-          const [isCustomMulti, setIsCustomMulti] = useState(false);
-          const [vocabMode, setVocabMode] = useState('mixed'); 
-          const [grammarMode, setGrammarMode] = useState('mixed'); 
-          const [mainMenu, setMainMenu] = useState('vocab'); 
-          const [storage, setStorage] = useState({ history: [], memory: {}, stats: {}, coins: 0, exp: 0, level: 1 });
-          const [dash, setDash] = useState(false); const [earnedCoins, setEarnedCoins] = useState(0); 
-          const [earnedExp, setEarnedExp] = useState(0); const [levelUpData, setLevelUpData] = useState(null);
-          
-          const [redeemAmount, setRedeemAmount] = useState(100); const [redeemMessage, setRedeemMessage] = useState("");
-          
-          const isGeneratingRef = useRef(false);
-          const [isGenerating, setIsGenerating] = useState(false); 
-          const [showFallbackAlert, setShowFallbackAlert] = useState(false);
-          const [alertMessage, setAlertMessage] = useState(""); 
-          
-          const [uiLayout, setUiLayout] = useState(localStorage.getItem('sh_ui_layout') || 'layout1');
-          const [ttsEngine, setTtsEngine] = useState(localStorage.getItem('sh_tts_engine') || 'native');
-          
-          const getVal = (funcName, fallback) => (window[funcName] ? window[funcName]() : fallback);
-          
-          const [openAITtsKey, setOpenAITtsKey] = useState(getVal('getOpenAITtsKey', ''));
-          const [openAITtsVoice, setOpenAITtsVoice] = useState(localStorage.getItem('sh_openai_tts_voice') || 'nova');
-          const [inputKey, setInputKey] = useState(getVal('getGeminiKey', ''));
-          const [inputOrKey, setInputOrKey] = useState(getVal('getOpenRouterKey', ''));
-          const [openRouterModel, setOpenRouterModel] = useState(localStorage.getItem('sh_or_model') || 'openrouter/auto');
-          const [inputGroqKey, setInputGroqKey] = useState(getVal('getGroqKey', ''));
-          const [groqModel, setGroqModel] = useState(localStorage.getItem('sh_groq_model') || 'llama-3.3-70b-versatile');
-          const [groqModelsList, setGroqModelsList] = useState(["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"]);
-          
-          // 新增 NVIDIA 狀態
-          const [inputNvidiaKey, setInputNvidiaKey] = useState(getVal('getNvidiaKey', ''));
-          const [nvidiaModel, setNvidiaModel] = useState(localStorage.getItem('sh_nvidia_model') || 'meta/llama-3.1-70b-instruct');
-          const [nvidiaModelsList, setNvidiaModelsList] = useState(["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/llama-3.1-nemotron-70b-instruct"]);
-
-          const [defaultTeacher, setDefaultTeacher] = useState(localStorage.getItem('sh_default_teacher') || 'openrouter');
-          
-          const [enginesEnabled, setEnginesEnabled] = useState({
-              groq: localStorage.getItem('sh_enable_groq') !== 'false',
-              google: localStorage.getItem('sh_enable_google') !== 'false',
-              openrouter: localStorage.getItem('sh_enable_or') !== 'false',
-              openai: localStorage.getItem('sh_enable_openai') !== 'false',
-              nvidia: localStorage.getItem('sh_enable_nvidia') !== 'false'
-          });
-          const toggleEngine = (eng) => {
-              setEnginesEnabled(p => {
-                  const next = {...p, [eng]: !p[eng]};
-                  localStorage.setItem(`sh_enable_${eng}`, next[eng]);
-                  return next;
-              });
-          };
-
-          const [promptMode, setPromptMode] = useState(() => {
-              let m = localStorage.getItem('sh_prompt_mode') || 'v1';
-              if (m === 'v2') m = 'v1';
-              return m;
-          });
-          const [grammarFixMode, setGrammarFixMode] = useState(() => localStorage.getItem('sh_grammar_fix_mode') || 'rule');
-          React.useEffect(() => { window.GRAMMAR_FIX_MODE = grammarFixMode; }, [grammarFixMode]);
-          const defaultCustomPrompt = `You are an English tutor for a child in Taiwan.\nQuestion: "{q.sentence}"\nTarget Answer: "{safeAnswerStr}"\nStudent's Answer: "{studentAns}"\n\nTASK:\n1. CRITICAL: Analyze the combined Question + Target Answer. If the Target Answer creates a grammatically WRONG sentence (e.g., missing a verb like "has" before "a cold"), OR if the Student's Answer is actually the only grammatically correct option, YOU MUST OVERRIDE. To override, your VERY FIRST WORD must be "[OVERRIDE_CORRECT]". If the student's answer is ALSO wrong but you need to correct the Target Answer, output "[OVERRIDE_CORRECT: correct_answer]".\n2. Explain in TRADITIONAL CHINESE. Use very simple language.\n3. Format exactly as below:\n🔍 題目線索：[...]\n💡 文法秘訣：[...]\n🎯 答題結果：[...]`;
-          const [customPromptText, setCustomPromptText] = useState(localStorage.getItem('sh_custom_prompt') || defaultCustomPrompt);
-          const [qPromptModes, setQPromptModes] = useState({});
-
-          const [apiUsage, setApiUsage] = useState({ date: new Date().toLocaleDateString(), openRouter: 0, gemini: 0, groq: 0, openai: 0, nvidia: 0 });
-          const [combo, setCombo] = useState(0); const [maxCombo, setMaxCombo] = useState(0);
-          const [showComboAnim, setShowComboAnim] = useState(false); const [diagStatus, setDiagStatus] = useState(null); 
-          const [diagMsg, setDiagMsg] = useState(""); const [quizMode, setQuizMode] = useState('fill_in'); 
-          
-          const [aiStatus, setAiStatus] = useState("準備中..."); 
-          const [activeGeminiModel, setActiveGeminiModel] = useState(localStorage.getItem('sh_gemini_model_selected') || "gemini-2.0-flash"); 
-          const [geminiModelsList, setGeminiModelsList] = useState(window.GEMINI_DEFAULT_MODELS || ["gemini-2.5-flash","gemini-2.0-flash","gemma-3-27b-it","gemma-3n-e4b-it"]);
-          const [aiModel, setAiModel] = useState("偵測中...");
-          
-          const [aiLogs, setAiLogs] = useState(() => JSON.parse(localStorage.getItem('sh_logs') || '[]'));
-          const [showLogsPanel, setShowLogsPanel] = useState(false);
-          const [poolStats, setPoolStats] = useState({ cached: 0, fetched: 0, size: 0 });
-          const [dynamicContent, setDynamicContent] = useState({});
-          const [loadingStates, setLoadingStates] = useState({});
-          const [dynamicModels, setDynamicModels] = useState({}); 
-          const [dynamicProviders, setDynamicProviders] = useState({}); 
-          
-          const [routingMode, setRoutingMode] = useState(localStorage.getItem('sh_routing_mode') || 'dynamic');
-          const [engineLights, setEngineLights] = useState({ groq: 'green', google: 'green', openrouter: 'green', openai: 'green', nvidia: 'green' });
-
-          const overrideTriggeredRef = useRef({});
-          const readyRef = useRef(false);
-
-          useEffect(() => {
-              if (!dash || !window.sharedAIClient) return;
-              const timer = setInterval(() => {
-                  setEngineLights({
-                      groq: window.sharedAIClient.getEngineStatus('groq'),
-                      google: window.sharedAIClient.getEngineStatus('google'),
-                      openrouter: window.sharedAIClient.getEngineStatus('openrouter'),
-                      openai: window.sharedAIClient.getEngineStatus('openai'),
-                      nvidia: window.sharedAIClient.getEngineStatus('nvidia')
-                  });
-              }, 1000);
-              return () => clearInterval(timer);
-          }, [dash]);
-
-          useEffect(() => {
-              if (dash && window.sharedAIClient && inputGroqKey && enginesEnabled.groq) {
-                  if (typeof window.sharedAIClient.checkAvailableGroqModels === 'function') {
-                      window.sharedAIClient.checkAvailableGroqModels().then(models => {
-                          if (models && models.length > 0) {
-                              setGroqModelsList(models);
-                              const saved = localStorage.getItem('sh_groq_model');
-                              if (saved && !models.includes(saved)) {
-                                  setGroqModel(models[0]); localStorage.setItem('sh_groq_model', models[0]);
-                              } else if (!saved) {
-                                  setGroqModel(models[0]); localStorage.setItem('sh_groq_model', models[0]);
-                              }
-                          }
-                      });
-                  }
-              }
-          }, [dash, inputGroqKey, enginesEnabled.groq]);
-
-          useEffect(() => {
-              if (dash && window.sharedAIClient && inputKey && enginesEnabled.google) {
-                  if (typeof window.sharedAIClient.checkAvailableGeminiModels === 'function') {
-                      window.sharedAIClient.checkAvailableGeminiModels().then(models => {
-                          if (models && models.length > 0) {
-                              setGeminiModelsList(models);
-                              const saved = localStorage.getItem('sh_gemini_model_selected');
-                              if (saved && !models.includes(saved)) {
-                                  setActiveGeminiModel(models[0]); localStorage.setItem('sh_gemini_model_selected', models[0]);
-                              } else if (!saved) {
-                                  setActiveGeminiModel(models[0]); localStorage.setItem('sh_gemini_model_selected', models[0]);
-                              }
-                          }
-                      });
-                  }
-              }
-          }, [dash, inputKey, enginesEnabled.google]);
-
-          // 新增 NVIDIA 模型自動抓取
-          useEffect(() => {
-              if (dash && window.sharedAIClient && inputNvidiaKey && enginesEnabled.nvidia) {
-                  if (typeof window.sharedAIClient.checkAvailableNvidiaModels === 'function') {
-                      window.sharedAIClient.checkAvailableNvidiaModels().then(models => {
-                          if (models && models.length > 0) {
-                              setNvidiaModelsList(models);
-                              const saved = localStorage.getItem('sh_nvidia_model');
-                              if (saved && !models.includes(saved)) {
-                                  setNvidiaModel(models[0]); localStorage.setItem('sh_nvidia_model', models[0]);
-                              } else if (!saved) {
-                                  setNvidiaModel(models[0]); localStorage.setItem('sh_nvidia_model', models[0]);
-                              }
-                          }
-                      });
-                  }
-              }
-          }, [dash, inputNvidiaKey, enginesEnabled.nvidia]);
-
-          const handleRoutingModeChange = (mode) => { setRoutingMode(mode); localStorage.setItem('sh_routing_mode', mode); };
-
-          const importFileRef = useRef(null);
-          const handleExportData = () => {
-              const payload = {
-                  version: "SH_v2", exportedAt: new Date().toISOString(),
-                  history: JSON.parse(localStorage.getItem('sh_h_v28')||'[]'), memory: JSON.parse(localStorage.getItem('sh_m_v28')||'{}'), stats: JSON.parse(localStorage.getItem('sh_s_v28')||'{}'),
-                  coins: parseInt(localStorage.getItem('sh_coins_v28')||'0'), exp: parseInt(localStorage.getItem('sh_exp_v28')||'0'), level: parseInt(localStorage.getItem('sh_level_v28')||'1'),
-                  mistakes: JSON.parse(localStorage.getItem('sh_mistakes_v29')||'[]'), apiUsage: JSON.parse(localStorage.getItem('sh_api_usage_v29')||'{}'),
-                  settings: {
-                      uiLayout: localStorage.getItem('sh_ui_layout')||'layout1', ttsEngine: localStorage.getItem('sh_tts_engine')||'native', ttsVoice: localStorage.getItem('sh_openai_tts_voice')||'nova',
-                      orModel: localStorage.getItem('sh_or_model')||'openrouter/auto', groqModel: localStorage.getItem('sh_groq_model')||'llama-3.3-70b-versatile', nvidiaModel: localStorage.getItem('sh_nvidia_model')||'meta/llama-3.1-70b-instruct',
-                      geminiKey: localStorage.getItem('gemini_api_key')||'', orKey: localStorage.getItem('openrouter_api_key')||'', groqKey: localStorage.getItem('groq_api_key')||'', openAITtsKey: localStorage.getItem('sh_openai_tts_key')||'', nvidiaKey: localStorage.getItem('nvidia_api_key')||'', routingMode: localStorage.getItem('sh_routing_mode')||'dynamic',
-                      enableGroq: localStorage.getItem('sh_enable_groq'), enableGoogle: localStorage.getItem('sh_enable_google'), enableOr: localStorage.getItem('sh_enable_or'), enableOpenAI: localStorage.getItem('sh_enable_openai'), enableNvidia: localStorage.getItem('sh_enable_nvidia'),
-                      promptMode: localStorage.getItem('sh_prompt_mode')||'v1', customPrompt: localStorage.getItem('sh_custom_prompt')||defaultCustomPrompt, defaultTeacher: localStorage.getItem('sh_default_teacher')||'openrouter'
-                  }
-              };
-              const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob);
-              const a = document.createElement('a'); a.href = url; a.download = 'spellhero_backup_' + new Date().toISOString().slice(0,10) + '.json'; a.click(); URL.revokeObjectURL(url);
-          };
-          const handleImportData = (e) => {
-              const file = e.target.files && e.target.files[0]; if (!file) return;
-              const reader = new FileReader();
-              reader.onload = (ev) => {
-                  try {
-                      const d = JSON.parse(ev.target.result); if (!d.version || !d.version.startsWith('SH_')) { showAlert('❌ 檔案格式錯誤'); return; }
-                      if (d.history) localStorage.setItem('sh_h_v28', JSON.stringify(d.history)); if (d.memory) localStorage.setItem('sh_m_v28', JSON.stringify(d.memory)); if (d.stats) localStorage.setItem('sh_s_v28', JSON.stringify(d.stats));
-                      if (d.coins !== undefined) localStorage.setItem('sh_coins_v28', String(d.coins)); if (d.exp !== undefined) localStorage.setItem('sh_exp_v28', String(d.exp)); if (d.level !== undefined) localStorage.setItem('sh_level_v28', String(d.level));
-                      if (d.mistakes) localStorage.setItem('sh_mistakes_v29', JSON.stringify(d.mistakes)); if (d.apiUsage) localStorage.setItem('sh_api_usage_v29', JSON.stringify(d.apiUsage));
-                      if (d.settings) {
-                          const s = d.settings;
-                          if (s.uiLayout) localStorage.setItem('sh_ui_layout', s.uiLayout); if (s.ttsEngine) localStorage.setItem('sh_tts_engine', s.ttsEngine); if (s.ttsVoice) localStorage.setItem('sh_openai_tts_voice', s.ttsVoice);
-                          if (s.orModel) localStorage.setItem('sh_or_model', s.orModel); if (s.groqModel) localStorage.setItem('sh_groq_model', s.groqModel); if (s.nvidiaModel) localStorage.setItem('sh_nvidia_model', s.nvidiaModel);
-                          if (s.geminiKey) localStorage.setItem('gemini_api_key', s.geminiKey); if (s.orKey) localStorage.setItem('openrouter_api_key', s.orKey); if (s.groqKey) localStorage.setItem('groq_api_key', s.groqKey); if (s.openAITtsKey) localStorage.setItem('sh_openai_tts_key', s.openAITtsKey); if (s.nvidiaKey) localStorage.setItem('nvidia_api_key', s.nvidiaKey);
-                          if (s.routingMode) localStorage.setItem('sh_routing_mode', s.routingMode);
-                          if (s.enableGroq) localStorage.setItem('sh_enable_groq', s.enableGroq); if (s.enableGoogle) localStorage.setItem('sh_enable_google', s.enableGoogle); if (s.enableOr) localStorage.setItem('sh_enable_or', s.enableOr); if (s.enableOpenAI) localStorage.setItem('sh_enable_openai', s.enableOpenAI); if (s.enableNvidia) localStorage.setItem('sh_enable_nvidia', s.enableNvidia);
-                          if (s.promptMode) { let m = s.promptMode; if (m === 'v2') m = 'v1'; localStorage.setItem('sh_prompt_mode', m); }
-                          if (s.customPrompt) localStorage.setItem('sh_custom_prompt', s.customPrompt); if (s.defaultTeacher) localStorage.setItem('sh_default_teacher', s.defaultTeacher);
-                      }
-                      setTimeout(() => window.location.reload(), 1500);
-                  } catch(err) { showAlert('❌ 解析失敗：' + err.message); }
-              };
-              reader.readAsText(file); e.target.value = '';
-          };
-          const handleClearPoolCache = () => {
-              if (window.confirm("確定要清空預載池？")) { try { localStorage.removeItem('sh_qpool_v34'); setPoolStats(p => ({ ...p, size: 0 })); addLog("🗑️ 已清空預載快取"); } catch(e) {} }
-          };
-
-          const logScrollRef = useRef(null);
-          const dashLogRef = useRef(null); 
-          
-          const addLog = msg => {
-              setAiLogs(p => {
-                  const newLogs = [...p, "[" + new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) + "] " + msg].slice(-50);
-                  try { localStorage.setItem('sh_logs', JSON.stringify(newLogs)); } catch(e){}
-                  setTimeout(() => { 
-                      if (logScrollRef.current) logScrollRef.current.scrollTop = logScrollRef.current.scrollHeight; 
-                      if (dashLogRef.current) dashLogRef.current.scrollTop = dashLogRef.current.scrollHeight;
-                  }, 30);
-                  return newLogs;
-              });
-          };
-
-          const clearLogs = () => { setAiLogs([]); try { localStorage.setItem('sh_logs', '[]'); } catch(e){} };
-          const showAlert = msg => { setAlertMessage(msg); setShowFallbackAlert(true); setTimeout(() => setShowFallbackAlert(false), 4000); };
-          const renderFormattedText = (text) => { if (!text) return null; return String(text).split(/\\n|\n/).map((line, idx) => ( line.trim() ? <div key={idx} className="mb-1 leading-relaxed">{line}</div> : <div key={idx} className="h-1"></div> )); };
-
-          useEffect(() => {
-            const load = () => {
-              try {
-                const h = JSON.parse(localStorage.getItem('sh_h_v28') || '[]'); const m = JSON.parse(localStorage.getItem('sh_m_v28') || '{}'); const s = JSON.parse(localStorage.getItem('sh_s_v28') || '{}');
-                const c = parseInt(localStorage.getItem('sh_coins_v28') || '0'); const exp = parseInt(localStorage.getItem('sh_exp_v28') || '0');
-                const lvl = parseInt(localStorage.getItem('sh_level_v28') || '1'); const today = new Date().toLocaleDateString();
-                
-                let mist = JSON.parse(localStorage.getItem('sh_mistakes_v29') || '[]');
-                let apiU = JSON.parse(localStorage.getItem('sh_api_usage_v29') || 'null'); if (!apiU || apiU.date !== today) apiU = { date: today, openRouter: 0, gemini: 0, groq: 0, openai: 0, nvidia: 0 };
-                if (apiU.openai === undefined) apiU.openai = 0; if (apiU.nvidia === undefined) apiU.nvidia = 0;
-                
-                setStorage({ history: h, memory: m, stats: s, coins: c, exp: exp, level: lvl }); setMistakePool(mist); setApiUsage(apiU); 
-                
-                const currentPool = JSON.parse(localStorage.getItem('sh_qpool_v34') || '{}'); let sz = 0; Object.values(currentPool).forEach(arr => sz += arr.length); setPoolStats(p => ({...p, size: sz}));
-
-                if (window.sharedAIClient) {
-                    window.sharedAIClient.updateKeys(inputKey || window.getGeminiKey(), inputOrKey || window.getOpenRouterKey(), inputGroqKey || window.getGroqKey(), openAITtsKey || window.getOpenAITtsKey(), inputNvidiaKey || window.getNvidiaKey());
-                    window.sharedAIClient.checkAvailableModels();
+    async callNvidia(systemPrompt, userQuery, signal, onChunk, onLog, specificModel = "meta/llama-3.1-70b-instruct", taskType = "batch", retryCount = 0) {
+        this.checkCircuitBreaker('nvidia'); let unlock = () => {};
+        const isMicro = taskType === 'micro';
+        try {
+            unlock = isMicro ? this.mutex.lockMicro() : await this.mutex.lock(4500);
+            const localController = new AbortController(); const onAbort = () => localController.abort(new Error("AbortError")); if (signal) signal.addEventListener('abort', onAbort);
+            let firstChunk = false; const baseTTFT = 8000; const ttftLimit = isMicro ? 4000 : baseTTFT;
+            const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
+            const url = 'https://integrate.api.nvidia.com/v1/chat/completions';
+            const payload = { model: specificModel, messages: [ { role: "system", content: systemPrompt }, { role: "user", content: userQuery } ], stream: true, temperature: 0.1, max_tokens: 1500 };
+            const startTime = Date.now(); onLog && onLog(`📡 [NVIDIA] 發送請求 (${specificModel})...`);
+            const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + this.nvidiaKey, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
+            if (!res.ok) {
+                clearTimeout(ttftTimeout); let errBody = ""; try { errBody = await res.text(); } catch(e){} const errMsg = `HTTP ${res.status} ${errBody.substring(0, 100).replace(/\n/g, ' ')}`;
+                onLog && onLog(`📥 [NVIDIA] 異常: ${errMsg}`);
+                if (res.status === 429 || res.status >= 500) {
+                    const retryAfter = res.headers.get('Retry-After'); let delayMs = retryAfter ? (isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000)) : 30000;
+                    this.recordFailure('nvidia', Math.max(delayMs, 30000));
+                    throw new Error('FATAL_ROUTING: ' + errMsg);
+                } else if (res.status === 400 || res.status === 401 || res.status === 403) {
+                    this.recordFailure('nvidia', 60000); throw new Error('FATAL: ' + errMsg);
                 }
-              } catch (e) { }
-            }; load();
-          }, []);
-
-          useEffect(() => { if(window.sharedAIClient) window.sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey, openAITtsKey, inputNvidiaKey); }, [inputKey, inputOrKey, inputGroqKey, openAITtsKey, inputNvidiaKey]);
-
-          const saveCustomKey = () => { 
-              try { 
-                  localStorage.setItem('gemini_api_key', window.Obfuscator.encode(inputKey)); localStorage.setItem('openrouter_api_key', window.Obfuscator.encode(inputOrKey)); 
-                  localStorage.setItem('sh_or_model', openRouterModel); localStorage.setItem('groq_api_key', window.Obfuscator.encode(inputGroqKey)); 
-                  localStorage.setItem('sh_groq_model', groqModel); localStorage.setItem('sh_gemini_model_selected', activeGeminiModel); localStorage.setItem('sh_tts_engine', ttsEngine); 
-                  localStorage.setItem('sh_openai_tts_key', window.Obfuscator.encode(openAITtsKey)); localStorage.setItem('sh_openai_tts_voice', openAITtsVoice); 
-                  localStorage.setItem('nvidia_api_key', window.Obfuscator.encode(inputNvidiaKey)); localStorage.setItem('sh_nvidia_model', nvidiaModel);
-                  
-                  localStorage.setItem('sh_prompt_mode', promptMode);
-                  localStorage.setItem('sh_custom_prompt', customPromptText);
-                  localStorage.setItem('sh_default_teacher', defaultTeacher);
-
-                  setDiagMsg("✅ 金鑰與設定已儲存！"); 
-                  if(window.sharedAIClient) {
-                      window.sharedAIClient.updateKeys(inputKey, inputOrKey, inputGroqKey, openAITtsKey, inputNvidiaKey); 
-                      window.sharedAIClient.checkAvailableModels();
-                  }
-              } catch(e) { setDiagMsg("❌ 儲存失敗。"); } 
-          };
-          
-          const handleUiLayoutChange = layout => { setUiLayout(layout); try{ localStorage.setItem('sh_ui_layout', layout); } catch(e){} };
-
-          const handleMainMenuChange = menu => { 
-              setMainMenu(menu); setIsReview(menu === 'review'); 
-              if (menu === 'grammar') { setQuizMode('fill_in'); setGrammarMode('mixed'); setSelectedNotebooks(['PB1 U1 句型庫']); } else { setQuizMode('fill_in'); setSelectedNotebooks(['All']); } setIsCustomMulti(false); setQuestions([]); setReady(false); overrideTriggeredRef.current = {};
-              if (menu === 'review') generateAIBatch(storage.memory, ['All'], vocabMode, menu, activeGeminiModel, mistakePool, 'mixed'); 
-          };
-          
-          const handleNotebookChange = e => {
-              const val = e.target.value;
-              if (val === 'CustomMulti') {
-                  setIsCustomMulti(true); setSelectedNotebooks([]);
-              } else {
-                  setIsCustomMulti(false);
-                  let newSelection;
-                  if (val === 'All') newSelection = ['All'];
-                  else if (val === 'WTK1-3') newSelection = ['Words to know 1', 'Words to know 2', 'Words to know 3'];
-                  else newSelection = [val];
-                  setSelectedNotebooks(newSelection);
-              }
-              setQuestions([]); setReady(false); readyRef.current = false; overrideTriggeredRef.current = {};
-          };
-
-          const handleToggleNotebook = nb => {
-              setSelectedNotebooks(prev => {
-                  if (prev.includes(nb)) return prev.filter(n => n !== nb);
-                  return [...prev, nb];
-              });
-              setQuestions([]); setReady(false); readyRef.current = false; overrideTriggeredRef.current = {};
-          };
-
-          const handleModeChange = newMode => { setVocabMode(newMode); setQuestions([]); setReady(false); readyRef.current = false; overrideTriggeredRef.current = {}; };
-          const handleGrammarModeChange = newMode => { setGrammarMode(newMode); setQuestions([]); setReady(false); readyRef.current = false; overrideTriggeredRef.current = {}; };
-
-          const allGrammarBanks = ['PB1 U1 句型庫', 'PB1 U2 句型庫', 'PB1 U3 句型庫', 'PB1 U4 句型庫', 'PB1 U5 句型庫', 'PB1 U6 句型庫', 'PB1 U7 句型庫', 'PB1 U8 句型庫'];
-          const allVocabBanks = ['Words to know 1', 'Words to know 2', 'Words to know 3', 'PB1 U1', 'PB1 U2', 'PB1 U3', 'PB1 U4', 'PB1 U5', 'PB1 U6', 'PB1 U7', 'PB1 U8', '劍橋英檢 Movers'];
-
-          const runSingleDiag = async (provider) => {
-              if(!window.sharedAIClient) return;
-              setDiagStatus('testing'); setDiagMsg(`測試 ${provider.toUpperCase()}...`); clearLogs();
-              const testMsg = 'Reply exact JSON: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["a","b","c","d"]}]}';
-              const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 20000);
-              try {
-                  let result = null;
-                  if (provider === 'groq') result = await window.sharedAIClient.callGroq("Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, groqModel, 'micro');
-                  else if (provider === 'google') result = await window.sharedAIClient.callGemini(activeGeminiModel, "Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, 'micro');
-                  else if (provider === 'openrouter') result = await window.sharedAIClient.callOpenRouter("Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, openRouterModel, 'micro');
-                  else if (provider === 'openai') result = await window.sharedAIClient.callOpenAI("Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, 'gpt-4o-mini', 'micro');
-                  else if (provider === 'nvidia') result = await window.sharedAIClient.callNvidia("Diagnostic tool.", testMsg, controller.signal, () => {}, addLog, nvidiaModel, 'micro');
-                  
-                  clearTimeout(timeoutId); setAiModel(result.modelName); setDiagStatus('success'); setDiagMsg(`✅ ${result.modelName} OK`); setShowLogsPanel(true);
-              } catch(e) { clearTimeout(timeoutId); setDiagStatus('error'); setDiagMsg(`❌ 失敗：${e.message}`); setShowLogsPanel(true); }
-          };
-
-          const runDiagnostic = async () => {
-            if(!window.sharedAIClient) return;
-            setDiagStatus('testing'); setDiagMsg(`測試已啟用之連線...`); clearLogs();
-            try {
-                await window.sharedAIClient.checkAvailableModels();
-                const controller = new AbortController(); const timeoutId = setTimeout(() => controller.abort(), 60000); 
-                const testMsg = 'Reply exact JSON: {"questions": [{"idx":0, "a": "a", "s": "a", "h": "a", "o": ["a","b","c","d"]}]}';
-                
-                const providersToTry = ['groq', 'google', 'openrouter', 'openai', 'nvidia'].filter(p => enginesEnabled[p]);
-                if(providersToTry.length === 0) throw new Error("無啟用引擎");
-
-                let result = null;
-                for (let i = 0; i < providersToTry.length; i++) {
-                    const currentP = providersToTry[i];
-                    try {
-                        addLog(`測試 ${currentP.toUpperCase()}...`);
-                        if (currentP === 'groq') result = await window.sharedAIClient.callGroq("Diagnostic", testMsg, controller.signal, () => {}, addLog, groqModel, 'micro');
-                        else if (currentP === 'google') result = await window.sharedAIClient.callGemini(activeGeminiModel, "Diagnostic", testMsg, controller.signal, () => {}, addLog, 'micro');
-                        else if (currentP === 'openrouter') result = await window.sharedAIClient.callOpenRouter("Diagnostic", testMsg, controller.signal, () => {}, addLog, openRouterModel, 'micro');
-                        else if (currentP === 'openai') result = await window.sharedAIClient.callOpenAI("Diagnostic", testMsg, controller.signal, () => {}, addLog, 'gpt-4o-mini', 'micro');
-                        else if (currentP === 'nvidia') result = await window.sharedAIClient.callNvidia("Diagnostic", testMsg, controller.signal, () => {}, addLog, nvidiaModel, 'micro');
-                        break;
-                    } catch (e) { addLog(`[錯誤] ${currentP.toUpperCase()}: ${e.message}`); if (i === providersToTry.length - 1) throw e; }
-                }
-                clearTimeout(timeoutId); setAiModel(result.modelName); setDiagStatus('success'); setDiagMsg("✅ 引擎運作正常"); setShowLogsPanel(true);
-            } catch (e) { setDiagStatus('error'); setDiagMsg(`❌ ${e.message}`); setShowLogsPanel(true); }
-          };
-
-          const generateAIBatch = async (m, nbs, mode, targetMenu, forceGeminiModel, currentMistakes, reqGrammarType = 'mixed') => {
-            if (isGeneratingRef.current || !window.sharedAIClient) return;
-            isGeneratingRef.current = true; setIsGenerating(true);
-            
-            m = m || storage.memory; nbs = nbs || selectedNotebooks; mode = mode || vocabMode; targetMenu = targetMenu || mainMenu;
-            const targetGeminiModel = forceGeminiModel || activeGeminiModel;
-            readyRef.current = false; overrideTriggeredRef.current = {};
-            
-            setDynamicContent({}); setLoadingStates({}); setDynamicModels({}); setDynamicProviders({});
-            const currentPool = JSON.parse(localStorage.getItem('sh_qpool_v34') || '{}');
-            clearLogs(); setAiStatus("初始化連線...");
-            
-            let activeDB = [];
-            if (targetMenu === 'review') activeDB = (Array.isArray(currentMistakes) ? currentMistakes : []).map(w=>({answer:w, hint:""}));
-            else if (targetMenu === 'grammar') activeDB = window.getActiveGrammarDB(nbs);
-            else activeDB = window.getActiveDB(nbs, mode);
-            
-            if (!Array.isArray(activeDB) || activeDB.length === 0) { setIsGenerating(false); isGeneratingRef.current = false; setReady(true); return; }
-
-            const targetTotal = targetMenu === 'grammar' ? 10 : Math.min(10, activeDB.length);
-            const selected = []; let tempPool = [...activeDB]; const patternUsageCount = {};
-            const GRAMMAR_VARIATIONS = ["Change location.", "Use different objects.", "Make it silly.", "Add adjectives.", "Change time."];
-
-            while (selected.length < targetTotal && tempPool.length > 0) {
-                let pick = Math.floor(Math.random() * tempPool.length);
-                if (targetMenu !== 'review') {
-                    const hasPriority = tempPool.some(q => {
-                        const safeAns = String(q.answer||"").trim().toLowerCase();
-                        const s = m[safeAns];
-                        return s === undefined || s <= 0;
-                    });
-
-                    let tw = 0; const ws = tempPool.map(q => { 
-                        const safeAns = String(q.answer||"").trim().toLowerCase(); 
-                        const s = m[safeAns]; 
-                        
-                        let w = 0;
-                        if (s < 0) { w = 100; } 
-                        else if (s === undefined || s === 0) { w = 50; } 
-                        else if (s > 0 && s <= 2) { w = hasPriority ? 1 : 10; } 
-                        else { w = hasPriority ? 0 : 5; }
-                        tw += w; return w; 
-                    });
-
-                    if (tw > 0) {
-                        let r = Math.random() * tw; pick = -1; 
-                        for(let i=0; i<tempPool.length; i++) { 
-                            r -= ws[i]; 
-                            if(r <= 0) { pick = i; break; } 
-                        }
-                        if (pick === -1) pick = Math.floor(Math.random() * tempPool.length);
-                    } else {
-                        pick = Math.floor(Math.random() * tempPool.length);
+                this.recordFailure('nvidia'); throw new Error(errMsg);
+            }
+            this.recordSuccess('nvidia');
+            const reader = res.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = ""; let actualModel = specificModel;
+            while (true) {
+                const { done, value } = await reader.read(); if (done) break;
+                if (!firstChunk) { firstChunk = true; clearTimeout(ttftTimeout); onLog && onLog(`⚡ [NVIDIA] 收到首批串流封包！`); }
+                buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop();
+                for (let i=0; i<lines.length; i++) {
+                    let line = lines[i].trim();
+                    if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                        try { const data = JSON.parse(line.slice(6)); if (data.model) actualModel = data.model; let content = ""; if (data.choices && data.choices[0]) { if (data.choices[0].delta && data.choices[0].delta.content !== undefined) content = data.choices[0].delta.content; else if (data.choices[0].message && data.choices[0].message.content !== undefined) content = data.choices[0].message.content; } if (content) { fullText += content; if(onChunk) onChunk(fullText, actualModel); } } catch(e) {}
                     }
                 }
-                let item = tempPool[pick]; 
-                if (!patternUsageCount[item.id]) patternUsageCount[item.id] = 0;
-                
-                if (targetMenu === 'grammar' && window.resolveGrammarTags) {
-                    item = window.resolveGrammarTags(item);
-                }
-                
-                selected.push({ ...item, variationTag: targetMenu === 'grammar' ? GRAMMAR_VARIATIONS[patternUsageCount[item.id] % GRAMMAR_VARIATIONS.length] : "Keep simple" });
-                patternUsageCount[item.id]++; tempPool.splice(pick, 1);
-                if (tempPool.length === 0 && selected.length < targetTotal) tempPool = [...activeDB];
             }
-
-            const readyQs = []; const needed = [];
-            selected.forEach(item => {
-                const dynamicSuffix = item.resolvedValues ? `_${item.resolvedValues}` : '';
-                const key = targetMenu === 'grammar' ? `gram_${item.id}${dynamicSuffix}_${reqGrammarType}` : `word_${String(item.answer||"").trim().toLowerCase()}`;
-                
-                if (currentPool[key] && currentPool[key].length > 0) {
-                    const cachedQ = currentPool[key].shift(); 
-                    if (!cachedQ.qType) cachedQ.qType = 'fill';
-                    if (cachedQ.qType === 'reorder') {
-                        let ansStr = typeof cachedQ.rawAnswerObj === 'string' ? cachedQ.rawAnswerObj : (cachedQ.answer || "");
-                        let words = ansStr.trim().replace(/[.!?]+$/, '').split(/\s+/).filter(w => w.length > 0);
-                        if (words.length < 2 && typeof cachedQ.sentence === 'string') words = cachedQ.sentence.replace(/[.!?]+$/, '').split('/').map(w=>w.trim()).filter(w=>w.length>0);
-                        cachedQ.options = window.shuffleArray(words);
-                    }
-                    readyQs.push({...cachedQ, isAI: true, modelName: cachedQ.modelName + " ⚡(快取)"});
-                } else { needed.push({...item, poolKey: key}); }
-            });
-
-            try { localStorage.setItem('sh_qpool_v34', JSON.stringify(currentPool)); } catch(e){}
-            let requestItems = needed.map((item, idx) => ({ ...item, reqUid: `req_${idx}_${Math.random()}` }));
-            let newSz = 0; Object.values(currentPool).forEach(arr => newSz += arr.length); setPoolStats({ cached: readyQs.length, fetched: requestItems.length, size: newSz });
-
-            addLog(`⚡ 抽出 ${readyQs.length} 題快取`);
-            setQuestions([...readyQs]); 
-            setAnswers(p => {
-                const n = [];
-                for(let i=0; i<readyQs.length; i++) {
-                    const qt = readyQs[i].qType || 'fill';
-                    if (qt === 'reorder') n.push([]);
-                    else n.push('');
-                }
-                return n;
-            });
-            setHints(Array(readyQs.length).fill(false)); setQStatus(Array(readyQs.length).fill(null)); 
-            setSubmitted(false); setEarnedCoins(0); setEarnedExp(0); setCombo(0); setMaxCombo(0); setShowComboAnim(false); 
-            
-            if (readyQs.length > 0) { setReady(true); readyRef.current = true; } 
-            else { setReady(false); readyRef.current = false; addLog("無快取，產出第一題即解鎖畫面！"); }
-
-            if (needed.length === 0) { setAiStatus("準備完成！"); setIsGenerating(false); isGeneratingRef.current = false; setTimeout(() => { window.scrollTo(0, 0); }, 300); return; }
-
-            if (!enginesEnabled.groq && !enginesEnabled.google && !enginesEnabled.openrouter && !enginesEnabled.openai && !enginesEnabled.nvidia) {
-                addLog(`❌ 所有 AI 引擎皆已關閉，無法生成。`); setAiStatus("失敗：無啟用引擎"); setIsGenerating(false); isGeneratingRef.current = false; return;
-            }
-
-            let currentUIQs = [...readyQs]; const uiPoolKeys = new Set(); const fulfilledReqUids = new Set();
-            const CHUNK_SIZE = 5; const chunks = []; for (let i = 0; i < requestItems.length; i += CHUNK_SIZE) chunks.push(requestItems.slice(i, i + CHUNK_SIZE));
-            const batchController = new AbortController(); const batchTimeoutId = setTimeout(() => batchController.abort(), 180000); 
-
-            try {
-                for (let cIdx = 0; cIdx < chunks.length; cIdx++) {
-                    let chunkPending = chunks[cIdx]; let loopGuard = 0; const logicFailedEngines = new Set(); 
-
-                    if (targetMenu === 'grammar' && !chunkPending[0].localState) {
-                        const GRAMMAR_GROUPS = [
-                            ["is", "are", "am", "was", "were"], ["do", "does", "did"], ["have", "has", "had"],
-                            ["always", "sometimes", "never", "usually", "often"],
-                            ["in", "on", "at", "above", "below", "under", "next to", "behind", "in front of"],
-                            ["must", "must not", "can", "can't", "should", "could"], ["have to", "has to"],
-                            ["he", "she", "it", "they", "we", "I", "you"], ["his", "her", "its", "their", "our", "my", "your"],
-                            ["a", "an", "the", "some", "any", "many", "much"], ["want", "wants"], ["go", "goes"],
-                            ["isn't", "aren't", "is", "are"], ["than", "then", "that"], ["favorite", "wild", "beautiful"]
-                        ];
-                        const currentUnit4Opts = nbs && nbs.length > 0 && !nbs.includes('All') ? nbs[0] : 'DEFAULT';
-                        const unitTargetWords = (window.GRAMMAR_TARGETS && window.GRAMMAR_TARGETS[currentUnit4Opts]) || window.GRAMMAR_TARGETS['DEFAULT'] || [];
-                        
-                        const validTypes = ['fill', 'reorder'];
-                        chunkPending.forEach(item => {
-                            const assignedType = reqGrammarType === 'mixed' ? validTypes[Math.floor(Math.random() * validTypes.length)] : reqGrammarType;
-                            let coreAns = String(item.answer || "").trim();
-                            let coreSent = String(item.sentence || "").trim();
-                            let fullCore = coreSent.replace('______', coreAns);
-                            
-                            let distractors = new Set();
-                            unitTargetWords.forEach(w => { if (w.toLowerCase() !== coreAns.toLowerCase()) distractors.add(w); });
-                            
-                            if (distractors.size < 3) {
-                                for (let group of GRAMMAR_GROUPS) {
-                                    const hit = group.find(w => new RegExp('\\b' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(coreAns));
-                                    if (hit) { group.filter(w => w.toLowerCase() !== coreAns.toLowerCase()).forEach(w => distractors.add(w)); break; }
-                                }
-                            }
-                            
-                            const fallbacks = ["not", "never", "don't", "doesn't", "no"];
-                            fallbacks.forEach(w => { if (distractors.size < 3 && w.toLowerCase() !== coreAns.toLowerCase()) distractors.add(w); });
-                            
-                            let finalOptionsArr = window.shuffleArray([coreAns, ...[...distractors].slice(0, 3)]);
-                            while (finalOptionsArr.length < 4) finalOptionsArr.push("---");
-                            
-                            item.localState = { type: assignedType, fullCore: fullCore, coreSentWithBlank: coreSent, right: coreAns, options: finalOptionsArr.slice(0, 4) };
-                        });
-                    }
-
-                    while (chunkPending.length > 0 && loopGuard < 3) {
-                        loopGuard++;
-                        if (loopGuard > 1) { const delay = Math.pow(2, loopGuard - 1) * 1000 + Math.floor(Math.random() * 1000); addLog(`[防護] 冷卻 ${(delay/1000).toFixed(1)}s...`); await new Promise(r => setTimeout(r, delay)); }
-                        
-                        let systemPrompt = ""; let userQuery = "";
-                        if (targetMenu === 'grammar') {
-                            const currentUnit = nbs && nbs.length > 0 ? nbs[0] : "Mixed Grammar";
-                            const unitTargets = window.GRAMMAR_TARGETS && window.GRAMMAR_TARGETS[currentUnit] ? window.GRAMMAR_TARGETS[currentUnit].join(", ") : "basic English grammar";
-                            
-                            const patterns = chunkPending.map((s, idx) => {
-                                const targetWord = String(s.answer || "").trim();
-                                return `[IDX:${idx}] Target Grammar Word: "${targetWord}" | Core Sentence: "${s.localState.fullCore}"`;
-                            });
-
-                            systemPrompt = `You are an expert ESL context generator for 3rd-grade students in Taiwan.
-Unit Focus: ${unitTargets}
-
-TASK: For each given "Core Sentence", write EXACTLY 2 DIFFERENT, simple, realistic preceding sentences that set up the context.
-RULES:
-1. The context must logically lead to the Core Sentence, specifically creating a scenario where the "Target Grammar Word" is naturally required.
-2. CRITICAL: Do NOT use the "Target Grammar Word" inside the context sentences you generate.
-3. Use everyday, realistic situations (e.g., family, school, weather). NO sci-fi or magic.
-4. Keep it extremely simple (A1/A2 level).
-5. GRAMMAR CHECK: The "Core Sentence" may contain pronoun case errors (e.g. "with she" should be "with her"). Silently fix any such errors in your generated context sentences, and output the corrected core sentence in a "fixed_core" field if you detect an error.
-
-JSON OUTPUT FORMAT:
-[
-  {"idx": 0, "c": "Context 1.", "t": "Traditional Chinese translation of BOTH Context 1 AND the core sentence.", "fixed_core": "corrected sentence if grammar error found, else omit"},
-  {"idx": 0, "c": "Context 2.", "t": "...", "fixed_core": "same corrected sentence or omit"}
-]
-CRITICAL: Output EXACTLY TWO objects per IDX.`;
-                            userQuery = `Provide EXACTLY 2 DIFFERENT contexts for each sentence:\n${patterns.join('\n')}`;
-                        } else {
-                            const wordsToGenerate = chunkPending.map((s, idx) => `[IDX:${idx}] Target Word: "${s.answer}"`);
-                            systemPrompt = `ESL vocab fill-blank, Taiwanese 3rd grade level. RULES:
-    ① Simple formal English. Blank=______(6 underscores).
-    ② SINGULAR/PLURAL CLUES: If the target word is a noun, you MUST place a clear grammatical clue immediately before the blank or in the sentence to distinguish singular from plural (e.g., use "a", "an", "one", "this", or "is" for singular; use "some", "many", "two", "these", or "are" for plural).
-    ③ EVERYDAY REALITY: Sentences MUST describe ordinary, realistic daily life for a 9-year-old child in Taiwan. STRICTLY FORBIDDEN: Sci-fi, fantasy, magic, absurd situations (like jumping on the moon, talking animals).
-    ④ EXCLUSIVE CONTEXT: Add an extra sentence with undeniable realistic clues so ONLY the target word fits. NO AMBIGUITY.
-    ⑤ DISTRACTORS: The 3 incorrect options in 'o' array MUST be completely illogical for the everyday reality of the sentence (e.g., if answer is 'lives', distractors: 'car', 'happily', 'blue'). NEVER use synonyms or related words.
-    ⑥ JSON only: [{"idx":0,"a":"answer","s":"English sentence with ______","t":"完整繁體中文翻譯(必須將答案單字直接翻譯並寫入句子中，絕對不可有底線)","o":["opt1","opt2","opt3","opt4"]}]
-    Output EXACTLY 2 items per IDX.`;
-                            userQuery = `Generate EXACTLY 2 DIFFERENT questions for EACH. Words:\n${wordsToGenerate.join('\n')}`;
-                        }
-
-                        setAiStatus(loopGuard === 1 ? `處理第 ${cIdx+1} 批次...` : `第 ${cIdx+1} 批次補發...`);
-                        let lastParsedCount = 0; let cardModelName = ""; 
-                        
-                        const onStreamChunk = (currentFullText, chunkModelName) => {
-                            if (chunkModelName) cardModelName = chunkModelName.split('/').pop().toUpperCase();
-                            const parsedObjects = window.SYSTEM_ENGINE.extractJSONObjects(currentFullText);
-                            if (parsedObjects.length > lastParsedCount) {
-                                const newObjs = parsedObjects.slice(lastParsedCount); lastParsedCount = parsedObjects.length;
-                                let addedToUI = false; let latestPool = JSON.parse(localStorage.getItem('sh_qpool_v34') || '{}'); let hasUpdates = false;
-
-                                newObjs.forEach((rawQ, idx) => {
-                                    if (!rawQ) return; const q = {}; Object.keys(rawQ).forEach(k => { q[k.toLowerCase()] = rawQ[k]; });
-                                    let aiIdx = q.idx !== undefined ? parseInt(q.idx) : -1;
-                                    let expectedItem = chunkPending[aiIdx];
-                                    
-                                    if (!expectedItem && targetMenu !== 'grammar') {
-                                        let ansStr = typeof q.a === 'string' ? q.a.trim().toLowerCase() : (typeof q.answer === 'string' ? q.answer.trim().toLowerCase() : "");
-                                        expectedItem = chunkPending.find(item => String(item.answer||"").trim().toLowerCase() === ansStr);
-                                    }
-                                    if (!expectedItem) return;
-
-                                    let reqUid = expectedItem.reqUid; 
-                                    let refKey = expectedItem.poolKey;
-                                    let finalQ = null;
-
-                                    if (targetMenu === 'grammar') {
-                                        let ls = expectedItem.localState;
-                                        let ctxSentence = String(q.c || q.ctx || q.context || "").trim();
-                                        if ((window.GRAMMAR_FIX_MODE === 'ai' || window.GRAMMAR_FIX_MODE === 'both') && q.fixed_core && String(q.fixed_core).trim()) {
-                                            const fixedCore = String(q.fixed_core).trim();
-                                            if (expectedItem && expectedItem.localState) {
-                                                expectedItem.localState.fullCore = fixedCore;
-                                                expectedItem.localState.coreSentWithBlank = fixedCore.replace(new RegExp('\\b' + window.escapeRegExp(expectedItem.localState.right) + '\\b'), '______');
-                                            }
-                                        }
-                                        let fullTrans = String(q.t || q.full_t || q.translation || "").trim();
-                                        if (!fullTrans) fullTrans = "正在努力翻譯中...";
-                                        
-                                        let finalSentence = ""; let finalAnswer = ""; let finalRawObj = ""; let finalOptions = [];
-                                        let finalHint = expectedItem.hint || "文法重點";
-                                        
-                                        let contextSentenceForCard = ctxSentence;
-                                        if (ls.type === 'fill') {
-                                            finalSentence = ctxSentence ? `${ctxSentence} ${ls.coreSentWithBlank}` : ls.coreSentWithBlank;
-                                            finalAnswer = ls.right; finalRawObj = ls.right; finalOptions = ls.options || [];
-                                        } else if (ls.type === 'reorder') {
-                                            finalSentence = ctxSentence; finalAnswer = ls.fullCore; finalRawObj = ls.fullCore; 
-                                            let words = ls.fullCore.trim().replace(/[.!?]+$/, '').split(/\s+/).filter(w => w.length > 0);
-                                            finalOptions = window.shuffleArray(words);
-                                        }
-                                        
-                                        finalQ = { id: "ai_" + Math.random(), poolKey: refKey, runtimeId: Math.random(), answer: finalAnswer, rawAnswerObj: finalRawObj, qType: ls.type, sentence: finalSentence, contextSentence: contextSentenceForCard, coreSentence: ls.fullCore, translation: fullTrans, hint: finalHint, explanation: "", options: finalOptions, isAI: true, modelName: cardModelName };
-                                    } else {
-                                        let parsedAns = q.a !== undefined ? q.a : (q.answer !== undefined ? q.answer : (expectedItem ? expectedItem.answer : ""));
-                                        let parsedQType = q.qtype || q.type || 'fill';
-                                        let ansStrForOptions = typeof parsedAns === 'string' ? parsedAns.trim() : (Array.isArray(parsedAns) ? String(parsedAns[0]).trim() : (parsedAns.right ? String(parsedAns.right).trim() : "UNKNOWN"));
-                                        if (!ansStrForOptions) ansStrForOptions = "UNKNOWN";
-
-                                        let rawOptions = Array.isArray(q.o) ? q.o : (Array.isArray(q.options) ? q.options : []);
-                                        let safeOptions = [];
-                                        
-                                        if (parsedQType === 'fill') {
-                                            let distractors = rawOptions.filter(opt => String(opt).toLowerCase().trim() !== ansStrForOptions.toLowerCase());
-                                            if (distractors.length < 3 && typeof parsedAns === 'string') { 
-                                                distractors = [...distractors, ...window.generateVocabOptions(ansStrForOptions, activeDB).filter(o=>o!==ansStrForOptions)]; 
-                                            }
-                                            safeOptions = window.shuffleArray([ansStrForOptions, ...distractors.slice(0, 3)]);
-                                            const objPronouns = ['him', 'her', 'them', 'us', 'me', 'he', 'she', 'they', 'it', 'i', 'you'];
-                                            if (objPronouns.includes(ansStrForOptions.toLowerCase())) {
-                                                const safePool = window.generateVocabOptions(ansStrForOptions, activeDB).filter(o => !objPronouns.includes(String(o).toLowerCase()));
-                                                let rIdx = 0;
-                                                safeOptions = safeOptions.map(opt => {
-                                                    if (opt.toLowerCase() !== ansStrForOptions.toLowerCase() && objPronouns.includes(opt.toLowerCase())) { return safePool[rIdx++] || "apple"; }
-                                                    return opt;
-                                                });
-                                            }
-                                        } else if (parsedQType === 'reorder') {
-                                            let ansStr = typeof parsedAns === 'string' ? parsedAns : "";
-                                            let words = ansStr.trim().replace(/[.!?]+$/, '').split(/\s+/).filter(w => w.length > 0);
-                                            if (words.length === 0 && typeof q.s === 'string') { words = q.s.split('/').map(w => w.trim().replace(/[.!?]+$/, '')).filter(w => w.length > 0); }
-                                            safeOptions = window.shuffleArray(words);
-                                        }
-
-                                        let sentence = (q.s || q.sentence) ? String(q.s || q.sentence).trim() : "";
-                                        if (parsedQType !== 'reorder') {
-                                            sentence = sentence.replace(/\s+([.!?])/g, '$1');
-                                            if (sentence && !/[.!?]$/.test(sentence)) sentence += ".";
-                                        }
-                                        
-                                        if (parsedQType === 'fill') {
-                                            sentence = sentence.replace(/[a-zA-Z]*_{2,}[a-zA-Z]*/g, '______');
-                                            if (sentence.indexOf('______') === -1 && typeof parsedAns === 'string') { 
-                                                const reg = new RegExp('\\b' + window.escapeRegExp(parsedAns) + '\\b', 'gi'); 
-                                                sentence = sentence.replace(reg, '______'); 
-                                            }
-                                            if (sentence.indexOf('______') === -1) return; 
-                                        }
-                                        
-                                        let finalHint = expectedItem && expectedItem.hint ? expectedItem.hint : "無提示";
-                                        if (targetMenu !== 'grammar') { 
-                                            const dictHint = window.SH_DICTIONARY && window.SH_DICTIONARY[ansStrForOptions.toLowerCase()]; 
-                                            if (dictHint) finalHint = dictHint; 
-                                        }
-                                        
-                                        let rawT = q.t || q.translation || q.trans || q.chinese || q.c || "";
-                                        let cleanTrans = String(rawT).replace(/^TW\s*/i, '').replace(/^\[TW\]\s*/i, '').trim();
-                                        const dictWord = (window.SH_DICTIONARY && window.SH_DICTIONARY[ansStrForOptions.toLowerCase()]) ? window.SH_DICTIONARY[ansStrForOptions.toLowerCase()].split(/[;；]/)[0] : ansStrForOptions;
-                                        cleanTrans = cleanTrans.replace(/[_＿]{2,}/g, dictWord);
-
-                                        let stringifiedAns = typeof parsedAns === 'object' ? JSON.stringify(parsedAns) : String(parsedAns).trim();
-
-                                        finalQ = { 
-                                            id: "ai_" + Math.random(), poolKey: refKey, runtimeId: Math.random(), 
-                                            answer: stringifiedAns, rawAnswerObj: parsedAns, qType: parsedQType, 
-                                            sentence: sentence, translation: cleanTrans, hint: finalHint, 
-                                            explanation: q.e || q.explanation || "", options: safeOptions, 
-                                            isAI: true, modelName: cardModelName 
-                                        };
-                                    }
-
-                                    if (currentUIQs.length < targetTotal && !uiPoolKeys.has(refKey)) {
-                                        currentUIQs.push(finalQ); uiPoolKeys.add(refKey); fulfilledReqUids.add(reqUid); addedToUI = true;
-                                    } else {
-                                        if (!latestPool[refKey]) latestPool[refKey] = []; latestPool[refKey].push(finalQ); fulfilledReqUids.add(reqUid); hasUpdates = true;
-                                    }
-                                });
-
-                                if (hasUpdates) { 
-                                    try { 
-                                        let poolStr = JSON.stringify(latestPool);
-                                        if (poolStr.length > 3500000) { 
-                                            const keys = Object.keys(latestPool);
-                                            keys.slice(0, Math.floor(keys.length / 2)).forEach(k => delete latestPool[k]);
-                                            poolStr = JSON.stringify(latestPool);
-                                        }
-                                        localStorage.setItem('sh_qpool_v34', poolStr); 
-                                    } catch(e) { 
-                                        if (e.name === 'QuotaExceededError') { localStorage.removeItem('sh_qpool_v34'); latestPool = {}; }
-                                    } 
-                                    let finalSz = 0; Object.values(latestPool).forEach(arr => finalSz += arr.length); setPoolStats(p => ({...p, size: finalSz})); 
-                                }
-                                if (addedToUI) {
-                                    setQuestions([...currentUIQs]); 
-                                    setAnswers(p => { 
-                                        const n = [...p]; 
-                                        while(n.length < currentUIQs.length) {
-                                            const qt = currentUIQs[n.length] ? currentUIQs[n.length].qType : undefined;
-                                            if (qt === 'reorder') n.push([]); else n.push('');
-                                        }
-                                        return n; 
-                                    });
-                                    setHints(p => { const n = [...p]; while(n.length<currentUIQs.length) n.push(false); return n; });
-                                    setQStatus(p => { const n = [...p]; while(n.length<currentUIQs.length) n.push(null); return n; });
-                                    if (!readyRef.current && currentUIQs.length > 0) { setReady(true); readyRef.current = true; setTimeout(() => window.scrollTo(0, 0), 300); }
-                                }
-                            }
-                        };
-
-                        const attemptCall = async (provider, func) => {
-                            lastParsedCount = 0; const prev = fulfilledReqUids.size; const res = await func();
-                            if (fulfilledReqUids.size === prev) { logicFailedEngines.add(provider); throw new Error(`邏輯不合規`); }
-                            return { ...res, provider };
-                        };
-
-                        let result = null; let lastError = null;
-
-                        if (routingMode === 'sequential') {
-                            const genProvidersToTry = ['groq', 'google', 'openrouter', 'openai', 'nvidia'].filter(p => !logicFailedEngines.has(p) && enginesEnabled[p]);
-                            for (let i = 0; i < genProvidersToTry.length; i++) {
-                                const currentP = genProvidersToTry[i];
-                                try {
-                                    if (i > 0 || logicFailedEngines.size > 0) addLog(`[備援] 嘗試順位: ${currentP.toUpperCase()}...`);
-                                    if (currentP === 'groq') result = await attemptCall('groq', () => window.sharedAIClient.callGroq(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, groqModel, 'batch'));
-                                    else if (currentP === 'google') result = await attemptCall('google', () => window.sharedAIClient.callGemini(targetGeminiModel, systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'batch'));
-                                    else if (currentP === 'openrouter') result = await attemptCall('openrouter', () => window.sharedAIClient.callOpenRouter(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, openRouterModel, 'batch'));
-                                    else if (currentP === 'openai') result = await attemptCall('openai', () => window.sharedAIClient.callOpenAI(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'gpt-4o-mini', 'batch'));
-                                    else if (currentP === 'nvidia') result = await attemptCall('nvidia', () => window.sharedAIClient.callNvidia(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, nvidiaModel, 'batch'));
-                                    break; 
-                                } catch (err) { 
-                                    lastError = err; logicFailedEngines.add(currentP);
-                                    if (batchController.signal.aborted) throw err; 
-                                }
-                            }
-                        } else {
-                            const tryDynamicRoute = async () => {
-                                if (batchController.signal.aborted) throw new Error('任務取消');
-                                const available = ['groq', 'google', 'openrouter', 'openai', 'nvidia'].filter(p => enginesEnabled[p] && window.sharedAIClient.getEngineStatus(p) !== 'red' && !logicFailedEngines.has(p));
-                                if (available.length === 0) throw new Error("無可用引擎");
-
-                                const selectedP = available[0]; const status = window.sharedAIClient.getEngineStatus(selectedP);
-                                if (status === 'yellow') { const waitTime = window.sharedAIClient.cooldowns[selectedP] - (Date.now() - window.sharedAIClient.lastCallTime[selectedP]); await new Promise(r => setTimeout(r, waitTime)); }
-                                
-                                addLog(`[動態] 🟢 ${selectedP.toUpperCase()}`); window.sharedAIClient.lastCallTime[selectedP] = Date.now();
-                                try {
-                                    if (selectedP === 'groq') return await attemptCall('groq', () => window.sharedAIClient.callGroq(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, groqModel, 'batch'));
-                                    if (selectedP === 'google') return await attemptCall('google', () => window.sharedAIClient.callGemini(targetGeminiModel, systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'batch'));
-                                    if (selectedP === 'openrouter') return await attemptCall('openrouter', () => window.sharedAIClient.callOpenRouter(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, openRouterModel, 'batch'));
-                                    if (selectedP === 'openai') return await attemptCall('openai', () => window.sharedAIClient.callOpenAI(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, 'gpt-4o-mini', 'batch'));
-                                    if (selectedP === 'nvidia') return await attemptCall('nvidia', () => window.sharedAIClient.callNvidia(systemPrompt, userQuery, batchController.signal, onStreamChunk, addLog, nvidiaModel, 'batch'));
-                                } catch (err) { logicFailedEngines.add(selectedP); return await tryDynamicRoute(); }
-                            };
-                            try { result = await tryDynamicRoute(); } catch (err) { lastError = err; }
-                        }
-
-                        if (!result) throw lastError || new Error("引擎連線皆失敗");
-                        setAiModel(result.modelName); setApiUsage(p => { const n = { ...p }; n[result.provider === 'google' ? 'gemini' : result.provider]++; localStorage.setItem('sh_api_usage_v29', JSON.stringify(n)); return n; });
-                        chunkPending = chunkPending.filter(item => !fulfilledReqUids.has(item.reqUid));
-                    } 
-                } 
-            } catch (fatalErr) { addLog(`[錯誤] ${fatalErr.message}`); } 
-            finally { clearTimeout(batchTimeoutId); isGeneratingRef.current = false; setIsGenerating(false); setAiStatus("準備完成！"); }
-            if (currentUIQs.length < targetTotal) { 
-                setQuestions([...currentUIQs]); 
-                setAnswers(p => { 
-                    const n = [...p]; 
-                    while(n.length < currentUIQs.length) { 
-                        const qt = currentUIQs[n.length] ? currentUIQs[n.length].qType : undefined; 
-                        if (qt === 'reorder') n.push([]); else n.push(''); 
-                    } return n; 
-                }); 
-                setHints(p => { const n = [...p]; while(n.length < currentUIQs.length) n.push(false); return n; }); 
-                setQStatus(p => { const n = [...p]; while(n.length < currentUIQs.length) n.push(null); return n; }); 
-            }
-            if (!readyRef.current && currentUIQs.length > 0) { setReady(true); setTimeout(() => window.scrollTo(0, 0), 300); }
-          };
-
-          const generateExpPrompt = (mode, qSentence, safeAns, studentAns, allowOverride = true) => { 
-              const overrideTask = allowOverride ? `1. CRITICAL: Analyze the combined Question + Target Answer. If the Target Answer creates a grammatically WRONG sentence (e.g., missing a verb like "has" before "a cold"), OR if the Student's Answer is actually the only grammatically correct option, YOU MUST OVERRIDE. To override, your VERY FIRST WORD must be "[OVERRIDE_CORRECT]". If the student's answer is ALSO wrong but you need to correct the Target Answer, output "[OVERRIDE_CORRECT: correct_answer]".\n2. Explain in TRADITIONAL CHINESE (繁體中文).\n` : `1. Explain in TRADITIONAL CHINESE (繁體中文).\n`;
-              const baseTask = `TASK:\n${overrideTask}`;
-              const baseFormat = `3. Format exactly as below:\n🔍 題目線索：[...]\n💡 文法秘訣：[...]\n🎯 答題結果：[...]`;
-              
-              if (mode === 'v1') {
-                  return `You are a friendly English tutor for an elementary school student in Taiwan.\nQuestion: "${qSentence}"\nTarget Answer: "${safeAns}"\nStudent's Answer: "${studentAns}"\n${baseTask}MUST be extremely simple, brief, and easy for a 10-year-old child to understand. Avoid complex grammar terms. Maximum 3 sentences per section.\n${baseFormat}`;
-              } else if (mode === 'v3') {
-                  return `You are a clear and concise English tutor for elementary students in Taiwan.\nQuestion: "${qSentence}"\nTarget Answer: "${safeAns}"\nStudent's Answer: "${studentAns}"\n${baseTask}Keep it absolutely brief and conversational. Use bullet points if necessary. Do not use advanced linguistic terms.\n${baseFormat}`;
-              } else {
-                  return customPromptText.replace(/{q\.sentence}/g, qSentence).replace(/{safeAnswerStr}/g, safeAns).replace(/{studentAns}/g, studentAns);
-              }
-          };
-
-          const handleOnDemand = async (index, type, isRetry = false, retryCount = 0, targetPromptMode = null, isManual = false, targetProvider = null) => { 
-              const key = `${type}_${index}`; if (loadingStates[key] && !isRetry) return;
-              setLoadingStates(prev => ({...prev, [key]: true})); if (!isRetry) setDynamicContent(prev => ({...prev, [key]: ""}));
-
-              const q = questions[index]; const safeAnswerStr = typeof q.rawAnswerObj === 'string' ? q.rawAnswerObj : (typeof q.answer === 'string' ? q.answer : JSON.stringify(q.rawAnswerObj));
-              const studentAns = typeof answers[index] === 'object' ? JSON.stringify(answers[index]) : String(answers[index]||"[未作答]");
-              
-              let currentPMode = targetPromptMode || promptMode;
-              if (type === 'exp') { setQPromptModes(prev => ({...prev, [index]: currentPMode})); }
-
-              let prompt = "";
-              if (type === 'hint') prompt = `Please provide ONLY the Traditional Chinese (Taiwan) translation for the word/phrase: "${q.answer}". Output nothing else.`;
-              else if (type === 'exp') prompt = generateExpPrompt(currentPMode, q.sentence, safeAnswerStr, studentAns, !isManual && !overrideTriggeredRef.current[key]);
-
-              try {
-                  let firstChunk = false;
-                  const onChunk = (text, chunkModelName) => {
-                      firstChunk = true; let clean = text.replace(/^["']|["']$/g, '');
-                      
-                      const overrideRegex = /\[OVERRIDE_CORRECT(?::\s*([^\]]+))?\]/;
-                      const match = clean.match(overrideRegex);
-
-                      if (match) {
-                          let newCorrectAns = answers[index]; 
-                          let isStudentCorrect = true;
-                          
-                          if (match[1]) {
-                              newCorrectAns = match[1].trim();
-                              isStudentCorrect = false; 
-                          }
-                          
-                          clean = clean.replace(overrideRegex, '').trim();
-
-                          if (!isManual && !overrideTriggeredRef.current[key]) {
-                              overrideTriggeredRef.current[key] = true;
-                              
-                              setQuestions(prev => { 
-                                  const nq = [...prev]; 
-                                  nq[index] = { 
-                                      ...nq[index], 
-                                      answer: typeof newCorrectAns === 'object' ? JSON.stringify(newCorrectAns) : newCorrectAns,
-                                      rawAnswerObj: newCorrectAns 
-                                  }; 
-                                  return nq; 
-                              });
-                              
-                              if (isStudentCorrect) {
-                                  setQStatus(prev => { const nqs = [...prev]; nqs[index] = 1; return nqs; });
-                                  setCombo(prevCombo => { const nc = prevCombo + 1; setMaxCombo(max => nc > max ? nc : max); if (nc >= 3) { window.SOUND_ENGINE.playCombo(); setShowComboAnim(true); setTimeout(() => setShowComboAnim(false), 1000); } else window.SOUND_ENGINE.playCorrect(); return nc; });
-                                  setStorage(prev => { const nextS = { ...prev.stats }; if (nextS[safeAnswerStr.toLowerCase()]) { nextS[safeAnswerStr.toLowerCase()].wrong = Math.max(0, nextS[safeAnswerStr.toLowerCase()].wrong - 1); const userAnsLower = typeof answers[index] === 'string' ? answers[index].toLowerCase() : 'multi_ans'; if (!nextS[userAnsLower]) nextS[userAnsLower] = { correct: 0, wrong: 0 }; nextS[userAnsLower].correct += 1; } return { ...prev, stats: nextS }; });
-                                  setMistakePool(prev => prev.filter(w => w.toLowerCase() !== safeAnswerStr.toLowerCase()));
-                              } else {
-                                  setQStatus(prev => { const nqs = [...prev]; nqs[index] = 0; return nqs; });
-                              }
-                          }
-                      }
-                      setDynamicContent(prev => ({...prev, [key]: clean})); if (chunkModelName) setDynamicModels(prev => ({...prev, [key]: chunkModelName.split('/').pop().toUpperCase()}));
-                  };
-                  
-                  let providersToTry = ['groq', 'google', 'openrouter', 'openai', 'nvidia'].filter(p => enginesEnabled[p]);
-                  if (type === 'exp') { 
-                      const others = ['groq', 'google', 'openrouter', 'openai', 'nvidia'].filter(p => p !== defaultTeacher);
-                      providersToTry = [defaultTeacher, ...others].filter(p => enginesEnabled[p]); 
-                  }
-
-                  if (targetProvider) {
-                      providersToTry = [targetProvider].filter(p => enginesEnabled[p]);
-                  } else {
-                      if (routingMode === 'dynamic') providersToTry = providersToTry.filter(p => window.sharedAIClient.getEngineStatus(p) !== 'red');
-                      if (isRetry && dynamicProviders[key] && !isManual) { providersToTry = providersToTry.filter(p => p !== dynamicProviders[key]); }
-                  }
-
-                  if (providersToTry.length === 0) throw new Error("無可用引擎");
-
-                  let success = false; let lastErr = "";
-                  for (let currentP of providersToTry) {
-                      try {
-                          setDynamicProviders(prev => ({...prev, [key]: currentP})); addLog(`[解說] 🟢 -> ${currentP.toUpperCase()}`);
-                          if (routingMode === 'dynamic') { if (window.sharedAIClient.getEngineStatus(currentP) === 'yellow') await new Promise(r => setTimeout(r, window.sharedAIClient.cooldowns[currentP] - (Date.now() - window.sharedAIClient.lastCallTime[currentP]))); window.sharedAIClient.lastCallTime[currentP] = Date.now(); }
-                          const demandController = new AbortController(); firstChunk = false;
-                          const ttftTimer = setTimeout(() => { if (!firstChunk) demandController.abort(new Error("TTFT_3S_TIMEOUT")); }, 3000);
-                          
-                          if (currentP === 'groq') await window.sharedAIClient.callGroq("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, groqModel, 'micro');
-                          else if (currentP === 'google') await window.sharedAIClient.callGemini('gemini-2.5-flash', "You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, 'micro');
-                          else if (currentP === 'openrouter') await window.sharedAIClient.callOpenRouter("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, openRouterModel, 'micro');
-                          else if (currentP === 'openai') await window.sharedAIClient.callOpenAI("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, 'gpt-4o-mini', 'micro');
-                          else if (currentP === 'nvidia') await window.sharedAIClient.callNvidia("You are a helpful assistant. RAW TEXT ONLY.", prompt, demandController.signal, onChunk, () => {}, nvidiaModel, 'micro');
-                          
-                          clearTimeout(ttftTimer); success = true; break;
-                      } catch (e) { lastErr = e.message; } 
-                  }
-                  if(!success) throw new Error(lastErr || "無可用引擎");
-                  setLoadingStates(prev => ({...prev, [key]: false}));
-              } catch (e) {
-                  if (retryCount < 2 && e.message !== "無可用引擎") {
-                      setDynamicContent(prev => ({...prev, [key]: `⏳ 重試中 (${retryCount + 1}/3)...`})); setTimeout(() => handleOnDemand(index, type, true, retryCount + 1, currentPMode, isManual, targetProvider), 3000);
-                  } else {
-                      setDynamicContent(prev => ({...prev, [key]: `⚠️ ${e.message}`})); setLoadingStates(prev => ({...prev, [key]: false}));
-                  }
-              }
-          };
-
-          const cyclePromptMode = (currentIndex) => { 
-              const modes = ['v1', 'v3', 'custom'];
-              const current = qPromptModes[currentIndex] || promptMode;
-              let nextIdx = modes.indexOf(current) + 1;
-              if (nextIdx >= modes.length || nextIdx < 0) nextIdx = 0;
-              return modes[nextIdx];
-          };
-
-          const startReview = () => { if (mistakePool.length === 0) return; handleMainMenuChange('review'); };
-          
-          const syncMistakesAndStats = (idx, isPartialOrCorr) => {
-            const q = questions[idx]; 
-            const k = typeof q.answer === 'string' ? q.answer.toLowerCase() : 'complex_grammar';
-            setStorage(prev => {
-                const nextS = { ...prev.stats }; if (!nextS[k]) nextS[k] = { correct: 0, wrong: 0 };
-                if (isPartialOrCorr) nextS[k].correct++; else nextS[k].wrong++;
-                const nextM = { ...prev.memory };
-                if (isPartialOrCorr) nextM[k] = (nextM[k] || 0) > 0 ? (nextM[k] || 0) + 1 : 1; else nextM[k] = (nextM[k] || 0) < 0 ? (nextM[k] || 0) - 1 : -1;
-                try { localStorage.setItem('sh_m_v28', JSON.stringify(nextM)); localStorage.setItem('sh_s_v28', JSON.stringify(nextS)); } catch(e){} return { ...prev, memory: nextM, stats: nextS };
-            });
-            setMistakePool(prev => { let updated = [...prev]; if (isPartialOrCorr) updated = updated.filter(w => w.toLowerCase() !== k); else if (!updated.some(w => w.toLowerCase() === k) && typeof q.answer === 'string') updated.push(q.answer); try { localStorage.setItem('sh_mistakes_v29', JSON.stringify(updated)); } catch(e){} return updated; });
-          };
-
-          const handleCheckSingle = (index, forcedAnswer) => {
-            if (qStatus[index] !== null || submitted) return; 
-            let finalAnswer = answers[index];
-            if (forcedAnswer !== undefined && forcedAnswer !== null) { 
-                finalAnswer = forcedAnswer; 
-                const newAns = [...answers]; 
-                newAns[index] = forcedAnswer; 
-                setAnswers(newAns); 
-            }
-            
-            const qType = questions[index].qType || 'fill';
-            
-            if (qType === 'fill' || qType === undefined) {
-                if (!finalAnswer || String(finalAnswer).trim() === '') return;
-            } else if (qType === 'reorder') {
-                const expectedLen = questions[index].options ? questions[index].options.length : 0;
-                if (!Array.isArray(finalAnswer) || finalAnswer.length === 0 || finalAnswer.length < expectedLen) return;
-            }
-            
-            const scoreVal = window.SYSTEM_ENGINE.isCorrect(finalAnswer, questions[index].rawAnswerObj || questions[index].answer, qType, questions[index].sentence);
-            const isCorr = scoreVal === 1;
-            const isPartial = scoreVal > 0 && scoreVal < 1;
-            
-            if (isCorr) { 
-                const nc = combo + 1; setCombo(nc); if (nc > maxCombo) setMaxCombo(nc); 
-                if (nc >= 3) { window.SOUND_ENGINE.playCombo(); setShowComboAnim(true); setTimeout(() => setShowComboAnim(false), 1000); } else window.SOUND_ENGINE.playCorrect(); 
-            } else if (isPartial) {
-                setCombo(0); window.SOUND_ENGINE.playCorrect(); 
-            } else { 
-                setCombo(0); window.SOUND_ENGINE.playWrong(); 
-                if (mainMenu === 'grammar') { setTimeout(() => handleOnDemand(index, 'exp'), 100); } 
-            }
-            const nqs = [...qStatus]; nqs[index] = scoreVal; setQStatus(nqs); syncMistakesAndStats(index, isCorr || isPartial);
-          };
-
-          const handleGradeAll = () => {
-            setSubmitted(true); window.SOUND_ENGINE.playVictory(); let score = 0; 
-            questions.forEach((q, i) => { 
-                let scoreVal = qStatus[i]; 
-                if (scoreVal === null) { 
-                    scoreVal = window.SYSTEM_ENGINE.isCorrect(answers[i], q.rawAnswerObj || q.answer, q.qType, q.sentence); 
-                    syncMistakesAndStats(i, scoreVal === 1); 
-                    if (scoreVal < 1 && mainMenu === 'grammar') { setTimeout(() => handleOnDemand(i, 'exp'), 100 * i); } 
-                } 
-                score += scoreVal; 
-            });
-            const percent = Math.round((score / questions.length) * 100); let coins = percent >= 91 ? 20 : percent >= 81 ? 10 : percent >= 70 ? 5 : 0; if (maxCombo >= 3 && coins > 0) coins *= 2; const exp = Math.floor(score * 10) + (percent === 100 ? 50 : 0);
-            setEarnedCoins(coins); setEarnedExp(exp); if (coins > 0) setTimeout(() => window.SOUND_ENGINE.playCoin(), 800);
-            setStorage(prev => {
-                const nextH = [{date: new Date().toLocaleDateString('zh-TW',{month:'short',day:'numeric'}), score: score, total:questions.length}, ...prev.history].slice(0, 10);
-                const tc = prev.coins + coins; const te = prev.exp + exp; const oldL = window.getCurrentLevelInfo(prev.exp); const newL = window.getCurrentLevelInfo(te);
-                if (newL.current.level > oldL.current.level) { setLevelUpData(newL.current); setTimeout(() => window.SOUND_ENGINE.playLevelUp(), 1500); }
-                try { localStorage.setItem('sh_h_v28', JSON.stringify(nextH)); localStorage.setItem('sh_coins_v28', tc.toString()); localStorage.setItem('sh_exp_v28', te.toString()); localStorage.setItem('sh_level_v28', newL.current.level.toString()); } catch(e) {}
-                return {...prev, history: nextH, coins: tc, exp: te, level: newL.current.level};
-            }); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-          };
-
-          const handleRedeem = () => { 
-            const am = parseInt(redeemAmount); if (isNaN(am) || am <= 0 || am % 100 !== 0 || am > storage.coins) { setRedeemMessage("金幣不足或數量錯誤喔！"); return; }
-            const nc = storage.coins - am; setStorage(p => { const ns = {...p, coins: nc}; try { localStorage.setItem('sh_coins_v28', nc.toString()); } catch(e){} return ns; });
-            setRedeemMessage("🎉 成功兌換 NT$ " + ((am/100)*10) + " 元！"); setRedeemAmount(100); window.SOUND_ENGINE.playCoin();
-            setTimeout(() => setRedeemMessage(""), 5000);
-          };
-
-          const playTTS = async (text, isS, a) => { 
-            if (isS === undefined) isS = true; if (a === undefined) a = '';
-            const finalString = isS ? String(text).replace(/_+/g, a || '') : String(text);
-            if (ttsEngine === 'openai' && openAITtsKey) { try { const response = await fetch('https://api.openai.com/v1/audio/speech', { method: 'POST', headers: { 'Authorization': `Bearer ${openAITtsKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'tts-1', input: finalString, voice: openAITtsVoice, speed: config.speed }) }); if (!response.ok) throw new Error('OpenAI API Exception'); const blob = await response.blob(); const audioUrl = URL.createObjectURL(blob); const audio = new Audio(audioUrl); audio.play(); return; } catch (e) { addLog(`⚠️ OpenAI TTS 播放失敗，自動降級 (${e.message})`); } }
-            if (!('speechSynthesis' in window)) return; window.speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(finalString); const targetLang = config.accent === 'UK' ? 'en-GB' : 'en-US'; utterance.lang = targetLang; utterance.rate = config.speed; utterance.pitch = 1.1; const voices = window.speechSynthesis.getVoices(); if (voices.length > 0) { const langVoices = voices.filter(v => v.lang.startsWith(targetLang) || v.lang.replace('_', '-').startsWith(targetLang)); const premiumKeywords = ['premium', 'enhanced', 'google', 'samantha', 'ava', 'karen']; let bestVoice = langVoices.find(v => premiumKeywords.some(k => v.name.toLowerCase().includes(k))); if (bestVoice) { utterance.voice = bestVoice; } else if (langVoices.length > 0) { utterance.voice = langVoices[0]; } } window.speechSynthesis.speak(utterance);
-          };
-
-          const levelInfoObj = window.getCurrentLevelInfo(storage.exp); const currentLevelInfo = levelInfoObj.current; const nextLevel = levelInfoObj.nextLevel;
-          const expPercent = nextLevel ? Math.min(100, Math.floor(((storage.exp - currentLevelInfo.reqExp) / (nextLevel.reqExp - currentLevelInfo.reqExp)) * 100)) : 100;
-          const progressPercent = questions.length > 0 ? Math.floor((answers.filter(a => a && (typeof a === 'string' ? a.trim() !== '' : true)).length * 100) / questions.length) : 0;
-          const finalScoreCount = questions.reduce((sum, _, idx) => sum + (qStatus[idx] || 0), 0);
-          
-          const currentActiveDB = mainMenu === 'grammar' ? window.getActiveGrammarDB(selectedNotebooks) : window.getActiveDB(selectedNotebooks, vocabMode);
-          let displayModelName = String(aiModel).toUpperCase(); if (displayModelName.indexOf('OPENROUTER/AUTO') !== -1 || displayModelName.indexOf('OPENROUTER/FREE') !== -1 || displayModelName.indexOf('AUTO_FILTERED') !== -1) displayModelName = 'AUTO-ROUTER'; else if (displayModelName.indexOf('DEEPSEEK') !== -1) displayModelName = 'DEEPSEEK'; else if (displayModelName.indexOf('GEMINI-') !== -1) displayModelName = displayModelName.replace('GEMINI-', ''); else if (displayModelName.indexOf('/') !== -1) displayModelName = displayModelName.split('/')[1];
-
-          return (
-            <div className="min-h-screen bg-[#ebe6df] font-sans text-[#524d46] pb-[40vh] overflow-x-hidden relative text-left">
-              {showLogsPanel && (
-                <div className="fixed bottom-0 left-0 right-0 md:bottom-4 md:right-4 md:left-auto md:w-96 bg-[#1c1917] p-4 rounded-t-3xl md:rounded-3xl border-t-4 md:border-4 border-[#3d3935] shadow-[0_-10px_40px_rgba(0,0,0,0.3)] z-[600] animate-in slide-in-from-bottom flex flex-col h-64 md:h-80">
-                    <div className="flex justify-between items-center mb-3 pb-3 border-b border-[#3d3935]">
-                        <span className="text-[#9BAA97] font-black text-sm flex items-center gap-1.5 uppercase tracking-widest"><ScrollText size={16}/> 系統日誌監控</span>
-                        <button onClick={() => setShowLogsPanel(false)} className="text-[#c4cec1] hover:text-white bg-[#3d3935] rounded-full p-1"><XCircle size={20}/></button>
-                    </div>
-                    <div ref={dashLogRef} className="text-[11px] md:text-xs text-[#9BAA97] font-mono text-left overflow-y-auto flex-1 terminal-scroll flex flex-col gap-2 px-1">
-                        {aiLogs.length === 0 ? <div className="opacity-50 italic text-center mt-4">尚無最近的連線紀錄。</div> : aiLogs.map((log, idx) => (
-                            <div key={idx} className="opacity-90 break-words leading-relaxed">
-                                {log.indexOf('[錯誤]') !== -1 || log.indexOf('[超時]') !== -1 || log.indexOf('[異常]') !== -1 || log.indexOf('[失敗]') !== -1 || log.indexOf('❌') !== -1 ? <span className="text-[#b5847e] font-bold">{log}</span> : log.indexOf('[成功]') !== -1 || log.indexOf('[完成]') !== -1 || log.indexOf('[快取]') !== -1 || log.indexOf('✅') !== -1 ? <span className="text-[#8b9586] font-bold">{log}</span> : log.indexOf('[遞補]') !== -1 || log.indexOf('[定額預載]') !== -1 || log.indexOf('[動態預載]') !== -1 || log.indexOf('[備援]') !== -1 || log.indexOf('[重試]') !== -1 || log.indexOf('⏳') !== -1 || log.indexOf('🟡') !== -1 || log.indexOf('🔴') !== -1 || log.indexOf('🟢') !== -1 ? <span className="text-[#cca677] font-bold">{log}</span> : <span className="text-[#c5bbae]">{log}</span>}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-              )}
-
-              <nav className="bg-[#ebe6df] p-2 md:p-3 shadow-sm sticky top-0 z-[150] border-b border-[#d6cfc5] flex justify-center">
-                  <div className="max-w-4xl w-full flex gap-2">
-                      <button onClick={() => handleMainMenuChange('vocab')} disabled={isGenerating} className={`flex-1 py-2 md:py-3 rounded-xl font-bold text-xs md:text-sm transition-all shadow-sm flex flex-col items-center justify-center gap-1 ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''} ${mainMenu === 'vocab' && !isReview ? 'bg-[#8b9586] text-white border border-[#7a8575]' : 'bg-[#f4f1ea] text-[#7a8575] border border-[#d6cfc5] hover:bg-[#e6e9e4]'}`}><div className="flex items-center gap-1"><Sparkles size={14}/> 開始單字測驗</div></button>
-                      <button onClick={() => handleMainMenuChange('grammar')} disabled={isGenerating} className={`flex-1 py-2 md:py-3 rounded-xl font-bold text-xs md:text-sm transition-all shadow-sm flex flex-col items-center justify-center gap-1 ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''} ${mainMenu === 'grammar' && !isReview ? 'bg-[#968b95] text-white border border-[#7f7680]' : 'bg-[#f4f1ea] text-[#857b84] border border-[#d6cfc5] hover:bg-[#e6e9e4]'}`}><div className="flex items-center gap-1"><Sparkles size={14}/> 開始文法測驗</div></button>
-                      <button onClick={startReview} disabled={mistakePool.length===0 || isGenerating} className={`flex-1 py-2 md:py-3 rounded-xl font-bold text-xs md:text-sm transition-all shadow-sm flex flex-col items-center justify-center gap-1 ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''} ${isReview ? 'bg-[#b5847e] text-white border border-[#a3756f]' : mistakePool.length>0 ? 'bg-[#f2e7e6] text-[#b5847e] border border-[#dcb5b0] hover:bg-[#e8d5d3]' : 'bg-[#dedad4] text-[#a6a198] border border-[#c5bbae] cursor-not-allowed opacity-50'}`}><div className="flex items-center gap-1"><AlertOctagon size={14}/> 錯題特訓 {mistakePool.length > 0 && `(${mistakePool.length})`}</div></button>
-                  </div>
-              </nav>
-
-              {showFallbackAlert && (
-                  <div className="fixed top-24 left-1/2 transform -translate-x-1/2 z-[400] animate-in slide-in-from-top-10 fade-in duration-300 w-[90%] max-w-2xl text-center"><div className="bg-[#b5847e] text-white px-6 py-4 rounded-2xl shadow-xl flex items-center gap-4 border-4 border-[#a3756f] justify-center"><AlertOctagon size={32} className="animate-pulse flex-shrink-0 text-white" /><span className="font-black text-lg md:text-xl tracking-wide leading-tight text-white">{alertMessage}</span></div></div>
-              )}
-              {showComboAnim && (
-                <div className="fixed inset-0 z-[250] pointer-events-none flex items-center justify-center text-center"><div className="absolute inset-0 bg-[#cca677]/20 animate-ping"></div><div className="animate-in zoom-in slide-in-from-bottom-10 duration-500 flex flex-col items-center"><Flame size={120} className="text-[#cca677] fill-[#cca677] drop-shadow-[0_0_30px_rgba(204,166,119,0.8)] mb-4 animate-bounce" /><div className="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-[#e6cdab] to-[#b89063] drop-shadow-xl italic combo-text">{combo} COMBO!</div><div className="text-2xl md:text-4xl font-black text-white mt-2 drop-shadow-md bg-[#b89063] px-6 py-2 rounded-full transform -rotate-3 whitespace-nowrap">狂熱模式啟動 🔥</div></div></div>
-              )}
-              {levelUpData && (
-                <div className="fixed inset-0 bg-[#3d3935]/95 z-[300] flex flex-col items-center justify-center text-[#f4f1ea] backdrop-blur-md animate-in fade-in duration-500 px-4"><h2 className="text-4xl md:text-6xl font-black text-[#cca677] mb-2 drop-shadow-lg tracking-widest uppercase text-center">Level Up!</h2><p className="text-xl md:text-2xl font-bold text-[#b5aead] mb-10 text-center">恭喜獲得全新榮譽稱號</p><div className={`relative ${levelUpData.bg} ${levelUpData.border} border-8 p-10 md:p-14 rounded-full shadow-2xl flex flex-col items-center justify-center min-w-[250px] min-h-[250px]`}><span className="text-8xl md:text-9xl mb-4">{levelUpData.icon}</span><span className={`text-3xl md:text-5xl font-black ${levelUpData.color}`}>{levelUpData.title}</span></div><button onClick={() => setLevelUpData(null)} className="bg-[#cca677] text-white hover:bg-[#b89063] font-black text-2xl md:text-3xl py-5 px-12 rounded-[3rem] mt-10 active:scale-95 border-b-8 border-[#a68258] shadow-xl">繼續冒險 🚀</button></div>
-              )}
-              
-              {isGenerating && !ready && (
-                <div className="fixed inset-0 bg-[#3d3935]/95 z-[500] flex flex-col items-center justify-center text-[#f4f1ea] backdrop-blur-md transition-opacity duration-300">
-                    <div className="relative"><Loader2 className="w-24 h-24 text-[#8b9586] animate-spin mb-6 drop-shadow-[0_0_15px_rgba(139,149,134,0.6)]" /><Zap className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-10 h-10 text-[#cca677] animate-pulse pb-6" /></div>
-                    <h2 className="text-2xl md:text-4xl font-black mb-6 flex items-center gap-4 tracking-widest text-center px-4 text-transparent bg-clip-text bg-gradient-to-r from-[#b1bcb1] to-[#8b9586] leading-tight">AI 核心運轉中</h2>
-                    <div className="text-xl font-bold bg-[#2d2a26] px-4 md:px-6 py-6 rounded-2xl border border-[#6b655f] shadow-lg text-center max-w-2xl w-11/12 flex flex-col gap-4">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2"><span className="text-[#c5bbae] text-sm md:text-base text-left">正在準備專屬例句... (第一題完成即解鎖)</span><div className="flex items-center gap-2 bg-[#1c1917] px-3 py-1.5 rounded-lg border border-[#57534e]"><BrainCircuit size={16} className="text-[#cca677]" /><span className="text-xs md:text-sm text-[#d9cfbb] font-mono tracking-wider">{displayModelName}</span></div></div>
-                        <div ref={logScrollRef} className="bg-[#1c1917] p-4 rounded-xl text-[11px] md:text-xs text-[#9BAA97] font-mono text-left h-40 md:h-48 overflow-y-auto shadow-inner border border-[#3d3935] flex flex-col gap-1.5 terminal-scroll">
-                            {aiLogs.map((log, idx) => ( <div key={idx} className="opacity-90 break-words leading-relaxed">{log.indexOf('[錯誤]') !== -1 || log.indexOf('[超時]') !== -1 || log.indexOf('[異常]') !== -1 || log.indexOf('[失敗]') !== -1 || log.indexOf('❌') !== -1 ? <span className="text-[#b5847e] font-bold">{log}</span> : log.indexOf('[成功]') !== -1 || log.indexOf('[完成]') !== -1 || log.indexOf('[快取]') !== -1 || log.indexOf('✅') !== -1 ? <span className="text-[#8b9586] font-bold">{log}</span> : <span className="text-[#c5bbae]">{log}</span>}</div> ))}
-                        </div>
-                        <div className="flex items-center gap-2 text-sm justify-center mt-2"><Activity size={16} className="text-[#8b9586] animate-pulse" /><span className="text-[#a69a8a] tracking-wider">目前狀態：<span className="text-[#9BAA97] font-bold">{aiStatus}</span></span></div>
-                    </div>
-                </div>
-              )}
-
-              <header className="bg-[#c2b49a] p-3 md:p-4 shadow-md border-b-4 border-[#b8a88c] flex justify-center">
-                <div className="max-w-4xl w-full flex items-start sm:items-center justify-between flex-col sm:flex-row gap-3">
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-2">
-                      <Star className="fill-white text-white w-6 h-6 md:w-8 md:h-8" />
-                      <h1 className="text-xl md:text-2xl font-black text-[#524d46] italic tracking-tight drop-shadow-sm leading-none">Spelling Hero!</h1>
-                      <div className="ml-2 hidden sm:flex flex-col"><div className={`px-2 py-0.5 rounded-md text-[10px] md:text-xs font-black border flex items-center gap-1 shadow-sm ${currentLevelInfo.bg} ${currentLevelInfo.color} ${currentLevelInfo.border}`}><span>{currentLevelInfo.icon}</span> <span>Lv.{currentLevelInfo.level} {currentLevelInfo.title}</span></div>{nextLevel && (<div className="w-full h-1.5 bg-black/10 rounded-full mt-1 overflow-hidden"><div className="bg-white/80 h-full" style={{ width: `${expPercent}%` }}></div></div>)}</div>
-                    </div>
-                    <div className="flex items-center gap-2 mt-2 sm:ml-10 flex-wrap">
-                      <div className="text-[10px] font-black text-[#7a6b52] bg-[#e6dcc5]/80 px-1.5 py-0.5 rounded border border-[#d1c4aa]/50 text-left italic shadow-sm">{mainMenu === 'vocab' ? `純單字庫: ${currentActiveDB.length} 字` : mainMenu === 'review' ? `待特訓: ${mistakePool.length} 題` : `文法: ${Object.keys(window.GRAMMAR_NOTEBOOKS).reduce((a,b)=>a+(Array.isArray(window.GRAMMAR_NOTEBOOKS[b])?window.GRAMMAR_NOTEBOOKS[b].length:0),0)} 題`}</div>
-                      <div className="text-[10px] font-black text-[#576b5d] bg-[#c4d1c8]/80 px-1.5 py-0.5 rounded border border-[#9fb3a6]/50 flex items-center gap-1 text-left shadow-sm cursor-pointer hover:bg-[#b0c0b6]" onClick={() => setDash(true)}><Activity size={10} /> 引擎設定</div>
-                      <div className="text-[10px] font-black text-[#7a6b52] bg-[#e6dcc5]/80 px-1.5 py-0.5 rounded border border-[#d1c4aa]/50 flex items-center gap-1 text-left shadow-sm cursor-pointer hover:bg-[#d1c4aa]" onClick={() => setDash(true)}><Database size={10} /> 快取: {poolStats.size} 題</div>
-                      {isGenerating && ready && <div className="text-[10px] font-black text-[#cca677] bg-[#f4ebd9]/80 px-1.5 py-0.5 rounded border border-[#e0c9aa]/50 flex items-center gap-1 text-left shadow-sm animate-pulse"><Loader2 size={10} className="animate-spin" /> AI 湧泉產生中...</div>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 md:gap-4 self-end sm:self-auto">
-                    {combo > 0 && !submitted && (<div className="flex items-center bg-[#cca677] px-3 py-1.5 rounded-full border-2 border-[#b89063] shadow-md animate-bounce"><Flame size={16} className="text-white fill-white mr-1" /><span className="font-black text-white text-sm italic">{combo} 連擊</span></div>)}
-                    <div className="flex items-center bg-[#f4f1ea]/40 px-3 py-1.5 rounded-full border border-[#ebe6df] shadow-inner"><Coins size={18} className="text-[#524d46] mr-1" /><span className="font-black text-[#524d46] text-sm mr-2">{storage.coins}</span><span className="font-bold text-[#8a847c] text-xs ml-1 border-l border-[#c5bbae] pl-2">NT$ {Math.floor(storage.coins/100)*10}</span></div>
-                    <button onClick={() => setShowLogsPanel(!showLogsPanel)} className={`p-2 rounded-2xl active:scale-90 transition-all flex items-center gap-2 font-bold shadow-sm ${showLogsPanel ? 'bg-[#8b9586] text-white' : 'bg-black/10 text-[#524d46]'}`}>{showLogsPanel ? <ChevronDown size={24}/> : <ScrollText size={24}/>}</button>
-                    <button onClick={() => setDash(!dash)} className="bg-black/10 text-[#524d46] p-2 rounded-2xl active:scale-90 transition-all flex items-center gap-2 font-bold shadow-sm">{dash ? <ChevronUp size={24}/> : <Settings size={24}/>}</button>
-                  </div>
-                </div>
-              </header>
-
-              {dash && (
-                <div className="bg-[#f4f1ea] border-b-4 border-[#d6cfc5] animate-in slide-in-from-top duration-300">
-                  <div className="max-w-4xl mx-auto p-4 space-y-4">
-                    <div className="bg-[#8b9586] text-white p-4 md:p-6 rounded-2xl border-4 border-[#7a8575] shadow-sm relative overflow-hidden">
-                        <div className="relative z-10 text-white">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2"><h3 className="text-xl font-black flex items-center gap-2 tracking-widest text-white"><ShieldCheck size={24} className="text-[#c4cec1]" /> AI 老師診斷中心</h3><div className="text-xs bg-[#7a8575] text-[#e6e9e4] font-mono px-3 py-1 rounded-full border border-[#6b7566] self-start sm:self-auto shadow-inner uppercase">當前模型: {displayModelName}</div></div>
-                            <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center mb-4">
-                                <div className="flex flex-col gap-2 w-full md:w-auto">
-                                    <button onClick={runDiagnostic} disabled={diagStatus === 'testing'} className={`px-6 py-3 rounded-xl font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2 border-b-4 ${diagStatus === 'testing' ? 'bg-[#a6a198] border-[#8a847c]' : 'bg-[#f4f1ea] border-[#d6cfc5] text-[#524d46]'}`}>{diagStatus === 'testing' ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />} 測試引擎連線</button>
-                                    <div className="flex gap-2 flex-wrap">
-                                        <button onClick={() => runSingleDiag('groq')} disabled={diagStatus === 'testing' || !enginesEnabled.groq} className="flex-1 px-3 py-2 rounded-xl font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 border-b-4 bg-[#e2eae8] border-[#b2cbc7] text-[#6b8b9c] text-xs hover:bg-[#d0e0de] disabled:opacity-30"><Zap size={14}/> Groq</button>
-                                        <button onClick={() => runSingleDiag('openrouter')} disabled={diagStatus === 'testing' || !enginesEnabled.openrouter} className="flex-1 px-3 py-2 rounded-xl font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 border-b-4 bg-[#f4ebd9] border-[#e0c9aa] text-[#a68258] text-xs hover:bg-[#ede0c8] disabled:opacity-30"><Zap size={14}/> OR</button>
-                                        <button onClick={() => runSingleDiag('google')} disabled={diagStatus === 'testing' || !enginesEnabled.google} className="flex-1 px-3 py-2 rounded-xl font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 border-b-4 bg-[#e6e9e4] border-[#c4cec1] text-[#6b7566] text-xs hover:bg-[#d8ddd6] disabled:opacity-30"><Zap size={14}/> Gemini</button>
-                                        <button onClick={() => runSingleDiag('openai')} disabled={diagStatus === 'testing' || !enginesEnabled.openai} className="flex-1 px-3 py-2 rounded-xl font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 border-b-4 bg-[#f2e7e6] border-[#dcb5b0] text-[#966b66] text-xs hover:bg-[#e8d5d3] disabled:opacity-30"><Zap size={14}/> OpenAI</button>
-                                        <button onClick={() => runSingleDiag('nvidia')} disabled={diagStatus === 'testing' || !enginesEnabled.nvidia} className="flex-1 px-3 py-2 rounded-xl font-black shadow-sm transition-all active:scale-95 flex items-center justify-center gap-1 border-b-4 bg-[#e6ffe6] border-[#c1dec1] text-[#4a7c4a] text-xs hover:bg-[#d8eed8] disabled:opacity-30"><Zap size={14}/> NVIDIA</button>
-                                    </div>
-                                </div>
-                                <div className={`flex-1 p-3 rounded-xl font-bold text-xs md:text-sm border-2 ${diagStatus === 'success' ? 'bg-[#9BAA97]/20 border-[#9BAA97] text-[#e6e9e4]' : diagStatus === 'error' ? 'bg-[#b5847e]/20 border-[#b5847e] text-[#f2e7e6]' : 'bg-white/10 border-white/20 text-[#e6e9e4]'}`}>{diagMsg || "點擊按鈕測試 API KEY。灰色的代表已在下方關閉。"}</div>
-                            </div>
-                            
-                            <div className="mt-4 flex flex-col gap-4 border-t border-[#7a8575] pt-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="flex flex-col gap-2">
-                                        <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><Activity size={16}/> 路由模式：</span>
-                                        <select value={routingMode} onChange={(e) => handleRoutingModeChange(e.target.value)} className="w-full bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono">
-                                            <option value="dynamic">🚦 動態 (自動跳過故障)</option>
-                                            <option value="sequential">➡️ 順序 (嚴格依照備援順位)</option>
-                                        </select>
-                                    </div>
-                                    <div className="flex flex-col gap-2 animate-in fade-in">
-                                        <span className="text-[#e6e9e4] font-bold text-sm">{routingMode === 'dynamic' ? '🚦 即時狀態：' : '🤖 備援順序：'}</span>
-                                        {routingMode === 'dynamic' ? (
-                                            <div className="flex flex-wrap gap-1">
-                                                {['groq', 'google', 'openrouter', 'openai', 'nvidia'].map(provider => {
-                                                    const light = engineLights[provider];
-                                                    const colorClass = light === 'green' ? 'bg-[#8b9586] text-white border-[#c4cec1]' : light === 'yellow' ? 'bg-[#cca677] text-white border-[#e0c9aa] animate-pulse' : 'bg-[#b5847e] text-white border-[#dcb5b0]';
-                                                    const icon = light === 'green' ? '🟢' : light === 'yellow' ? '🟡' : '🔴';
-                                                    const name = provider === 'google' ? 'Gem' : provider === 'openrouter' ? 'OR' : provider === 'openai' ? 'OAI' : provider.toUpperCase();
-                                                    return <div key={provider} className={`px-2 py-1 rounded text-xs font-bold border flex items-center gap-1 shadow-inner ${colorClass}`}><span>{name}</span><span className="text-[10px]">{icon}</span></div>;
-                                                })}
-                                            </div>
-                                        ) : (
-                                            <div className="flex bg-[#6b7566] px-3 py-1.5 rounded-lg shadow-inner items-center gap-1 text-xs font-bold text-[#e6e9e4] overflow-hidden whitespace-nowrap truncate">
-                                                <span><span className="text-white">Groq</span> ➡️ <span className="text-[#c4cec1]">Gem</span> ➡️ <span className="text-[#a4b1a1]">OR</span> ➡️ <span className="text-[#b5847e]">OAI</span> ➡️ <span className="text-[#a4d1a1]">NVIDIA</span></span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 gap-4 border-t border-[#7a8575] pt-4">
-                                    <div className="flex flex-col gap-2">
-                                        <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><Edit3 size={16}/> AI 老師解說風格：</span>
-                                        <select value={promptMode} onChange={(e) => {setPromptMode(e.target.value); localStorage.setItem('sh_prompt_mode', e.target.value);}} className="w-full bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono">
-                                            <option value="v1">v1 極簡口訣版</option>
-                                            <option value="v3">v3 重點條列版</option>
-                                            <option value="custom">⚙️ 自訂專屬指令</option>
-                                        </select>
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><ShieldCheck size={16}/> 文法受格修正模式：</span>
-                                        <select value={grammarFixMode} onChange={(e) => { setGrammarFixMode(e.target.value); localStorage.setItem('sh_grammar_fix_mode', e.target.value); window.GRAMMAR_FIX_MODE = e.target.value; }} className="w-full bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono">
-                                            <option value="rule">⚡ 規則修正（穩定，推薦）</option>
-                                            <option value="ai">🤖 AI 判斷（彈性，依賴模型）</option>
-                                            <option value="both">🔀 雙重修正（規則 + AI）</option>
-                                            <option value="off">🚫 關閉（不修正）</option>
-                                        </select>
-                                        <span className="text-[#a4b1a1] text-[10px] leading-tight px-1">規則修正：介系詞後自動轉受格。AI 判斷：請 AI 模型偵測並修正語法錯誤。</span>
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        <span className="text-[#e6e9e4] font-bold text-sm">👩‍🏫 預設解說老師：</span>
-                                        <select value={defaultTeacher} onChange={e => {setDefaultTeacher(e.target.value); localStorage.setItem('sh_default_teacher', e.target.value);}} className="w-full bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono">
-                                            <option value="openrouter">OpenRouter</option>
-                                            <option value="groq">Groq</option>
-                                            <option value="google">Gemini</option>
-                                            <option value="openai">OpenAI</option>
-                                            <option value="nvidia">NVIDIA</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                {promptMode === 'custom' && (
-                                    <div className="flex flex-col gap-2 animate-in fade-in pt-2">
-                                        <div className="text-[#cca677] text-[10px] font-bold px-1 leading-tight">⚠️ 警告：請勿刪除 [OVERRIDE_CORRECT] 相關指令，以免破壞計分。變數支援：{`{q.sentence}`}, {`{safeAnswerStr}`}, {`{studentAns}`}</div>
-                                        <textarea value={customPromptText} onChange={e => {setCustomPromptText(e.target.value); localStorage.setItem('sh_custom_prompt', e.target.value);}} className="w-full h-40 bg-[#3d3935] border border-[#2d2a26] rounded-lg p-3 text-xs text-white font-mono placeholder-[#6b655f] outline-none shadow-inner" spellCheck="false"></textarea>
-                                    </div>
-                                )}
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#7a8575] pt-4">
-                                    <div className="flex flex-col gap-2">
-                                        <span className="text-[#e6e9e4] font-bold text-sm">🧠 Groq 模型：</span>
-                                        <div className="flex gap-2">
-                                            <select 
-                                                value={groqModel} 
-                                                onChange={e => {
-                                                    setGroqModel(e.target.value);
-                                                    localStorage.setItem('sh_groq_model', e.target.value);
-                                                }} 
-                                                className="flex-1 min-w-0 bg-[#6b7566] border border-[#5a6356] rounded-lg px-2 py-2 text-xs md:text-sm outline-none text-white font-mono truncate"
-                                            >
-                                                {groqModelsList.map(m => (
-                                                    <option key={m} value={m}>{m === 'llama-3.3-70b-versatile' ? 'Llama 3.3 70B (推薦)' : m === 'llama-3.1-8b-instant' ? 'Llama 3.1 8B (最快)' : m}</option>
-                                                ))}
-                                            </select>
-                                            <button 
-                                                onClick={() => {
-                                                    if (window.sharedAIClient && typeof window.sharedAIClient.checkAvailableGroqModels === 'function') {
-                                                        window.sharedAIClient.checkAvailableGroqModels().then(models => {
-                                                            if (models && models.length > 0) { 
-                                                                setGroqModelsList(models); 
-                                                                addLog('✅ Groq 模型清單已更新'); 
-                                                            }
-                                                        });
-                                                    }
-                                                }}
-                                                className="bg-[#4a5346] hover:bg-[#5a6356] text-white px-3 py-2 rounded-lg border border-[#5a6356] text-sm font-bold transition-all shrink-0"
-                                                title="重新抓取可用模型清單"
-                                            >🔄</button>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        <span className="text-[#e6e9e4] font-bold text-sm">🧠 NVIDIA 模型：</span>
-                                        <div className="flex gap-2">
-                                            <select 
-                                                value={nvidiaModel} 
-                                                onChange={e => {
-                                                    setNvidiaModel(e.target.value);
-                                                    localStorage.setItem('sh_nvidia_model', e.target.value);
-                                                }} 
-                                                className="flex-1 min-w-0 bg-[#6b7566] border border-[#5a6356] rounded-lg px-2 py-2 text-xs md:text-sm outline-none text-white font-mono truncate"
-                                            >
-                                                {nvidiaModelsList.map(m => (
-                                                    <option key={m} value={m}>{m === 'meta/llama-3.1-70b-instruct' ? 'Llama 3.1 70B (推薦)' : m}</option>
-                                                ))}
-                                            </select>
-                                            <button 
-                                                onClick={() => {
-                                                    if (window.sharedAIClient && typeof window.sharedAIClient.checkAvailableNvidiaModels === 'function') {
-                                                        window.sharedAIClient.checkAvailableNvidiaModels().then(models => {
-                                                            if (models && models.length > 0) { 
-                                                                setNvidiaModelsList(models); 
-                                                                addLog('✅ NVIDIA 模型清單已更新'); 
-                                                            }
-                                                        });
-                                                    }
-                                                }}
-                                                className="bg-[#4a5346] hover:bg-[#5a6356] text-white px-3 py-2 rounded-lg border border-[#5a6356] text-sm font-bold transition-all shrink-0"
-                                                title="重新抓取可用模型清單"
-                                            >🔄</button>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        <span className="text-[#e6e9e4] font-bold text-sm">🧠 OR 模型：</span>
-                                        <div className="flex gap-2">
-                                            <select value={(openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free') ? openRouterModel : 'custom'} onChange={e => { if(e.target.value === 'custom') setOpenRouterModel(''); else setOpenRouterModel(e.target.value); }} className="w-1/2 bg-[#6b7566] border border-[#5a6356] rounded-lg px-2 py-2 text-xs outline-none text-white font-mono"><option value="openrouter/auto">/AUTO</option><option value="openrouter/free">/FREE</option><option value="custom">✍️ 自訂</option></select>
-                                            <input type="text" value={openRouterModel} onChange={e => setOpenRouterModel(e.target.value.toLowerCase().replace(/／/g, '/').replace(/\s+/g, '-'))} onBlur={e => setOpenRouterModel(openRouterModel.replace(/[^a-z0-9\-\.\/:]/g, ''))} disabled={openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free'} className={`w-1/2 rounded-lg px-2 py-2 text-xs outline-none font-mono tracking-widest ${ (openRouterModel === 'openrouter/auto' || openRouterModel === 'openrouter/free') ? 'bg-[#5a6356] text-[#a4b1a1] cursor-not-allowed opacity-50' : 'bg-[#6b7566] text-white placeholder-[#a4b1a1]' }`} />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-[#7a8575] pt-4">
-                                    <div className="flex flex-col gap-2">
-                                        <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><Layout size={16}/> 畫面排版：</span>
-                                        <select value={uiLayout} onChange={e => handleUiLayoutChange(e.target.value)} className="w-full bg-[#6b7566] border border-[#5a6356] rounded-lg px-3 py-2 text-sm outline-none text-white font-mono">
-                                            <option value="layout1">置中對齊 (適合手機)</option>
-                                            <option value="layout2">左右分流 (適合平板/電腦)</option>
-                                            <option value="layout3">卡片凸顯 (沉浸式閱讀)</option>
-                                        </select>
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        <span className="text-[#e6e9e4] font-bold text-sm flex items-center gap-1"><Volume2 size={16}/> 發音引擎：</span>
-                                        <div className="flex gap-2">
-                                            <select value={ttsEngine} onChange={e => setTtsEngine(e.target.value)} className="w-1/2 bg-[#6b7566] border border-[#5a6356] rounded-lg px-2 py-2 text-xs outline-none text-white font-mono"><option value="native">原生</option><option value="openai">OpenAI</option></select>
-                                            {ttsEngine === 'openai' ? ( <select value={openAITtsVoice} onChange={e => setOpenAITtsVoice(e.target.value)} className="w-1/2 bg-[#6b7566] border border-[#5a6356] rounded-lg px-2 py-2 text-xs outline-none text-[#cca677] font-mono"><option value="nova">Nova</option><option value="alloy">Alloy</option><option value="shimmer">Shimmer</option><option value="echo">Echo</option><option value="fable">Fable</option></select> ) : <div className="w-1/2 opacity-50 bg-[#5a6356] rounded-lg"></div>}
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2 bg-[#5a6356] p-4 rounded-xl border border-[#6b7566] shadow-inner">
-                                    <div className="flex flex-col gap-1">
-                                        <label className="text-[#c4cec1] font-bold text-xs flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.groq} onChange={() => toggleEngine('groq')} className="w-4 h-4 accent-[#cca677]"/> Groq Key：</label>
-                                        <input type="password" value={inputGroqKey} onChange={e => setInputGroqKey(e.target.value)} disabled={!enginesEnabled.groq} className="w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white font-mono tracking-widest disabled:opacity-50"/>
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                        <label className="text-[#c4cec1] font-bold text-xs flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.openrouter} onChange={() => toggleEngine('openrouter')} className="w-4 h-4 accent-[#cca677]"/> OR Key：</label>
-                                        <input type="password" value={inputOrKey} onChange={e => setInputOrKey(e.target.value)} disabled={!enginesEnabled.openrouter} className="w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white font-mono tracking-widest disabled:opacity-50"/>
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                        <label className="text-[#c4cec1] font-bold text-xs flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.nvidia} onChange={() => toggleEngine('nvidia')} className="w-4 h-4 accent-[#cca677]"/> NVIDIA Key：</label>
-                                        <input type="password" value={inputNvidiaKey} onChange={e => setInputNvidiaKey(e.target.value)} disabled={!enginesEnabled.nvidia} className="w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white font-mono tracking-widest disabled:opacity-50"/>
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                        <label className="text-[#c4cec1] font-bold text-xs flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.openai} onChange={() => toggleEngine('openai')} className="w-4 h-4 accent-[#cca677]"/> OpenAI Key：</label>
-                                        <input type="password" value={openAITtsKey} onChange={e => setOpenAITtsKey(e.target.value)} disabled={!enginesEnabled.openai} className="w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white font-mono tracking-widest disabled:opacity-50"/>
-                                    </div>
-                                    <div className="flex flex-col gap-1 col-span-1 md:col-span-2">
-                                        <label className="text-[#c4cec1] font-bold text-xs flex items-center gap-1 cursor-pointer"><input type="checkbox" checked={enginesEnabled.google} onChange={() => toggleEngine('google')} className="w-4 h-4 accent-[#cca677]"/> Gemini Key：</label>
-                                        <input type="password" value={inputKey} onChange={e => setInputKey(e.target.value)} disabled={!enginesEnabled.google} className="w-full bg-[#3d3935] border border-[#2d2a26] rounded px-3 py-1.5 text-xs text-white font-mono tracking-widest disabled:opacity-50"/>
-                                        <div className="mt-1 bg-[#2d2a26]/30 p-2 rounded border border-[#3d3935]">
-                                          <div className="flex gap-2 items-center">
-                                            <select 
-                                               value={activeGeminiModel} 
-                                               onChange={e => { 
-                                                 setActiveGeminiModel(e.target.value); 
-                                                 localStorage.setItem('sh_gemini_model_selected', e.target.value); 
-                                               }}
-                                              className="flex-1 bg-[#3d3935] border border-[#2d2a26] rounded px-2 py-1.5 text-xs text-white font-mono focus:outline-none"
-                                            >
-                                              {geminiModelsList.map(m => (
-                                                <option key={m} value={m}>{m}</option>
-                                              ))}
-                                            </select>
-                                            <button 
-                                               onClick={() => {
-                                                if (window.sharedAIClient && typeof window.sharedAIClient.checkAvailableGeminiModels === 'function') {
-                                                  window.sharedAIClient.checkAvailableGeminiModels().then(models => {
-                                                    if (models && models.length > 0) { setGeminiModelsList(models); addLog('✅ Gemini 模型清單已更新'); }
-                                                  });
-                                                }
-                                              }}
-                                              className="bg-[#4a5346] hover:bg-[#5a6356] text-white px-2 py-1.5 rounded border border-[#5a6356] text-xs font-bold transition-all shrink-0"
-                                              title="重新抓取可用模型清單"
-                                            >🔄</button>
-                                          </div>
-                                          <p className="text-[10px] text-[#a4b1a1] mt-1 italic">支援 Gemma 4 等最新模型</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="mt-4 pt-4 border-t border-[#7a8575] grid grid-cols-2 md:grid-cols-3 gap-2 w-full">
-                                    <button onClick={handleExportData} className="bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-2 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-1 border border-[#d6cfc5] truncate">📤 匯出</button>
-                                    <button onClick={() => importFileRef.current && importFileRef.current.click()} className="bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-2 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm active:scale-95 flex items-center justify-center gap-1 border border-[#d6cfc5] truncate">📥 匯入</button>
-                                    <input ref={importFileRef} type="file" accept=".json" onChange={handleImportData} className="hidden" />
-                                    <button onClick={saveCustomKey} className="col-span-2 md:col-span-1 bg-[#f4f1ea] hover:bg-[#ebe6df] text-[#524d46] px-2 py-2 rounded-lg text-xs font-black transition-colors shadow-sm active:scale-95 border border-[#d6cfc5] truncate">💾 儲存設定</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div className={`p-4 md:p-6 rounded-2xl border flex flex-col md:flex-row items-center gap-6 ${currentLevelInfo.bg} ${currentLevelInfo.border} shadow-sm`}><div className="text-6xl md:text-7xl mb-2 drop-shadow-sm">{currentLevelInfo.icon}</div><div className="flex-1 w-full"><div className="flex justify-between items-end mb-2"><span className={`font-black text-lg md:text-xl ${currentLevelInfo.color}`}>Lv.{currentLevelInfo.level} {currentLevelInfo.title}</span><span className="font-bold text-[#8a847c] text-sm">{storage.exp} {nextLevel ? `/ ${nextLevel.reqExp}` : ' (MAX)'}</span></div>{nextLevel ? <div className="w-full bg-black/5 rounded-full h-4 shadow-inner overflow-hidden border border-black/5"><div className="h-full bg-gradient-to-r from-[#d9cfbb] to-[#c9a785] transition-all duration-1000 shadow-sm" style={{ width: `${expPercent}%` }}></div></div> : <div className="w-full bg-[#cca677] rounded-full h-4 border border-[#b89063] shadow-inner"></div>}</div></div>
-                    
-                    {/* 金幣兌換中心 UI */}
-                    <div className="bg-[#f4f1ea] p-4 md:p-6 rounded-2xl border border-[#d6cfc5] shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-[#cca677] p-3 rounded-full text-white shadow-inner"><Coins size={28}/></div>
-                            <div>
-                                <div className="text-lg font-black text-[#524d46] flex items-center gap-2">金幣兌換中心 <span className="text-[10px] bg-[#cca677] text-white px-2 py-0.5 rounded uppercase tracking-wider">Reward</span></div>
-                                <div className="text-xs md:text-sm font-bold text-[#8a847c] mt-1">100 金幣 = 10 元台幣 (目前擁有: {storage.coins} 金幣)</div>
-                            </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-2 w-full md:w-auto">
-                            <div className="flex items-center gap-2 w-full md:w-auto">
-                                <input 
-                                    type="number" 
-                                    min="100" 
-                                    step="100" 
-                                    value={redeemAmount} 
-                                    onChange={e => setRedeemAmount(e.target.value)} 
-                                    className="w-full md:w-32 bg-white border border-[#c4cec1] rounded-xl px-3 py-2 text-sm font-black text-[#524d46] outline-none focus:border-[#cca677] text-center"
-                                />
-                                <button 
-                                    onClick={handleRedeem} 
-                                    disabled={storage.coins < 100 || redeemAmount < 100 || redeemAmount > storage.coins}
-                                    className={`px-4 py-2 rounded-xl font-black text-sm whitespace-nowrap shadow-sm border-b-4 transition-all active:scale-95 ${storage.coins < 100 || redeemAmount < 100 || redeemAmount > storage.coins ? 'bg-[#a6a198] border-[#8a847c] text-white cursor-not-allowed opacity-50' : 'bg-[#cca677] hover:bg-[#b89063] border-[#a68258] text-white'}`}
-                                >
-                                    兌換
-                                </button>
-                            </div>
-                            {redeemMessage && <div className="text-xs font-bold text-[#b5847e] animate-pulse">{redeemMessage}</div>}
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-[#f4f1ea] p-4 rounded-2xl border border-[#d6cfc5] shadow-sm"><div className="flex items-center justify-between mb-4 text-[#524d46] font-black text-sm tracking-widest"><div className="flex items-center"><Activity size={18} className="text-[#8b9586] mr-2" /> AI 呼叫來源統計</div><div className="text-xs font-bold text-[#a6a198] text-right italic uppercase">Daily Reset</div></div><div className="grid grid-cols-5 gap-2"><div className="bg-white p-2 rounded-xl border border-[#e0c9aa] shadow-sm relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 left-0 w-1 h-full bg-[#cca677]"></div><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1 flex items-center gap-1 truncate pl-1">OR</div><div className="text-xl font-black text-[#a68258] ml-2">{apiUsage.openRouter}</div></div><div className="bg-white p-2 rounded-xl border border-[#c4cec1] shadow-sm relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 left-0 w-1 h-full bg-[#8b9586]"></div><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1 flex items-center gap-1 truncate pl-1">Gem</div><div className="text-xl font-black text-[#6b7566] ml-2">{apiUsage.gemini}</div></div><div className="bg-white p-2 rounded-xl border border-[#abc8d9] shadow-sm relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 left-0 w-1 h-full bg-[#6b8b9c]"></div><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1 flex items-center gap-1 truncate pl-1">Groq</div><div className="text-xl font-black text-[#6b8b9c] ml-2">{apiUsage.groq}</div></div><div className="bg-white p-2 rounded-xl border border-[#dcb5b0] shadow-sm relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 left-0 w-1 h-full bg-[#b5847e]"></div><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1 flex items-center gap-1 truncate pl-1">OAI</div><div className="text-xl font-black text-[#b5847e] ml-2">{apiUsage.openai}</div></div><div className="bg-white p-2 rounded-xl border border-[#b2e8b2] shadow-sm relative overflow-hidden flex flex-col justify-center"><div className="absolute top-0 left-0 w-1 h-full bg-[#4a7c4a]"></div><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1 flex items-center gap-1 truncate pl-1">NV</div><div className="text-xl font-black text-[#4a7c4a] ml-2">{apiUsage.nvidia}</div></div></div></div>
-                        <div className="bg-[#e6e9e4] p-4 rounded-2xl border border-[#c4cec1] shadow-sm flex flex-col justify-between"><div className="flex items-center justify-between mb-4 text-[#524d46] font-black text-sm tracking-widest"><div className="flex items-center"><Database size={18} className="text-[#8b9586] mr-2" /> 動態預載快取監控</div><button onClick={handleClearPoolCache} className="text-[10px] bg-[#b5847e] text-white px-2 py-1 rounded shadow-sm active:scale-95 flex items-center gap-1 hover:bg-[#a3756f] transition-colors"><RefreshCcw size={12}/> 清空快取</button></div><div className="grid grid-cols-3 gap-2 text-center h-full"><div className="bg-white p-2 rounded-xl border border-[#c4cec1] shadow-sm flex flex-col justify-center"><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1">總庫存</div><div className="text-lg md:text-xl font-black text-[#6b7566]">{poolStats.size} <span className="text-xs font-bold text-[#a6a198]">題</span></div></div><div className="bg-white p-2 rounded-xl border border-[#c4cec1] shadow-sm flex flex-col justify-center"><div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1">本次快取攔截</div><div className="text-lg md:text-xl font-black text-[#8b9586]">{poolStats.cached} <span className="text-xs font-bold text-[#a6a198]">題</span></div></div><div className="bg-white p-2 rounded-xl border border-[#c4cec1] shadow-sm flex flex-col justify-center relative overflow-hidden">{poolStats.fetched > 0 && <div className="absolute inset-0 bg-[#cca677]/10 animate-pulse"></div>}<div className="text-[10px] md:text-xs font-bold text-[#8a847c] mb-1 relative z-10">本次向AI請求</div><div className="text-lg md:text-xl font-black text-[#cca677] relative z-10">{poolStats.fetched} <span className="text-xs font-bold text-[#a6a198]">題</span></div></div></div></div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {!isReview && (
-              <section className="max-w-4xl mx-auto px-4 mt-4">
-                <div className="bg-[#f4f1ea] rounded-xl shadow-sm border border-[#d6cfc5] p-3 sm:p-4 flex flex-col gap-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
-                          <div className="flex items-center gap-1.5 font-black text-[#7a8575] text-[13px] min-w-max px-1"><BookOpen size={16}/> 題庫來源</div>
-                          
-                          <div className="flex-1 w-full sm:w-auto flex flex-col gap-2">
-                              <select
-                                  value={isCustomMulti ? 'CustomMulti' : (selectedNotebooks.length === 3 && selectedNotebooks.includes('Words to know 1') ? 'WTK1-3' : selectedNotebooks[0] || 'All')}
-                                  onChange={handleNotebookChange}
-                                  disabled={isGenerating}
-                                  className={`w-full px-3 py-2 rounded-lg font-bold text-xs md:text-sm outline-none transition-all shadow-sm ${isGenerating ? 'opacity-50 cursor-not-allowed bg-[#ebe6df] text-[#8a847c]' : 'bg-[#e6e9e4] text-[#524d46] hover:bg-[#d5dcd3] border border-[#c4cec1]'}`}
-                              >
-                                  {mainMenu === 'grammar' ? (
-                                      <React.Fragment>
-                                          <option value="All">全部混合</option>
-                                          <option value="CustomMulti">自行多選 ⚙️</option>
-                                          <option value="PB1 U1 句型庫">PB1 U1 句型庫</option>
-                                          <option value="PB1 U2 句型庫">PB1 U2 句型庫</option>
-                                          <option value="PB1 U3 句型庫">PB1 U3 句型庫</option>
-                                          <option value="PB1 U4 句型庫">PB1 U4 句型庫</option>
-                                          <option value="PB1 U5 句型庫">PB1 U5 句型庫</option>
-                                          <option value="PB1 U6 句型庫">PB1 U6 句型庫</option>
-                                          <option value="PB1 U7 句型庫">PB1 U7 句型庫</option>
-                                          <option value="PB1 U8 句型庫">PB1 U8 句型庫</option>
-                                      </React.Fragment>
-                                  ) : (
-                                      <React.Fragment>
-                                          <option value="All">全部混合</option>
-                                          <option value="CustomMulti">自行多選 ⚙️</option>
-                                          <option value="WTK1-3">Words to Know 1~3 (綜合)</option>
-                                          <option value="Words to know 1">Words to know 1</option>
-                                          <option value="Words to know 2">Words to know 2</option>
-                                          <option value="Words to know 3">Words to know 3</option>
-                                          <option value="PB1 U1">PB1 U1</option>
-                                          <option value="PB1 U2">PB1 U2</option>
-                                          <option value="PB1 U3">PB1 U3</option>
-                                          <option value="PB1 U4">PB1 U4</option>
-                                          <option value="PB1 U5">PB1 U5</option>
-                                          <option value="PB1 U6">PB1 U6</option>
-                                          <option value="PB1 U7">PB1 U7</option>
-                                          <option value="PB1 U8">PB1 U8</option>
-                                          <option value="劍橋英檢 Movers">劍橋英檢 Movers</option>
-                                      </React.Fragment>
-                                  )}
-                              </select>
-                          </div>
-                      </div>
-                      <button onClick={() => generateAIBatch(storage.memory, selectedNotebooks, vocabMode, mainMenu, activeGeminiModel, mistakePool, grammarMode)} disabled={isGenerating || (isCustomMulti && selectedNotebooks.length === 0)} className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-black text-sm text-white shadow-sm transition-all flex items-center justify-center gap-2 flex-shrink-0 border-b-4 ${(isGenerating || (isCustomMulti && selectedNotebooks.length === 0)) ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed' : 'bg-[#cca677] hover:bg-[#b89063] border-[#a68258] active:scale-95'}`}>{isGenerating ? <Loader2 size={18} className="animate-spin"/> : <Zap size={18} fill="currentColor"/>}<span>開始測驗</span></button>
-                  </div>
-                  
-                  {isCustomMulti && (
-                      <div className="w-full mt-1 p-3 bg-white border border-[#d6cfc5] rounded-xl flex flex-wrap gap-2 shadow-inner animate-in slide-in-from-top-2">
-                          {(mainMenu === 'grammar' ? allGrammarBanks : allVocabBanks).map(nb => (
-                              <button key={nb} onClick={() => handleToggleNotebook(nb)} disabled={isGenerating} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${selectedNotebooks.includes(nb) ? 'bg-[#cca677] text-white border-[#a68258] shadow-sm' : 'bg-[#f4f1ea] text-[#8a847c] border-[#d6cfc5] hover:bg-[#ebe6df]'}`}>
-                                  {nb} {selectedNotebooks.includes(nb) && <CheckCircle size={12} className="ml-1 inline"/>}
-                              </button>
-                          ))}
-                      </div>
-                  )}
-
-                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 border-t border-[#d6cfc5] pt-3 mt-1">
-                      {mainMenu === 'vocab' ? (
-                          <React.Fragment>
-                              <div className="flex flex-wrap items-center gap-1 flex-1 sm:flex-none justify-center sm:justify-start">
-                                  <div className="flex items-center bg-[#ebe6df] rounded-lg p-1 border border-[#d6cfc5]">
-                                      <span className="text-[11px] font-black text-[#7a8575] px-2 flex items-center"><Target size={14} className="mr-1"/>題型</span>
-                                      <select value={vocabMode} onChange={e => handleModeChange(e.target.value)} disabled={isGenerating} className="bg-[#f4f1ea] text-[#5a6356] font-bold text-xs px-2 py-1 rounded outline-none cursor-pointer border border-[#d6cfc5]">
-                                          <option value="mixed">綜合</option>
-                                          <option value="word">單字</option>
-                                          <option value="phrase">片語</option>
-                                      </select>
-                                  </div>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-1 flex-1 sm:flex-none justify-center sm:justify-start">
-                                  <div className="flex items-center bg-[#ebe6df] rounded-lg p-1 border border-[#d6cfc5]">
-                                      <span className="text-[11px] font-black text-[#a68258] px-2 flex items-center"><MousePointerClick size={14} className="mr-1"/>模式</span>
-                                      <select value={quizMode} onChange={e => setQuizMode(e.target.value)} disabled={isGenerating} className="bg-[#f4f1ea] text-[#8c6b44] font-bold text-xs px-2 py-1 rounded outline-none cursor-pointer border border-[#d6cfc5]">
-                                          <option value="multiple_choice">選擇</option>
-                                          <option value="fill_in">鍵盤</option>
-                                      </select>
-                                  </div>
-                              </div>
-                          </React.Fragment>
-                      ) : (
-                          <div className="flex flex-wrap items-center gap-1 flex-1 sm:flex-none justify-center sm:justify-start">
-                              <div className="flex items-center bg-[#ebe6df] rounded-lg p-1 border border-[#d6cfc5]">
-                                  <span className="text-[11px] font-black text-[#7a8575] px-2 flex items-center"><Target size={14} className="mr-1"/>文法題型</span>
-                                  <select value={grammarMode} onChange={e => handleGrammarModeChange(e.target.value)} disabled={isGenerating} className="bg-[#f4f1ea] text-[#5a6356] font-bold text-xs px-2 py-1 rounded outline-none cursor-pointer border border-[#d6cfc5]">
-                                      <option value="mixed">綜合混合</option>
-                                      <option value="fill">單字填空</option>
-                                      <option value="reorder">句子重組</option>
-                                  </select>
-                              </div>
-                          </div>
-                      )}
-                      
-                      <div className="flex flex-wrap items-center gap-3 bg-[#ebe6df] rounded-lg p-1.5 px-3 border border-[#d6cfc5] w-full sm:w-auto sm:ml-auto justify-between sm:justify-start">
-                          <div className="flex items-center gap-2"><Volume2 size={16} className="text-[#8b9586]"/><div onClick={() => setConfig(p => ({...p,autoRead:!p.autoRead}))} className={`w-9 h-5 rounded-full p-0.5 cursor-pointer transition-colors flex items-center shadow-inner ${config.autoRead?'bg-[#8b9586]':'bg-[#c5bbae]'}`}><div className={`bg-[#f4f1ea] w-4 h-4 rounded-full shadow-sm transform transition-transform ${config.autoRead?'translate-x-4':''}`}/></div></div><div className="w-px h-4 bg-[#c5bbae] hidden sm:block"></div>
-                          <div className="flex gap-1"><button onClick={() => setConfig(p => ({...p,accent:'US'}))} className={`px-2 py-1 rounded font-black text-[10px] transition-all ${config.accent==='US'?'bg-[#f4f1ea] shadow-sm text-[#7a8575]':'text-[#8a847c] hover:text-[#524d46]'}`}>US</button><button onClick={() => setConfig(p => ({...p,accent:'UK'}))} className={`px-2 py-1 rounded font-black text-[10px] transition-all ${config.accent==='UK'?'bg-[#f4f1ea] shadow-sm text-[#7a8575]':'text-[#8a847c] hover:text-[#524d46]'}`}>UK</button></div><div className="w-px h-4 bg-[#c5bbae] hidden sm:block"></div>
-                          <div className="flex gap-1"><button onClick={() => setConfig(p => ({...p,speed:0.6}))} className={`px-2 py-1 rounded font-black text-[10px] transition-all ${config.speed===0.6?'bg-[#f4f1ea] shadow-sm text-[#7a8575]':'text-[#8a847c] hover:text-[#524d46]'}`}>慢速</button><button onClick={() => setConfig(p => ({...p,speed:0.9}))} className={`px-2 py-1 rounded font-black text-[10px] transition-all ${config.speed!==0.6?'bg-[#f4f1ea] shadow-sm text-[#7a8575]':'text-[#8a847c] hover:text-[#524d46]'}`}>正常</button></div>
-                      </div>
-                  </div>
-                </div>
-              </section>
-              )}
-
-              {questions.length === 0 ? (
-                  <div className="max-w-4xl mx-auto p-10 mt-6 bg-[#f4f1ea] rounded-[3rem] border-4 border-dashed border-[#d6cfc5] text-center text-[#8a847c] font-bold text-xl shadow-sm flex flex-col items-center justify-center gap-4">
-                      <Sparkles size={48} className="text-[#cca677] animate-pulse" />
-                      <span>請在上方選擇題庫後，點擊「開始測驗」按鈕！</span>
-                      <span className="text-sm font-normal mt-2 text-[#a6a198]">（AI 老師將為您準備專屬的變體題目）</span>
-                  </div>
-              ) : (
-              <main className="max-w-4xl mx-auto p-4 mt-2">
-                {isReview && <div className="mb-6 bg-[#b5847e] text-white font-black py-3 text-center rounded-2xl animate-pulse shadow-sm text-sm tracking-widest uppercase">⚠️ 錯題複習特訓中 ⚠️</div>}
-                <div className="bg-[#dedad4] h-2 rounded-full overflow-hidden mb-6 shadow-inner"><div className="h-full bg-[#8b9586] transition-all duration-1000" style={{width: progressPercent + "%"}}/></div>
-                
-                <div className="space-y-6 md:space-y-8">
-                {questions.map((q, i) => {
-  const safeAnswerStr = typeof q.answer === 'string' ? String(q.answer||"") : String(q.rawAnswerObj||""); 
-  const isFinallyCorrect = window.SYSTEM_ENGINE.isCorrect(answers[i], q.rawAnswerObj || safeAnswerStr, q.qType, q.sentence); 
-  const isLocked = qStatus[i] !== null || submitted;
-  const isLayout2 = uiLayout === 'layout2'; const isLayout3 = uiLayout === 'layout3';
-  
-  let currentAns = typeof answers[i] === 'string' ? String(answers[i]||"") : answers[i];
-  let hintMask = mainMenu === 'grammar' ? '______' : (window.SYSTEM_ENGINE.createHintMask(safeAnswerStr) || '______'); 
-  
-  let cleanSentence = String(q.sentence||"").trim().replace(/\s+([.!?])/g, '$1').replace(/_{2,}/g, '______');
-  if (cleanSentence && !/[.!?]$/.test(cleanSentence) && cleanSentence.indexOf('______') !== -1 && q.qType !== 'reorder') {
-      cleanSentence += "."; 
-  }
-  
-  const isPhrase = safeAnswerStr.indexOf(' ') !== -1 || safeAnswerStr.indexOf('-') !== -1 || safeAnswerStr.indexOf('...') !== -1;
-
-  if (cleanSentence.startsWith('______') && typeof currentAns === 'string') {
-      hintMask = window.SYSTEM_ENGINE.capitalize(hintMask);
-      currentAns = window.SYSTEM_ENGINE.capitalize(currentAns);
-  }
-
-  return (
-    <div key={q.runtimeId} className={`bg-[#f4f1ea] rounded-[2rem] border-[3px] shadow-sm transition-all relative overflow-hidden ${isReview ? 'border-[#dcb5b0]' : 'border-[#e6e9e4] hover:border-[#c4cec1]'} ${isLayout2 ? 'p-5 md:p-8' : 'p-5 md:p-8 flex flex-col items-center'}`}>
-      {!isLocked && combo >= 3 && <div className="absolute inset-0 bg-[#cca677]/10 pointer-events-none animate-pulse border-4 border-[#cca677] rounded-[2rem]"></div>}
-      
-      <div className={`flex w-full items-start md:items-center justify-between mb-4 border-b-2 border-[#ebe6df] pb-3 relative z-10 text-[#524d46] gap-2 flex-wrap`}>
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-black text-xs flex-shrink-0 ${q.isAI ? 'bg-[#cca677]' : (isReview ? 'bg-[#b5847e]' : 'bg-[#8b9586]')}`}>{i+1}</div>
-        <div className="flex flex-wrap gap-2 flex-1 justify-end">
-            {mainMenu === 'vocab' && vocabMode === 'mixed' && (
-                <div className={`hidden sm:flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-lg border shadow-sm tracking-wider ${isPhrase ? 'bg-[#e2eae8] text-[#6b8b9c] border-[#b2cbc7]' : 'bg-[#f4ebd9] text-[#a68258] border-[#e0c9aa]'}`}>
-                    {isPhrase ? '💬 片語題' : '📝 單字題'}
-                </div>
-            )}
-            {q.qType && <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#576b5d] bg-[#c4d1c8] px-2 py-1 rounded-lg border border-[#9fb3a6] shadow-sm uppercase tracking-wider">{q.qType}</div>}
-            {q.isAI ? <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#a68258] bg-[#f4ebd9] px-2 py-1 rounded-lg border border-[#e0c9aa] shadow-sm"><Sparkles size={14}/> {q.modelName || 'AI MODEL'}</div> : <div className="hidden sm:flex items-center gap-1 text-[11px] font-black text-[#8a847c] bg-[#ebe6df] px-2 py-1 rounded-lg border border-[#d6cfc5] shadow-sm"><BookOpen size={14}/> OFFLINE</div>}
-            {mainMenu !== 'grammar' && !(q.qType === 'reorder' && !isLocked) && ( <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className="px-3 py-1.5 md:px-4 md:py-2 bg-[#e6e9e4] text-[#6b7566] rounded-xl active:scale-95 border border-[#c4cec1] flex items-center gap-1.5 font-bold text-sm shadow-sm transition-all hover:bg-[#d5dcd3]"><Megaphone size={18}/> <span>英文語音</span></button> )}
-        </div>
-      </div>
-
-      <div className={isLayout2 ? 'grid grid-cols-1 md:grid-cols-2 gap-6 w-full' : 'w-full flex flex-col items-center'}>
-          <div className={`w-full flex flex-col ${isLayout2 ? 'items-start' : 'items-center'} relative z-10`}>
-              <div className={`text-xl md:text-3xl font-bold leading-normal md:leading-relaxed break-words mt-2 ${!q.isAI ? 'text-[#8a847c]' : 'text-[#524d46]'} ${!isLayout2 && 'text-center'} w-full`}>
-                {q.qType === 'reorder' && !isLocked ? (
-                    <span>
-                        {q.sentence && (
-                            <span className="block text-base md:text-lg font-semibold text-[#7a7466] italic mb-3 leading-relaxed border-l-4 border-[#8b9586] pl-3 bg-[#e6e9e4]/60 py-2 rounded-r-xl">📖 {q.sentence}</span>
-                        )}
-                        <span className="block text-sm font-bold text-[#968b95] mt-3 mb-1 bg-[#f0eaf0] px-3 py-1.5 rounded-lg border border-[#c4b5c2] w-fit">🧩 請將下列單字排成正確句子：</span>
-                    </span>
-                ) : (q.qType === 'fill' || q.qType === undefined) && cleanSentence.includes('______') ? (
-                    <span className="leading-[3.5rem] md:leading-[4rem]">
-                        {(() => {
-                            const rawParts = cleanSentence.split('______');
-                            const parts = rawParts.length > 1 ? rawParts : [cleanSentence, '']; 
-                            return parts.map((part, pIdx, arr) => {
-                                const isLast = pIdx === arr.length - 1;
-                                return (
-                                    <React.Fragment key={pIdx}>
-                                        <span className="align-middle">{pIdx === 0 && cleanSentence.startsWith('______') ? part : (pIdx === 0 ? window.SYSTEM_ENGINE.capitalize(part) : part)}</span>
-                                        {!isLast && (
-                                            quizMode === 'fill_in' && !isLocked ? (
-                                                <input 
-                                                    type="text" 
-                                                    value={String(answers[i] || '')} 
-                                                    onChange={e => { 
-                                                        const n = [...answers]; 
-                                                        n[i] = e.target.value.replace(/^\s+/, '');
-                                                        setAnswers(n); 
-                                                    }} 
-                                                    onKeyDown={e => {
-                                                        if(e.key === 'Enter') {
-                                                            if (String(answers[i]||'').trim() !== '') handleCheckSingle(i);
-                                                        }
-                                                    }}
-                                                    autoComplete="off" spellCheck="false"
-                                                    placeholder={hintMask}
-                                                    style={{ width: `${Math.max(hintMask.length + 2, 8)}ch`, minWidth: '4rem', maxWidth: '100%' }}
-                                                    className={`mx-1 appearance-none bg-white border-b-4 border-[#d6cfc5] focus:border-[#8b9586] text-[#524d46] text-lg md:text-xl font-mono font-black text-center p-1 rounded-lg outline-none shadow-sm align-middle inline-block placeholder:text-[#b8b3aa]/60 ${combo>=3?'border-[#cca677] bg-[#f4ebd9] focus:bg-[#f4ebd9]':''}`} 
-                                                />
-                                            ) : (
-                                                <span className={`mx-1 inline-block px-2 pb-0.5 border-b-[3px] align-middle ${isLocked ? (isFinallyCorrect ? "text-[#7a8575] border-[#7a8575]" : "text-[#b5847e] border-[#b5847e] line-through") : "text-[#8b9586] border-[#8b9586]"}`}>
-                                                    {isLocked ? (String(answers[i] || '') || '______') : hintMask}
-                                                </span>
-                                            )
-                                        )}
-                                    </React.Fragment>
-                                );
-                            });
-                        })()}
-                        
-                        {quizMode === 'fill_in' && !isLocked && (() => {
-                            const isComplete = String(answers[i]||'').trim() !== '';
-                            return (
-                                <button 
-                                    onClick={() => handleCheckSingle(i)} 
-                                    disabled={!isComplete} 
-                                    className={`ml-3 inline-flex items-center justify-center text-white text-sm font-black w-12 h-10 md:w-14 md:h-12 rounded-xl active:scale-95 shadow transition-all align-middle border-b-4 ${!isComplete ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed opacity-50' : (combo>=3?'bg-[#cca677] border-[#a68258]':'bg-[#8b9586] border-[#6b7566]')}`}>
-                                    {combo>=3?<Flame size={20} className="animate-pulse"/>:<Send size={20}/>}
-                                </button>
-                            );
-                        })()}
-                    </span>
-                ) : (
-                    <span>{q.qType === 'reorder' && isLocked ? (isFinallyCorrect ? answers[i].join(' ') : safeAnswerStr) : cleanSentence}</span>
-                )}
-                {mainMenu !== 'grammar' && !(q.qType === 'reorder' && !isLocked) && ( <button onClick={() => playTTS(q.sentence, true, safeAnswerStr)} className={`ml-3 inline-flex items-center justify-center p-2 rounded-full transition-all active:scale-90 align-middle ${isLocked ? 'bg-[#e6e9e4] text-[#6b7566]' : 'bg-[#f4ebd9] text-[#cca677]'}`}><Volume2 size={24}/></button> )}
-              </div>
-
-              {(!isLocked || (isLocked && !isLayout3)) && (
-                  <div className={`mt-6 w-full ${isLayout2 ? 'max-w-sm' : 'max-w-lg'}`}>
-                      {quizMode === 'multiple_choice' && !isLocked && (q.qType === 'fill' || q.qType === undefined) && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
-                              {(q.options || []).map((opt, optIdx) => (
-                                  <div key={optIdx} className="relative flex w-full">
-                                      <button disabled={submitted} onClick={() => handleCheckSingle(i, opt)} className={`bg-white border-2 border-[#d6cfc5] hover:border-[#8b9586] hover:bg-[#e6e9e4] text-[#524d46] font-black text-lg py-3 px-5 rounded-xl shadow-sm active:scale-95 transition-all text-left flex-grow ${mainMenu !== 'grammar' ? 'pr-12' : ''}`}>{opt}</button>
-                                      {mainMenu !== 'grammar' && ( <button onClick={e => { e.stopPropagation(); playTTS(opt, false, ''); }} className="absolute right-2 top-1/2 transform -translate-y-1/2 p-2 text-[#8a847c] hover:bg-[#c4cec1] rounded-full active:scale-90"><Megaphone size={18} /></button> )}
-                                  </div>
-                              ))}
-                          </div>
-                      )}
-
-                      {!isLocked && q.qType === 'reorder' && (() => {
-                          const currentArr = Array.isArray(answers[i]) ? answers[i] : [];
-                          let tempUsed = [...currentArr];
-                          const expectedLen = q.options ? q.options.length : 0;
-                          const isComplete = currentArr.length > 0 && currentArr.length === expectedLen;
-                          return (
-                              <div className="flex flex-col gap-4 w-full mt-2">
-                                  <div className="min-h-[60px] bg-white border-b-4 border-[#d6cfc5] rounded-xl p-3 flex flex-wrap gap-2 items-center shadow-inner cursor-pointer" onClick={() => { if(currentArr.length > 0) { const n=[...answers]; n[i].pop(); setAnswers(n); } }}>
-                                      {currentArr.length === 0 && <span className="text-[#b8b3aa] text-sm italic w-full text-center">依序點擊下方單字排列句子...</span>}
-                                      {currentArr.map((word, wIdx) => (
-                                          <button key={wIdx} onClick={(e) => { e.stopPropagation(); const n=[...answers]; n[i]=currentArr.filter((_, idx)=>idx!==wIdx); setAnswers(n); }} className="bg-[#cca677] text-white px-3 py-1.5 rounded-lg font-bold shadow-sm active:scale-95 text-lg md:text-xl">{word}</button>
-                                      ))}
-                                  </div>
-                                  <div className="flex flex-wrap gap-2 justify-center">
-                                      {(q.options && q.options.length > 0 ? q.options : []).map((opt, optIdx) => {
-                                          const usedIdx = tempUsed.indexOf(opt);
-                                          if (usedIdx !== -1) { tempUsed.splice(usedIdx, 1); return <div key={optIdx} className="px-3 py-1.5 rounded-lg bg-[#ebe6df] text-transparent border border-[#d6cfc5] select-none text-lg md:text-xl">{opt}</div>; }
-                                          return <button key={optIdx} onClick={() => { const n=[...answers]; n[i]=[...currentArr, opt]; setAnswers(n); }} className="bg-white text-[#524d46] px-3 py-1.5 rounded-lg font-bold shadow-sm border-2 border-[#d6cfc5] hover:border-[#8b9586] active:scale-95 text-lg md:text-xl">{opt}</button>;
-                                      })}
-                                  </div>
-                                  {currentArr.length > 0 && <button onClick={() => handleCheckSingle(i)} disabled={!isComplete} className={`w-full max-w-sm self-center text-white text-lg font-black px-5 py-3 rounded-xl border-b-4 active:scale-95 shadow transition-all mt-2 ${!isComplete ? 'bg-[#a6a198] border-[#8a847c] cursor-not-allowed opacity-50' : (combo>=3?'bg-[#cca677] border-[#a68258]':'bg-[#8b9586] border-[#6b7566]')}`}>送出答案</button>}
-                              </div>
-                          );
-                      })()}
-                  </div>
-              )}
-          </div>
-
-          <div className={`w-full flex flex-col justify-center ${isLayout2 ? 'items-end md:border-l-2 md:border-[#ebe6df] md:pl-6' : 'items-center mt-6'} relative z-10`}>
-              {(!isLocked || (isLayout2 && isLocked)) && (!isLayout3 || !isLocked) && (
-                  <div className={`flex flex-wrap gap-3 w-full ${isLayout2 ? 'justify-end' : 'justify-center'} ${quizMode==='multiple_choice' ? 'hidden md:flex' : ''}`}>
-                    {mainMenu !== 'grammar' && ( <button onClick={() => playTTS(safeAnswerStr, false)} className="text-sm md:text-base font-black text-[#8c6b44] bg-[#f4ebd9] px-4 md:px-6 py-3 rounded-xl active:scale-95 border border-[#e0c9aa] flex items-center gap-2 shadow-sm hover:bg-[#eadecc]"><Megaphone size={20} /> 單字發音</button> )}
-                    {q.hint && q.hint !== "無提示" && (
-                        <button onClick={() => { 
-                            const nh=[...hints]; nh[i]=!nh[i]; setHints(nh); 
-                            const hasLocalHint = window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()];
-                            if (nh[i] && !hasLocalHint && !dynamicContent[`hint_${i}`] && mainMenu !== 'grammar') handleOnDemand(i, 'hint'); 
-                        }} className="text-sm md:text-base font-black text-[#7a8575] bg-[#e6e9e4] px-4 md:px-6 py-3 rounded-xl active:scale-95 border border-[#c4cec1] flex items-center gap-2 shadow-sm hover:bg-[#d5dcd3]"><Lightbulb size={20} className={hints[i]?"text-[#cca677]":""}/> 中文提示</button>
-                    )}
-                  </div>
-              )}
-
-              {hints[i] && !isLocked && (
-                  <div className={`p-4 bg-[#f4ebd9]/80 rounded-xl border-2 border-dashed border-[#e0c9aa] mt-4 shadow-sm w-full ${isLayout2 ? 'max-w-sm' : 'max-w-md'} animate-in zoom-in`}>
-                      <div className="text-base md:text-lg font-bold text-[#8c6b44] leading-relaxed text-center">
-                          💡 {mainMenu === 'grammar' ? renderFormattedText(q.hint) : ((window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) ? renderFormattedText(window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) : (dynamicContent[`hint_${i}`] || loadingStates[`hint_${i}`] ? (loadingStates[`hint_${i}`] && !dynamicContent[`hint_${i}`] ? <span className="animate-pulse inline-flex items-center gap-2"><Loader2 className="animate-spin" size={16}/> AI 救援翻譯中...</span> : renderFormattedText(dynamicContent[`hint_${i}`])) : renderFormattedText(q.hint && q.hint !== "無提示" ? q.hint : "AI 救援翻譯中...")))}
-                      </div>
-                  </div>
-              )}
-
-              {isLocked && (
-                  <div className={`w-full flex flex-col animate-in zoom-in slide-in-from-bottom-4 ${isLayout3 ? 'bg-[#f4ebd9] p-8 rounded-[2rem] border-8 border-white shadow-xl mt-6' : (isLayout2 ? 'bg-[#e6e9e4] p-6 rounded-2xl' : 'bg-[#e6e9e4] p-6 rounded-2xl mt-6 max-w-lg')}`}>
-                      {isFinallyCorrect ? (
-                          <div className="flex flex-col items-center justify-center text-center py-4"><CheckCircle size={48} className="text-[#8b9586] mb-3 drop-shadow-sm animate-bounce"/><div className="text-2xl md:text-3xl font-black text-[#6b7566]">答對了！</div>{mainMenu !== 'grammar' && ( <button onClick={() => playTTS(safeAnswerStr, false)} className="mt-4 text-[#8b9586] font-bold flex items-center gap-1"><Volume2 size={16}/> 聽聽發音</button> )}</div>
-                      ) : (
-                          <div className="flex flex-col items-center text-center relative w-full">
-                              <div className="absolute -top-10 bg-[#b5847e] text-white px-4 py-1.5 rounded-full font-black shadow-md border-2 border-white flex items-center gap-2">
-                                {qStatus[i] > 0 ? <RefreshCcw size={16} className="animate-spin" /> : <XCircle size={16}/>} 
-                                {qStatus[i] > 0 ? '部分答對' : (q.qType === 'reorder' ? '語序錯誤' : '拼字錯誤')}
-                              </div>
-                              <span className="text-sm font-bold text-[#a6a198] mt-2 mb-1">正確答案</span>
-                              <div className="text-xl md:text-3xl font-black text-[#524d46] tracking-wide my-2 break-all" onClick={() => playTTS(safeAnswerStr, false)}>
-                                  <span>{safeAnswerStr || <span className="text-[#b5847e]">系統缺漏</span>}</span>
-                              </div>
-                              {mainMenu !== 'grammar' && ( <button onClick={() => playTTS(safeAnswerStr, false)} className="mt-4 bg-white text-[#8c6b44] px-5 py-2.5 rounded-full font-black shadow-sm border border-[#e0c9aa] active:scale-95 flex items-center gap-2"><Megaphone size={18}/> 聆聽發音</button> )}
-                          </div>
-                      )}
-                      
-                      <div className="mt-5 w-full bg-white/60 p-4 md:p-5 rounded-2xl border border-[#c4cec1] shadow-sm text-left">
-                          {(() => {
-                              const showTranslation = !(mainMenu === 'grammar' && isFinallyCorrect);
-                              return (
-                                  <React.Fragment>
-                                      <div className="text-xs font-black text-[#7a8575] mb-2 flex items-center gap-1 uppercase tracking-widest">
-                                          <BookOpen size={14}/> {showTranslation ? '完整中英對照' : '完整英文句子'}
-                                      </div>
-                                      
-                                      <div className="text-lg md:text-xl font-black text-[#524d46] mb-2 leading-relaxed">
-                                          {q.qType === 'reorder' ? (
-                                              <span>{safeAnswerStr}</span>
-                                          ) : cleanSentence.includes('______') ? (
-                                              cleanSentence.split('______').map((part, idx, arr) => (
-                                                  <span key={idx}>
-                                                      {part}
-                                                      {idx < arr.length - 1 && <span className="text-[#cca677] border-b-[3px] border-[#cca677] mx-1 px-1 pb-0.5">{safeAnswerStr || "???"}</span>}
-                                                  </span>
-                                              ))
-                                          ) : (
-                                              <span>{cleanSentence}</span>
-                                          )}
-                                      </div>
-                                      
-                                      {showTranslation && (
-                                          <div className="text-base font-bold text-[#8b9586] leading-relaxed">
-                                              {String(q.translation || "目前尚無翻譯").split(/[_＿]{2,}/).map((part, idx, arr) => (
-                                                  <span key={idx}>
-                                                      {part}
-                                                      {idx < arr.length - 1 && <span className="text-[#cca677] mx-1">{ (window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) ? window.SH_DICTIONARY[safeAnswerStr.toLowerCase()].split(/[;；]/)[0] : safeAnswerStr }</span>}
-                                                  </span>
-                                              ))}
-                                          </div>
-                                      )}
-                                  </React.Fragment>
-                              );
-                          })()}
-                          
-                          {mainMenu !== 'grammar' && (
-                              <div className="mt-4 pt-3 border-t border-[#d6cfc5] flex items-start gap-2">
-                                  <span className="text-[10px] font-black text-[#a68258] bg-[#f4ebd9] px-2 py-0.5 rounded border border-[#e0c9aa] whitespace-nowrap mt-0.5">單字</span>
-                                  <span className="text-base font-black text-[#8c6b44]">{(window.SH_DICTIONARY && window.SH_DICTIONARY[safeAnswerStr.toLowerCase()]) || dynamicContent[`hint_${i}`] || q.hint || "無翻譯"}</span>
-                              </div>
-                          )}
-                      </div>
-
-                      {mainMenu === 'grammar' && !isFinallyCorrect && (
-                          <div className={`mt-6 border-t-2 pt-4 w-full text-left ${isLayout3 ? 'border-[#e0c9aa]' : 'border-[#c4cec1]'}`}>
-                              <div className="font-black text-[#7a8575] mb-3 flex items-center justify-between gap-1.5 flex-wrap">
-                                  <div className="flex items-center gap-1.5">
-                                      <GraduationCap size={18}/> AI 老師文法解題 
-                                      {dynamicModels[`exp_${i}`] && <span className="text-[10px] font-black text-[#a68258] bg-[#f4ebd9] px-2 py-0.5 rounded-lg border border-[#e0c9aa] shadow-sm ml-2 flex items-center gap-1"><Sparkles size={12}/> {dynamicModels[`exp_${i}`]}</span>}
-                                  </div>
-                                  
-                                  {dynamicContent[`exp_${i}`] && !dynamicContent[`exp_${i}`].includes('重試') && (
-                                      <select 
-                                          className="text-xs font-bold text-[#6b7566] bg-[#e6e9e4] px-2 py-1 rounded border border-[#c4cec1] outline-none cursor-pointer hover:bg-[#d5dcd3] transition-colors shadow-sm"
-                                          value=""
-                                          onChange={(e) => {
-                                              if (e.target.value) { handleOnDemand(i, 'exp', true, 0, null, true, e.target.value); }
-                                          }}
-                                      >
-                                          <option value="" disabled>🔄 更換老師</option>
-                                          {['groq', 'google', 'openrouter', 'openai', 'nvidia'].filter(p => enginesEnabled[p] && window.sharedAIClient && window.sharedAIClient.getEngineStatus(p) !== 'red' && p !== dynamicProviders[`exp_${i}`]).map(p => (
-                                              <option key={p} value={p}>{p === 'google' ? 'GEMINI' : p.toUpperCase()}</option>
-                                          ))}
-                                      </select>
-                                  )}
-                              </div>
-                              
-                              {q.isAI ? (
-                                  dynamicContent[`exp_${i}`] ? (
-                                      <div className="animate-in fade-in bg-white p-4 rounded-xl border border-[#d6cfc5] shadow-sm">
-                                          <div className={`text-[#524d46] text-sm md:text-base mb-3 leading-relaxed ${dynamicContent[`exp_${i}`].includes('重試') ? 'font-bold text-[#cca677] animate-pulse' : ''}`}>{renderFormattedText(dynamicContent[`exp_${i}`])}</div>
-                                          {!dynamicContent[`exp_${i}`].includes('重試') && (
-                                          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#d6cfc5] pt-3 mt-1">
-                                              <button onClick={() => { const nextM = cyclePromptMode(i); handleOnDemand(i, 'exp', true, 0, nextM, true, dynamicProviders[`exp_${i}`]); }} className="text-sm font-bold text-[#b5847e] bg-[#f2e7e6] px-3 py-1.5 rounded-lg border border-[#dcb5b0] flex items-center gap-1.5 shadow-sm active:scale-95 hover:bg-[#e8d5d3] transition-colors"><RefreshCcw size={16}/> 查看新解釋 ({qPromptModes[i] === 'v1' ? '極簡' : qPromptModes[i] === 'v3' ? '條列' : qPromptModes[i] === 'custom' ? '自訂' : '切換'})</button>
-                                          </div>
-                                          )}
-                                      </div>
-                                  ) : loadingStates[`exp_${i}`] ? (
-                                      <span className="animate-pulse flex items-center gap-2 text-[#8b9586] font-bold"><Loader2 className="animate-spin" size={16}/> 老師思考中...</span>
-                                  ) : (
-                                      <div><span className="text-[#8a847c] text-sm mb-3 block">{renderFormattedText(q.explanation || "此題需要進一步的文法解析。")}</span><button onClick={() => handleOnDemand(i, 'exp')} className="bg-white hover:bg-[#e6e9e4] text-[#524d46] px-4 py-2 rounded-xl text-sm font-bold border border-[#c4cec1] shadow-sm flex items-center gap-1.5 active:scale-95"><Sparkles size={16} className="text-[#cca677]"/> 呼叫 AI 老師解說</button></div>
-                                  )
-                              ) : <div className="bg-white/50 p-3 rounded-lg border border-[#c4cec1] text-[#8a847c] text-sm">{renderFormattedText(q.explanation || "離線題庫無詳解。")}</div>}
-                          </div>
-                      )}
-                  </div>
-              )}
-          </div>
-      </div>
-    </div>
-  );
-})}
-                  {isGenerating && questions.length > 0 && (
-                      <div className="bg-[#e6e9e4]/50 rounded-[2rem] border-[3px] border-dashed border-[#c4cec1] p-8 flex flex-col items-center justify-center gap-3 animate-pulse opacity-70"><Loader2 size={32} className="text-[#8b9586] animate-spin" /><div className="text-[#6b7566] font-bold text-sm tracking-widest">AI 正在為您產生下一題...</div></div>
-                  )}
-                </div>
-
-                {questions.length > 0 && (
-                  <div className="mt-10 mb-20 text-center">
-                    {!submitted ? (
-                      <button onClick={handleGradeAll} disabled={isGenerating || (isCustomMulti && selectedNotebooks.length === 0)} className={`w-full bg-[#8b9586] hover:bg-[#7a8575] text-white px-8 py-5 md:py-6 rounded-3xl text-2xl md:text-4xl font-black shadow-[0_8px_0_#6b7566] active:translate-y-2 flex justify-center items-center gap-3 ${isGenerating || (isCustomMulti && selectedNotebooks.length === 0) ? 'opacity-50 cursor-not-allowed' : ''}`}><CheckCircle size={36} className="hidden sm:block" /> {isGenerating ? '等待 AI 準備中...' : '檢查我的答案！'}</button>
-                    ) : (
-                      <div className="space-y-8 animate-in zoom-in text-center">
-                        <div className="bg-[#f4ebd9] p-8 rounded-[3rem] border-[8px] border-white shadow-xl relative w-full text-center">
-                           {finalScoreCount === questions.length && <div className="absolute -top-12 left-1/2 -translate-x-1/2 text-7xl md:text-8xl animate-bounce drop-shadow-xl">👑</div>}
-                           <Trophy size={60} className="mx-auto text-[#cca677] mb-4" />
-                           <div className="text-6xl md:text-7xl font-black text-[#b89063]">{finalScoreCount} <span className="text-3xl text-[#b8b3aa]">/ {questions.length}</span></div>
-                           <div className="flex justify-center items-center gap-3 mt-6">
-                               <div className={`text-[#8c6b44] font-black text-lg py-2 px-5 rounded-full flex items-center gap-1.5 shadow border-2 ${maxCombo>=3?'bg-[#eadecc] border-[#cca677] animate-pulse':'bg-white border-[#e0c9aa]'}`}><Coins size={24} className="text-[#cca677]" /> +{earnedCoins} 金幣</div>
-                               <div className="bg-[#8b9586] text-white font-black text-lg py-2 px-5 rounded-full flex items-center gap-1.5 shadow border-2 border-[#7a8575]"><TrendingUp size={24} className="text-[#e6e9e4]" /> +{earnedExp} EXP</div>
-                           </div>
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
-                            <button onClick={() => {setIsReview(false); handleMainMenuChange('vocab');}} className="w-full sm:w-1/2 bg-[#8b9586] text-white py-4 md:py-5 rounded-3xl text-xl font-black shadow-lg border-b-4 border-[#6b7566] flex items-center justify-center gap-2 active:scale-95"><Shuffle size={24}/> 繼續單字</button>
-                            <button onClick={() => {setIsReview(false); handleMainMenuChange('grammar');}} className="w-full sm:w-1/2 bg-[#968b95] text-white py-4 md:py-5 rounded-3xl text-xl font-black shadow-lg border-b-4 border-[#7f7680] flex items-center justify-center gap-2 active:scale-95"><Sparkles size={24}/> 切換文法</button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </main>
-              )}
-            </div>
-          );
+            if (signal) signal.removeEventListener('abort', onAbort); unlock(); return { rawText: fullText, modelName: actualModel.toUpperCase(), provider: "nvidia" };
+        } catch (e) {
+            unlock(); if (retryCount < 3 && !e.message.includes('Circuit Breaker') && !e.message.includes('FATAL') && e.name !== 'AbortError') { const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000); onLog && onLog(`[重試] NVIDIA 等待 ${Math.round(backoffMs/1000)}s...`); await new Promise(r => setTimeout(r, backoffMs)); return this.callNvidia(systemPrompt, userQuery, signal, onChunk, onLog, specificModel, taskType, retryCount + 1); } throw e;
         }
+    }
+}
+window.sharedAIClient = new PersistentAIClient();
 
-        const App = () => <ErrorBoundary><SpellingHeroApp /></ErrorBoundary>;
-        const root = ReactDOM.createRoot(document.getElementById('root')); root.render(<App />);
-    </script>
-</body>
-</html>
+window.resolveGrammarTags = function(qObj) {
+    if (!qObj || (!qObj.answer && !qObj.sentence)) return qObj;
+    let newQ = JSON.parse(JSON.stringify(qObj));
+    let memory = {};
+
+    const tagRegex = /\[([A-Z_]+)_(\d+)\]/g;
+    const replaceTag = (match, tagClass, tagId) => {
+        const memKey = `${tagClass}_${tagId}`;
+        if (!memory[memKey]) {
+            const pool = window.TAG_POOLS && window.TAG_POOLS[tagClass];
+            if (pool && Array.isArray(pool) && pool.length > 0) {
+                memory[memKey] = pool[Math.floor(Math.random() * pool.length)];
+            } else {
+                memory[memKey] = match; 
+            }
+        }
+        return memory[memKey];
+    };
+
+    newQ.answer = String(newQ.answer || "").replace(tagRegex, replaceTag);
+    newQ.sentence = String(newQ.sentence || "").replace(tagRegex, replaceTag);
+
+    const hintRegex = /\[([A-Z_]+)_(\d+)_HINT\]/g;
+    newQ.hint = String(newQ.hint || "").replace(hintRegex, (match, tagClass, tagId) => {
+        const memKey = `${tagClass}_${tagId}`;
+        const word = memory[memKey];
+        if (word) {
+            const dictEntry = window.SH_DICTIONARY && window.SH_DICTIONARY[word.toLowerCase()];
+            return dictEntry ? dictEntry.split(/[;；]/)[0] : word; 
+        }
+        return match;
+    });
+
+    const fixArticles = (str) => {
+        return str.replace(/\b([Aa])n?\s+([a-zA-Z])/g, (m, article, nextChar) => {
+            const isVowel = /[aeiouAEIOU]/.test(nextChar);
+            if (article === 'A') return isVowel ? 'An ' + nextChar : 'A ' + nextChar;
+            return isVowel ? 'an ' + nextChar : 'a ' + nextChar;
+        });
+    };
+
+    newQ.answer = fixArticles(newQ.answer);
+    newQ.sentence = fixArticles(newQ.sentence);
+    
+    const _fixMode = (typeof window !== 'undefined' && window.GRAMMAR_FIX_MODE) ? window.GRAMMAR_FIX_MODE : 'rule';
+    if (_fixMode === 'rule' || _fixMode === 'both') {
+        const _OBJ_MAP = { he:'him', she:'her', i:'me', we:'us', they:'them', you:'you', it:'it' };
+        const _fixObjCase = (str) => str.replace(
+            /\b(with|for|to|at|of|about|from|by|without|after|before)\b\s+\b(he|she|I|we|they)\b/gi,
+            (m, prep, pronoun) => prep + ' ' + (_OBJ_MAP[pronoun.toLowerCase()] || pronoun)
+        );
+        newQ.sentence = _fixObjCase(newQ.sentence);
+        newQ.answer   = _fixObjCase(newQ.answer);
+    }
+
+    newQ.resolvedValues = Object.values(memory).join('_').replace(/\s+/g, '');
+    return newQ;
+};
