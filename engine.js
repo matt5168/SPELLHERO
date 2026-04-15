@@ -90,17 +90,14 @@ window.getGeminiKey = () => window.Obfuscator.decode(localStorage.getItem('gemin
 window.getOpenRouterKey = () => window.Obfuscator.decode(localStorage.getItem('openrouter_api_key')) || "";
 window.getGroqKey = () => window.Obfuscator.decode(localStorage.getItem('groq_api_key')) || "";
 window.getOpenAITtsKey = () => window.Obfuscator.decode(localStorage.getItem('sh_openai_tts_key')) || "";
+window.getNvidiaKey = () => window.Obfuscator.decode(localStorage.getItem('nvidia_api_key')) || "";
 
 class Mutex {
     constructor() { this.queue = Promise.resolve(); }
-    // batch 呼叫：進入有冷卻的隊列，避免 API rate limit
     async lock(delayMs = 4500) { let unlockNext; const willLock = new Promise(resolve => unlockNext = resolve); const willUnlock = this.queue.then(() => new Promise(res => setTimeout(res, delayMs))); this.queue = this.queue.then(() => willLock); await willUnlock; return unlockNext; }
-    // micro 呼叫（答題後即時解說）：直接通行，不等 batch 冷卻
     lockMicro() { let unlockNext = () => {}; return unlockNext; }
 }
 
-// ===== Gemini / Gemma 可用模型靜態清單 (fallback 用) =====
-// checkAvailableGeminiModels() 動態抓取後會與此清單合併
 window.GEMINI_DEFAULT_MODELS = [
     "gemini-2.5-flash",
     "gemini-2.0-flash",
@@ -114,21 +111,18 @@ window.GEMINI_DEFAULT_MODELS = [
 
 class PersistentAIClient {
     constructor() { 
-        this.geminiKey = window.getGeminiKey(); this.openRouterKey = window.getOpenRouterKey(); this.groqKey = window.getGroqKey(); this.openAITtsKey = window.getOpenAITtsKey();
-        this.lastCallTime = { groq: 0, google: 0, openrouter: 0, openai: 0 }; 
-        this.cooldowns = { groq: 3000, google: 4000, openrouter: 2000, openai: 2000 }; 
+        this.geminiKey = window.getGeminiKey(); this.openRouterKey = window.getOpenRouterKey(); this.groqKey = window.getGroqKey(); this.openAITtsKey = window.getOpenAITtsKey(); this.nvidiaKey = window.getNvidiaKey();
+        this.lastCallTime = { groq: 0, google: 0, openrouter: 0, openai: 0, nvidia: 0 }; 
+        this.cooldowns = { groq: 3000, google: 4000, openrouter: 2000, openai: 2000, nvidia: 2000 }; 
         this.mutex = new Mutex();
-        this.circuitBreakers = { groq: { failures: 0, lockUntil: 0 }, google: { failures: 0, lockUntil: 0 }, openrouter: { failures: 0, lockUntil: 0 }, openai: { failures: 0, lockUntil: 0 } };
+        this.circuitBreakers = { groq: { failures: 0, lockUntil: 0 }, google: { failures: 0, lockUntil: 0 }, openrouter: { failures: 0, lockUntil: 0 }, openai: { failures: 0, lockUntil: 0 }, nvidia: { failures: 0, lockUntil: 0 } };
     }
     checkCircuitBreaker(engine) { if (Date.now() < this.circuitBreakers[engine].lockUntil) { const remain = Math.ceil((this.circuitBreakers[engine].lockUntil - Date.now()) / 1000); throw new Error(`[Circuit Breaker] ${engine.toUpperCase()} 引擎處於冷卻中 (剩餘 ${remain}s)`); } }
     recordFailure(engine, retryAfterMs = 0) { const cb = this.circuitBreakers[engine]; cb.failures += 1; if (retryAfterMs > 0) { cb.lockUntil = Date.now() + retryAfterMs; cb.failures = 0; return; } if (cb.failures >= 3) { cb.lockUntil = Date.now() + (5 * 60 * 1000); cb.failures = 0; } }
     recordSuccess(engine) { this.circuitBreakers[engine].failures = 0; }
     getEngineStatus(provider) { const now = Date.now(); if (now < this.circuitBreakers[provider].lockUntil) return 'red'; if (now - this.lastCallTime[provider] < this.cooldowns[provider]) return 'yellow'; return 'green'; }
-    updateKeys(gKey, oKey, grKey, oaKey) { if (gKey) this.geminiKey = gKey; if (oKey) this.openRouterKey = oKey; if (grKey) this.groqKey = grKey; if (oaKey) this.openAITtsKey = oaKey; }
+    updateKeys(gKey, oKey, grKey, oaKey, nvKey) { if (gKey) this.geminiKey = gKey; if (oKey) this.openRouterKey = oKey; if (grKey) this.groqKey = grKey; if (oaKey) this.openAITtsKey = oaKey; if (nvKey) this.nvidiaKey = nvKey; }
 
-    // =============================================
-    // [新增] 動態抓取 Gemini / Gemma 可用模型清單
-    // =============================================
     async checkAvailableGeminiModels() {
         if (!this.geminiKey) return window.GEMINI_DEFAULT_MODELS;
         try {
@@ -138,9 +132,7 @@ class PersistentAIClient {
             const allModels = (data.models || [])
                 .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
                 .map(m => m.name.replace('models/', ''));
-            // 合併靜態清單，確保 gemma-3n 等新模型即使 API 清單沒回傳也能手動選
             const merged = Array.from(new Set([...allModels, ...window.GEMINI_DEFAULT_MODELS]));
-            // 排序：gemini-2.5 優先，再 gemini-2.0，再 gemini-1.x，最後 gemma
             merged.sort((a, b) => {
                 const rank = s => {
                     if (s.startsWith('gemini-2.5')) return 0;
@@ -171,7 +163,20 @@ class PersistentAIClient {
         return null;
     }
 
-    // checkAvailableModels：只決定「批次預設模型」快取，不影響手動選擇
+    async checkAvailableNvidiaModels() {
+        if (!this.nvidiaKey) return ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/llama-3.1-nemotron-70b-instruct"];
+        try {
+            const res = await fetch('https://integrate.api.nvidia.com/v1/models', {
+                headers: { 'Authorization': `Bearer ${this.nvidiaKey}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                return data.data.map(m => m.id).filter(id => !id.includes('vision') && !id.includes('embedding') && !id.includes('tts')).sort();
+            }
+        } catch(e) {}
+        return ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/llama-3.1-nemotron-70b-instruct"];
+    }
+
     async checkAvailableModels(signal) { 
         const today = new Date().toLocaleDateString(); const cachedModel = localStorage.getItem('sh_gemini_model_cache'); const cacheDate = localStorage.getItem('sh_gemini_model_cache_date');
         if (cachedModel && cacheDate === today) return { gemini: cachedModel };
@@ -189,17 +194,13 @@ class PersistentAIClient {
 
     async callGemini(modelName, systemPrompt, userQuery, signal, onChunk, onLog, taskType = "batch", retryCount = 0) {
         this.checkCircuitBreaker('google'); let unlock = () => {};
-        // micro 模式：bypass mutex，避免被 batch 任務的 4.5s 冷卻鎖住
         const isMicro = taskType === 'micro';
         try {
             unlock = isMicro ? this.mutex.lockMicro() : await this.mutex.lock(4500);
             const localController = new AbortController(); const onAbort = () => localController.abort(new Error("AbortError")); if (signal) signal.addEventListener('abort', onAbort);
             let firstChunk = false; const baseTTFT = 12000; const ttftLimit = isMicro ? 6000 : baseTTFT;
             const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
-            // [修改] micro 模式優先讀手動選擇的模型 (sh_gemini_model_selected)，fallback 才用快取
-            const resolvedModel = isMicro 
-                ? (localStorage.getItem('sh_gemini_model_selected') || localStorage.getItem('sh_gemini_model_cache') || 'gemini-2.0-flash') 
-                : modelName;
+            const resolvedModel = isMicro ? (localStorage.getItem('sh_gemini_model_selected') || localStorage.getItem('sh_gemini_model_cache') || 'gemini-2.0-flash') : modelName;
             const url = "https://generativelanguage.googleapis.com/v1beta/models/" + resolvedModel + ":streamGenerateContent?alt=sse&key=" + this.geminiKey;
             const payload = { contents: [{ role: "user", parts: [{ text: userQuery }] }], systemInstruction: { role: "system", parts: [{ text: systemPrompt }] }, generationConfig: { responseMimeType: "text/plain", temperature: 0.1, maxOutputTokens: 1500 } };
             const startTime = Date.now(); onLog && onLog(`📡 [Gemini] 發送請求 (${resolvedModel})...`);
@@ -362,6 +363,49 @@ class PersistentAIClient {
             unlock(); if (retryCount < 3 && !e.message.includes('Circuit Breaker') && !e.message.includes('FATAL') && e.name !== 'AbortError') { const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000); onLog && onLog(`[重試] OpenAI 等待 ${Math.round(backoffMs/1000)}s...`); await new Promise(r => setTimeout(r, backoffMs)); return this.callOpenAI(systemPrompt, userQuery, signal, onChunk, onLog, specificModel, taskType, retryCount + 1); } throw e;
         }
     }
+
+    async callNvidia(systemPrompt, userQuery, signal, onChunk, onLog, specificModel = "meta/llama-3.1-70b-instruct", taskType = "batch", retryCount = 0) {
+        this.checkCircuitBreaker('nvidia'); let unlock = () => {};
+        const isMicro = taskType === 'micro';
+        try {
+            unlock = isMicro ? this.mutex.lockMicro() : await this.mutex.lock(4500);
+            const localController = new AbortController(); const onAbort = () => localController.abort(new Error("AbortError")); if (signal) signal.addEventListener('abort', onAbort);
+            let firstChunk = false; const baseTTFT = 8000; const ttftLimit = isMicro ? 4000 : baseTTFT;
+            const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
+            const url = 'https://integrate.api.nvidia.com/v1/chat/completions';
+            const payload = { model: specificModel, messages: [ { role: "system", content: systemPrompt }, { role: "user", content: userQuery } ], stream: true, temperature: 0.1, max_tokens: 1500 };
+            const startTime = Date.now(); onLog && onLog(`📡 [NVIDIA] 發送請求 (${specificModel})...`);
+            const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + this.nvidiaKey, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
+            if (!res.ok) {
+                clearTimeout(ttftTimeout); let errBody = ""; try { errBody = await res.text(); } catch(e){} const errMsg = `HTTP ${res.status} ${errBody.substring(0, 100).replace(/\n/g, ' ')}`;
+                onLog && onLog(`📥 [NVIDIA] 異常: ${errMsg}`);
+                if (res.status === 429 || res.status >= 500) {
+                    const retryAfter = res.headers.get('Retry-After'); let delayMs = retryAfter ? (isNaN(retryAfter) ? (new Date(retryAfter).getTime() - Date.now()) : (parseInt(retryAfter) * 1000)) : 30000;
+                    this.recordFailure('nvidia', Math.max(delayMs, 30000));
+                    throw new Error('FATAL_ROUTING: ' + errMsg);
+                } else if (res.status === 400 || res.status === 401 || res.status === 403) {
+                    this.recordFailure('nvidia', 60000); throw new Error('FATAL: ' + errMsg);
+                }
+                this.recordFailure('nvidia'); throw new Error(errMsg);
+            }
+            this.recordSuccess('nvidia');
+            const reader = res.body.getReader(); const decoder = new TextDecoder("utf-8"); let fullText = ""; let buffer = ""; let actualModel = specificModel;
+            while (true) {
+                const { done, value } = await reader.read(); if (done) break;
+                if (!firstChunk) { firstChunk = true; clearTimeout(ttftTimeout); onLog && onLog(`⚡ [NVIDIA] 收到首批串流封包！`); }
+                buffer += decoder.decode(value, { stream: true }); const lines = buffer.split('\n'); buffer = lines.pop();
+                for (let i=0; i<lines.length; i++) {
+                    let line = lines[i].trim();
+                    if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                        try { const data = JSON.parse(line.slice(6)); if (data.model) actualModel = data.model; let content = ""; if (data.choices && data.choices[0]) { if (data.choices[0].delta && data.choices[0].delta.content !== undefined) content = data.choices[0].delta.content; else if (data.choices[0].message && data.choices[0].message.content !== undefined) content = data.choices[0].message.content; } if (content) { fullText += content; if(onChunk) onChunk(fullText, actualModel); } } catch(e) {}
+                    }
+                }
+            }
+            if (signal) signal.removeEventListener('abort', onAbort); unlock(); return { rawText: fullText, modelName: actualModel.toUpperCase(), provider: "nvidia" };
+        } catch (e) {
+            unlock(); if (retryCount < 3 && !e.message.includes('Circuit Breaker') && !e.message.includes('FATAL') && e.name !== 'AbortError') { const backoffMs = (Math.pow(2, retryCount) * 5000) + (Math.random() * 5000); onLog && onLog(`[重試] NVIDIA 等待 ${Math.round(backoffMs/1000)}s...`); await new Promise(r => setTimeout(r, backoffMs)); return this.callNvidia(systemPrompt, userQuery, signal, onChunk, onLog, specificModel, taskType, retryCount + 1); } throw e;
+        }
+    }
 }
 window.sharedAIClient = new PersistentAIClient();
 
@@ -398,7 +442,6 @@ window.resolveGrammarTags = function(qObj) {
         return match;
     });
 
-    // a/an 自動修正：依照下一個單字的首字母決定用 a 或 an
     const fixArticles = (str) => {
         return str.replace(/\b([Aa])n?\s+([a-zA-Z])/g, (m, article, nextChar) => {
             const isVowel = /[aeiouAEIOU]/.test(nextChar);
@@ -410,7 +453,6 @@ window.resolveGrammarTags = function(qObj) {
     newQ.answer = fixArticles(newQ.answer);
     newQ.sentence = fixArticles(newQ.sentence);
     
-    // === 介系詞受格自動修正（開關：window.GRAMMAR_FIX_MODE） ===
     const _fixMode = (typeof window !== 'undefined' && window.GRAMMAR_FIX_MODE) ? window.GRAMMAR_FIX_MODE : 'rule';
     if (_fixMode === 'rule' || _fixMode === 'both') {
         const _OBJ_MAP = { he:'him', she:'her', i:'me', we:'us', they:'them', you:'you', it:'it' };
