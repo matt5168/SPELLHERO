@@ -42,6 +42,7 @@
                 <div className="p-6 bg-[#b5847e]/20 text-[#524d46] min-h-screen font-mono text-center flex flex-col items-center justify-center">
                   <h1 className="text-2xl font-black mb-4">⚠️ 系統錯誤</h1>
                   <p className="bg-[#f4f1ea] border border-[#dcb5b0] p-4 rounded-xl mb-6 text-xs max-w-lg overflow-auto shadow-sm text-left">{this.state.errorInfo}</p>
+                  <p className="text-sm text-[#a3756f] mb-6">請確認 engine.js 與 database.js 是否正確載入且包含 window 綁定。</p>
                   <button onClick={() => window.location.reload()} className="bg-[#b5847e] text-white hover:bg-[#a3756f] px-6 py-2 rounded-full font-bold shadow transition-all">重新載入</button>
                 </div>
               );
@@ -86,10 +87,10 @@
           const [groqModel, setGroqModel] = useState(localStorage.getItem('sh_groq_model') || 'llama-3.3-70b-versatile');
           const [groqModelsList, setGroqModelsList] = useState(["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"]);
           
-          // 新增 NVIDIA 狀態
+          // 修改: 預設載入 MiniMax 模型
           const [inputNvidiaKey, setInputNvidiaKey] = useState(getVal('getNvidiaKey', ''));
-          const [nvidiaModel, setNvidiaModel] = useState(localStorage.getItem('sh_nvidia_model') || 'meta/llama-3.1-70b-instruct');
-          const [nvidiaModelsList, setNvidiaModelsList] = useState(["meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/llama-3.1-nemotron-70b-instruct"]);
+          const [nvidiaModel, setNvidiaModel] = useState(localStorage.getItem('sh_nvidia_model') || 'minimaxai/minimax-m2.7');
+          const [nvidiaModelsList, setNvidiaModelsList] = useState(["minimaxai/minimax-m2.7", "meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/llama-3.1-nemotron-70b-instruct"]);
 
           const [defaultTeacher, setDefaultTeacher] = useState(localStorage.getItem('sh_default_teacher') || 'openrouter');
           
@@ -193,7 +194,6 @@
               }
           }, [dash, inputKey, enginesEnabled.google]);
 
-          // 新增 NVIDIA 模型自動抓取
           useEffect(() => {
               if (dash && window.sharedAIClient && inputNvidiaKey && enginesEnabled.nvidia) {
                   if (typeof window.sharedAIClient.checkAvailableNvidiaModels === 'function') {
@@ -223,7 +223,7 @@
                   mistakes: JSON.parse(localStorage.getItem('sh_mistakes_v29')||'[]'), apiUsage: JSON.parse(localStorage.getItem('sh_api_usage_v29')||'{}'),
                   settings: {
                       uiLayout: localStorage.getItem('sh_ui_layout')||'layout1', ttsEngine: localStorage.getItem('sh_tts_engine')||'native', ttsVoice: localStorage.getItem('sh_openai_tts_voice')||'nova',
-                      orModel: localStorage.getItem('sh_or_model')||'openrouter/auto', groqModel: localStorage.getItem('sh_groq_model')||'llama-3.3-70b-versatile', nvidiaModel: localStorage.getItem('sh_nvidia_model')||'meta/llama-3.1-70b-instruct',
+                      orModel: localStorage.getItem('sh_or_model')||'openrouter/auto', groqModel: localStorage.getItem('sh_groq_model')||'llama-3.3-70b-versatile', nvidiaModel: localStorage.getItem('sh_nvidia_model')||'minimaxai/minimax-m2.7',
                       geminiKey: localStorage.getItem('gemini_api_key')||'', orKey: localStorage.getItem('openrouter_api_key')||'', groqKey: localStorage.getItem('groq_api_key')||'', openAITtsKey: localStorage.getItem('sh_openai_tts_key')||'', nvidiaKey: localStorage.getItem('nvidia_api_key')||'', routingMode: localStorage.getItem('sh_routing_mode')||'dynamic',
                       enableGroq: localStorage.getItem('sh_enable_groq'), enableGoogle: localStorage.getItem('sh_enable_google'), enableOr: localStorage.getItem('sh_enable_or'), enableOpenAI: localStorage.getItem('sh_enable_openai'), enableNvidia: localStorage.getItem('sh_enable_nvidia'),
                       promptMode: localStorage.getItem('sh_prompt_mode')||'v1', customPrompt: localStorage.getItem('sh_custom_prompt')||defaultCustomPrompt, defaultTeacher: localStorage.getItem('sh_default_teacher')||'openrouter'
@@ -1260,7 +1260,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                                 className="flex-1 min-w-0 bg-[#6b7566] border border-[#5a6356] rounded-lg px-2 py-2 text-xs md:text-sm outline-none text-white font-mono truncate"
                                             >
                                                 {nvidiaModelsList.map(m => (
-                                                    <option key={m} value={m}>{m === 'meta/llama-3.1-70b-instruct' ? 'Llama 3.1 70B (推薦)' : m}</option>
+                                                    <option key={m} value={m}>{m === 'minimaxai/minimax-m2.7' ? 'MiniMax 2.7 (推薦)' : m === 'meta/llama-3.1-70b-instruct' ? 'Llama 3.1 70B' : m}</option>
                                                 ))}
                                             </select>
                                             <button 
@@ -1718,6 +1718,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                       )}
                       
                       <div className="mt-5 w-full bg-white/60 p-4 md:p-5 rounded-2xl border border-[#c4cec1] shadow-sm text-left">
+                          {/* 判斷是否顯示翻譯：排除「文法題且完全答對」的情況 */}
                           {(() => {
                               const showTranslation = !(mainMenu === 'grammar' && isFinallyCorrect);
                               return (
@@ -1741,6 +1742,7 @@ CRITICAL: Output EXACTLY TWO objects per IDX.`;
                                           )}
                                       </div>
                                       
+                                      {/* 根據條件渲染中文翻譯 */}
                                       {showTranslation && (
                                           <div className="text-base font-bold text-[#8b9586] leading-relaxed">
                                               {String(q.translation || "目前尚無翻譯").split(/[_＿]{2,}/).map((part, idx, arr) => (
