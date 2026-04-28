@@ -70,7 +70,7 @@ window.SYSTEM_ENGINE = {
       let cleaned = String(text||"").replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
       let objects = []; let braceCount = 0; let inString = false; let escape = false; let startIdx = -1;
       for (let i = 0; i < cleaned.length; i++) {
-          let char = cleaned[i]; if (escape) { escape = false; continue; } if (char === '\') { escape = true; continue; } if (char === '"') { inString = !inString; continue; }
+          let char = cleaned[i]; if (escape) { escape = false; continue; } if (char === '\\') { escape = true; continue; } if (char === '"') { inString = !inString; continue; }
           if (!inString) { if (char === '{') { if (braceCount === 0) startIdx = i; braceCount++; } else if (char === '}') { braceCount--; if (braceCount === 0 && startIdx !== -1) { try { objects.push(JSON.parse(cleaned.substring(startIdx, i + 1))); } catch(e) {} startIdx = -1; } } }
       } return objects;
   }
@@ -78,7 +78,7 @@ window.SYSTEM_ENGINE = {
 
 window.shuffleArray = arr => { const n = [...arr]; for (let i = n.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); let t = n[i]; n[i] = n[j]; n[j] = t; } return n; };
 window.generateVocabOptions = (ca, fDB) => { const s = String(ca||""); const opts = new Set([s]); const safeDB = Array.isArray(fDB) ? fDB : []; const pool = safeDB.filter(i => String(i.answer||"").toLowerCase() !== s.toLowerCase()); const sp = window.shuffleArray([...pool]); for (let i = 0; i < sp.length; i++) { if (opts.size >= 4) break; opts.add(String(sp[i].answer||"")); } return window.shuffleArray(Array.from(opts)); };
-window.escapeRegExp = str => str.replace(/[.*+?^${}()|[\]\]/g, '\$&');
+window.escapeRegExp = str => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 window.Obfuscator = {
     prefix: "SH_ENC:", salt: "SpellingHero2026",
