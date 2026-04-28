@@ -70,7 +70,7 @@ window.SYSTEM_ENGINE = {
       let cleaned = String(text||"").replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
       let objects = []; let braceCount = 0; let inString = false; let escape = false; let startIdx = -1;
       for (let i = 0; i < cleaned.length; i++) {
-          let char = cleaned[i]; if (escape) { escape = false; continue; } if (char === '\\') { escape = true; continue; } if (char === '"') { inString = !inString; continue; }
+          let char = cleaned[i]; if (escape) { escape = false; continue; } if (char === '\') { escape = true; continue; } if (char === '"') { inString = !inString; continue; }
           if (!inString) { if (char === '{') { if (braceCount === 0) startIdx = i; braceCount++; } else if (char === '}') { braceCount--; if (braceCount === 0 && startIdx !== -1) { try { objects.push(JSON.parse(cleaned.substring(startIdx, i + 1))); } catch(e) {} startIdx = -1; } } }
       } return objects;
   }
@@ -78,7 +78,7 @@ window.SYSTEM_ENGINE = {
 
 window.shuffleArray = arr => { const n = [...arr]; for (let i = n.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); let t = n[i]; n[i] = n[j]; n[j] = t; } return n; };
 window.generateVocabOptions = (ca, fDB) => { const s = String(ca||""); const opts = new Set([s]); const safeDB = Array.isArray(fDB) ? fDB : []; const pool = safeDB.filter(i => String(i.answer||"").toLowerCase() !== s.toLowerCase()); const sp = window.shuffleArray([...pool]); for (let i = 0; i < sp.length; i++) { if (opts.size >= 4) break; opts.add(String(sp[i].answer||"")); } return window.shuffleArray(Array.from(opts)); };
-window.escapeRegExp = str => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+window.escapeRegExp = str => str.replace(/[.*+?^${}()|[\]\]/g, '\$&');
 
 window.Obfuscator = {
     prefix: "SH_ENC:", salt: "SpellingHero2026",
@@ -164,7 +164,7 @@ class PersistentAIClient {
     }
 
     async checkAvailableNvidiaModels() {
-        if (!this.nvidiaKey) return ["minimaxai/minimax-m2.7", "meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/llama-3.1-nemotron-70b-instruct"];
+        if (!this.nvidiaKey) return ["z-ai/glm4.7", "moonshotai/kimi-k2-instruct", "minimaxai/minimax-m2.7", "meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/llama-3.1-nemotron-70b-instruct"];
         try {
             const res = await fetch('https://integrate.api.nvidia.com/v1/models', {
                 headers: { 'Authorization': `Bearer ${this.nvidiaKey}` }
@@ -172,12 +172,13 @@ class PersistentAIClient {
             if (res.ok) {
                 const data = await res.json();
                 const filtered = data.data.map(m => m.id).filter(id => !id.includes('vision') && !id.includes('embedding') && !id.includes('tts')).sort();
-                // 確保 minimaxai/minimax-m2.7 在清單中並排序到前面
+                if (!filtered.includes("moonshotai/kimi-k2-instruct")) filtered.unshift("moonshotai/kimi-k2-instruct");
+                if (!filtered.includes("z-ai/glm4.7")) filtered.unshift("z-ai/glm4.7");
                 if (!filtered.includes("minimaxai/minimax-m2.7")) filtered.unshift("minimaxai/minimax-m2.7");
                 return filtered;
             }
         } catch(e) {}
-        return ["minimaxai/minimax-m2.7", "meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/llama-3.1-nemotron-70b-instruct"];
+        return ["z-ai/glm4.7", "moonshotai/kimi-k2-instruct", "minimaxai/minimax-m2.7", "meta/llama-3.1-70b-instruct", "meta/llama-3.1-8b-instruct", "nvidia/llama-3.1-nemotron-70b-instruct"];
     }
 
     async checkAvailableModels(signal) { 
@@ -271,7 +272,18 @@ class PersistentAIClient {
                 for (let i=0; i<lines.length; i++) {
                     let line = lines[i].trim();
                     if (line.startsWith('data: ') && line !== 'data: [DONE]') { 
-                        try { const data = JSON.parse(line.slice(6)); if (data.model) actualModel = data.model; let content = ""; if (data.choices && data.choices[0]) { if (data.choices[0].delta && data.choices[0].delta.content !== undefined) content = data.choices[0].delta.content; else if (data.choices[0].message && data.choices[0].message.content !== undefined) content = data.choices[0].message.content; } if (content) { fullText += content; if(onChunk) onChunk(fullText, actualModel); } } catch(e) {} 
+                        try { const data = JSON.parse(line.slice(6)); if (data.model) actualModel = data.model; let added = false;
+                        if (data.choices && data.choices[0]) {
+                            let delta = data.choices[0].delta;
+                            let msg = data.choices[0].message;
+                            if (delta) {
+                                if (delta.reasoning_content) { fullText += delta.reasoning_content; added = true; }
+                                if (delta.content !== undefined && delta.content !== null) { fullText += delta.content; added = true; }
+                            } else if (msg && msg.content !== undefined && msg.content !== null) {
+                                fullText += msg.content; added = true;
+                            }
+                        }
+                        if (added && onChunk) onChunk(fullText, actualModel); } catch(e) {} 
                     }
                 }
             } 
@@ -291,6 +303,12 @@ class PersistentAIClient {
             const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
             const url = 'https://api.groq.com/openai/v1/chat/completions';
             const payload = { model: specificModel, messages: [ { role: "system", content: systemPrompt }, { role: "user", content: userQuery } ], stream: true, temperature: 0.1, max_tokens: 1500 };
+            if (specificModel === "z-ai/glm4.7") {
+                payload.chat_template_kwargs = { enable_thinking: true, clear_thinking: false };
+                payload.temperature = 1.0;
+                payload.top_p = 1.0;
+                payload.max_tokens = 4096;
+            }
             const startTime = Date.now(); onLog && onLog(`📡 [Groq] 發送請求 (${specificModel})...`);
             const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + this.groqKey, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
             if (!res.ok) {
@@ -314,7 +332,18 @@ class PersistentAIClient {
                 for (let i=0; i<lines.length; i++) {
                     let line = lines[i].trim();
                     if (line.startsWith('data: ') && line !== 'data: [DONE]') { 
-                        try { const data = JSON.parse(line.slice(6)); if (data.model) actualModel = data.model; let content = ""; if (data.choices && data.choices[0]) { if (data.choices[0].delta && data.choices[0].delta.content !== undefined) content = data.choices[0].delta.content; else if (data.choices[0].message && data.choices[0].message.content !== undefined) content = data.choices[0].message.content; } if (content) { fullText += content; if(onChunk) onChunk(fullText, actualModel); } } catch(e) {} 
+                        try { const data = JSON.parse(line.slice(6)); if (data.model) actualModel = data.model; let added = false;
+                        if (data.choices && data.choices[0]) {
+                            let delta = data.choices[0].delta;
+                            let msg = data.choices[0].message;
+                            if (delta) {
+                                if (delta.reasoning_content) { fullText += delta.reasoning_content; added = true; }
+                                if (delta.content !== undefined && delta.content !== null) { fullText += delta.content; added = true; }
+                            } else if (msg && msg.content !== undefined && msg.content !== null) {
+                                fullText += msg.content; added = true;
+                            }
+                        }
+                        if (added && onChunk) onChunk(fullText, actualModel); } catch(e) {} 
                     }
                 }
             } 
@@ -334,6 +363,12 @@ class PersistentAIClient {
             const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
             const url = 'https://api.openai.com/v1/chat/completions';
             const payload = { model: specificModel, messages: [ { role: "system", content: systemPrompt }, { role: "user", content: userQuery } ], stream: true, temperature: 0.1, max_tokens: 1500 };
+            if (specificModel === "z-ai/glm4.7") {
+                payload.chat_template_kwargs = { enable_thinking: true, clear_thinking: false };
+                payload.temperature = 1.0;
+                payload.top_p = 1.0;
+                payload.max_tokens = 4096;
+            }
             const startTime = Date.now(); onLog && onLog(`📡 [OpenAI] 發送請求 (${specificModel})...`);
             const res = await fetch(url, { method: 'POST', headers: { 'Authorization': `Bearer ${this.openAITtsKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
             if (!res.ok) {
@@ -357,7 +392,18 @@ class PersistentAIClient {
                 for (let i=0; i<lines.length; i++) {
                     let line = lines[i].trim();
                     if (line.startsWith('data: ') && line !== 'data: [DONE]') { 
-                        try { const data = JSON.parse(line.slice(6)); if (data.model) actualModel = data.model; let content = ""; if (data.choices && data.choices[0]) { if (data.choices[0].delta && data.choices[0].delta.content !== undefined) content = data.choices[0].delta.content; else if (data.choices[0].message && data.choices[0].message.content !== undefined) content = data.choices[0].message.content; } if (content) { fullText += content; if(onChunk) onChunk(fullText, actualModel); } } catch(e) {} 
+                        try { const data = JSON.parse(line.slice(6)); if (data.model) actualModel = data.model; let added = false;
+                        if (data.choices && data.choices[0]) {
+                            let delta = data.choices[0].delta;
+                            let msg = data.choices[0].message;
+                            if (delta) {
+                                if (delta.reasoning_content) { fullText += delta.reasoning_content; added = true; }
+                                if (delta.content !== undefined && delta.content !== null) { fullText += delta.content; added = true; }
+                            } else if (msg && msg.content !== undefined && msg.content !== null) {
+                                fullText += msg.content; added = true;
+                            }
+                        }
+                        if (added && onChunk) onChunk(fullText, actualModel); } catch(e) {} 
                     }
                 }
             } 
@@ -377,6 +423,12 @@ class PersistentAIClient {
             const ttftTimeout = setTimeout(() => { if (!firstChunk) { localController.abort(new Error("TIMEOUT_TTFT")); } }, ttftLimit);
             const url = 'https://integrate.api.nvidia.com/v1/chat/completions';
             const payload = { model: specificModel, messages: [ { role: "system", content: systemPrompt }, { role: "user", content: userQuery } ], stream: true, temperature: 0.1, max_tokens: 1500 };
+            if (specificModel === "z-ai/glm4.7") {
+                payload.chat_template_kwargs = { enable_thinking: true, clear_thinking: false };
+                payload.temperature = 1.0;
+                payload.top_p = 1.0;
+                payload.max_tokens = 4096;
+            }
             const startTime = Date.now(); onLog && onLog(`📡 [NVIDIA] 發送請求 (${specificModel})...`);
             const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + this.nvidiaKey, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: localController.signal });
             if (!res.ok) {
@@ -400,7 +452,18 @@ class PersistentAIClient {
                 for (let i=0; i<lines.length; i++) {
                     let line = lines[i].trim();
                     if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-                        try { const data = JSON.parse(line.slice(6)); if (data.model) actualModel = data.model; let content = ""; if (data.choices && data.choices[0]) { if (data.choices[0].delta && data.choices[0].delta.content !== undefined) content = data.choices[0].delta.content; else if (data.choices[0].message && data.choices[0].message.content !== undefined) content = data.choices[0].message.content; } if (content) { fullText += content; if(onChunk) onChunk(fullText, actualModel); } } catch(e) {}
+                        try { const data = JSON.parse(line.slice(6)); if (data.model) actualModel = data.model; let added = false;
+                        if (data.choices && data.choices[0]) {
+                            let delta = data.choices[0].delta;
+                            let msg = data.choices[0].message;
+                            if (delta) {
+                                if (delta.reasoning_content) { fullText += delta.reasoning_content; added = true; }
+                                if (delta.content !== undefined && delta.content !== null) { fullText += delta.content; added = true; }
+                            } else if (msg && msg.content !== undefined && msg.content !== null) {
+                                fullText += msg.content; added = true;
+                            }
+                        }
+                        if (added && onChunk) onChunk(fullText, actualModel); } catch(e) {}
                     }
                 }
             }
